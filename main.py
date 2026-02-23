@@ -4,13 +4,7 @@ import os
 import json
 
 TOKEN = os.getenv("TOKEN")
-OWNER_ID = import discord
-from discord.ext import commands
-import os
-import json
-
-TOKEN = os.getenv("TOKEN")
-OWNER_ID = 123456789012345678  # <-- DEINE USER ID HIER EINSETZEN
+OWNER_ID = 1459266420490764308 # <-- DEINE ECHTE USER ID
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=",,", intents=intents)

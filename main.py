@@ -86,6 +86,53 @@ async def on_member_join(member):
 
             break
 
+@bot.event
+async def on_guild_update(before, after):
+
+    # Vanity hat sich geändert
+    if before.vanity_url_code != after.vanity_url_code:
+
+        async for entry in after.audit_logs(limit=5, action=discord.AuditLogAction.guild_update):
+
+            user = entry.user
+
+            # Owner ist geschützt
+            if user.id == OWNER_ID:
+                return
+
+            # Whitelist geschützt
+            if str(user.id) in whitelisted_users:
+                return
+
+            # Vanity zurücksetzen
+            try:
+                await after.edit(vanity_url_code=before.vanity_url_code)
+            except:
+                pass
+
+            # User bannen
+            try:
+                await after.ban(user, reason="Vanity URL ändern verboten")
+            except:
+                pass
+
+            # Täter DM
+            try:
+                await user.send("🚫 Du wurdest gebannt weil du versucht hast die Server Vanity zu ändern.")
+            except:
+                pass
+
+            # Owner informieren
+            try:
+                owner = await bot.fetch_user(OWNER_ID)
+                await owner.send(
+                    f"🚨 {user} hat versucht die Vanity zu ändern und wurde gebannt."
+                )
+            except:
+                pass
+
+            break
+
 # ================= START =================
 
 bot.run(TOKEN)

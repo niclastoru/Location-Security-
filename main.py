@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import json
 
-TOKEN = "DEIN_TOKEN_HIER"
+TOKEN = os.getenv("TOKEN"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="_", intents=intents)

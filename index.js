@@ -16,23 +16,19 @@ const client = new Client({
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const PREFIX = '!';
 
-// Embed Helper (global verfügbar)
 global.embed = {
     success: (title, desc) => ({ color: 0x00FF00, title: `✅ ${title}`, description: desc, timestamp: new Date().toISOString() }),
     error: (title, desc) => ({ color: 0xFF0000, title: `❌ ${title}`, description: desc, timestamp: new Date().toISOString() }),
-    info: (title, desc) => ({ color: 0x0099FF, title: `ℹ️ ${title}`, description: desc, timestamp: new Date().toISOString() }),
-    warn: (title, desc) => ({ color: 0xFFA500, title: `⚠️ ${title}`, description: desc, timestamp: new Date().toISOString() })
+    info: (title, desc) => ({ color: 0x0099FF, title: `ℹ️ ${title}`, description: desc, timestamp: new Date().toISOString() })
 };
 
-// Commands Collection
 client.commands = new Collection();
 client.categories = new Collection();
+client.subCommands = new Collection(); // NEU: Für moderation.js
 
-// Dynamisch alle Dateien aus /models laden
 const loadCommands = () => {
     const modelsPath = path.join(__dirname, 'models');
     
-    // Prüfen ob Ordner existiert
     if (!fs.existsSync(modelsPath)) {
         fs.mkdirSync(modelsPath);
         console.log('📁 models Ordner erstellt');
@@ -41,30 +37,43 @@ const loadCommands = () => {
     const files = fs.readdirSync(modelsPath).filter(file => file.endsWith('.js'));
     
     for (const file of files) {
-        const command = require(path.join(modelsPath, file));
+        const module = require(path.join(modelsPath, file));
         
-        if (command.name) {
-            // Hauptbefehl speichern
-            client.commands.set(command.name, command);
-            
-            // Aliase speichern
-            if (command.aliases) {
-                command.aliases.forEach(alias => client.commands.set(alias, command));
-            }
-            
-            // Kategorie speichern
-            if (command.category) {
-                if (!client.categories.has(command.category)) {
-                    client.categories.set(command.category, []);
+        // ⭐ NEU: Prüfen ob es Subcommands hat (wie moderation.js)
+        if (module.subCommands) {
+            for (const [name, cmd] of Object.entries(module.subCommands)) {
+                client.commands.set(name, cmd);
+                if (cmd.aliases) {
+                    cmd.aliases.forEach(alias => client.commands.set(alias, cmd));
                 }
-                client.categories.get(command.category).push(command);
+                
+                // Zur Kategorie hinzufügen
+                const category = cmd.category || module.category || 'Sonstiges';
+                if (!client.categories.has(category)) {
+                    client.categories.set(category, []);
+                }
+                client.categories.get(category).push({ name, ...cmd });
+            }
+            console.log(`📦 ${Object.keys(module.subCommands).length} Subcommands aus ${file} geladen`);
+        }
+        // Normaler Einzel-Befehl (wie help.js)
+        else if (module.name) {
+            client.commands.set(module.name, module);
+            if (module.aliases) {
+                module.aliases.forEach(alias => client.commands.set(alias, module));
             }
             
-            console.log(`✅ Befehl geladen: ${command.name}`);
+            const category = module.category || 'Sonstiges';
+            if (!client.categories.has(category)) {
+                client.categories.set(category, []);
+            }
+            client.categories.get(category).push(module);
+            
+            console.log(`✅ Befehl geladen: ${module.name}`);
         }
     }
     
-    console.log(`📦 ${client.commands.size} Befehle geladen`);
+    console.log(`📦 ${client.commands.size} Befehle insgesamt geladen`);
 };
 
 loadCommands();

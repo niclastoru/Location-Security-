@@ -1,0 +1,3 @@
+npm init -y
+npm install discord.js mongoose dotenv
+npm install -D nodemon

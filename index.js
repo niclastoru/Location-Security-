@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,26 +8,33 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences
     ]
 });
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const PREFIX = '!';
 
+// Embed Helper (global verfügbar)
 global.embed = {
     success: (title, desc) => ({ color: 0x00FF00, title: `✅ ${title}`, description: desc, timestamp: new Date().toISOString() }),
     error: (title, desc) => ({ color: 0xFF0000, title: `❌ ${title}`, description: desc, timestamp: new Date().toISOString() }),
-    info: (title, desc) => ({ color: 0x0099FF, title: `ℹ️ ${title}`, description: desc, timestamp: new Date().toISOString() })
+    info: (title, desc) => ({ color: 0x0099FF, title: `ℹ️ ${title}`, description: desc, timestamp: new Date().toISOString() }),
+    warn: (title, desc) => ({ color: 0xFFA500, title: `⚠️ ${title}`, description: desc, timestamp: new Date().toISOString() })
 };
 
+// Commands Collection
 client.commands = new Collection();
 client.categories = new Collection();
-client.subCommands = new Collection(); // NEU: Für moderation.js
 
+// ========== SNIPE CACHE (ohne Supabase) ==========
+client.snipes = new Map();
+
+// Dynamisch alle Dateien aus /models laden
 const loadCommands = () => {
     const modelsPath = path.join(__dirname, 'models');
     
+    // Prüfen ob Ordner existiert
     if (!fs.existsSync(modelsPath)) {
         fs.mkdirSync(modelsPath);
         console.log('📁 models Ordner erstellt');
@@ -39,7 +45,7 @@ const loadCommands = () => {
     for (const file of files) {
         const module = require(path.join(modelsPath, file));
         
-        // ⭐ NEU: Prüfen ob es Subcommands hat (wie moderation.js)
+        // Prüfen ob es Subcommands hat (wie moderation.js oder utils.js)
         if (module.subCommands) {
             for (const [name, cmd] of Object.entries(module.subCommands)) {
                 client.commands.set(name, cmd);
@@ -74,14 +80,18 @@ const loadCommands = () => {
     }
     
     console.log(`📦 ${client.commands.size} Befehle insgesamt geladen`);
+    console.log(`📂 Kategorien: ${Array.from(client.categories.keys()).join(', ')}`);
 };
 
 loadCommands();
 
+// ========== BOT READY ==========
 client.once('ready', () => {
     console.log(`✅ ${client.user.tag} ist online!`);
+    console.log(`🌐 ${client.guilds.cache.size} Server verbunden`);
 });
 
+// ========== MESSAGE CREATE ==========
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.content.startsWith(PREFIX)) return;
     
@@ -102,7 +112,7 @@ client.on('messageCreate', async (message) => {
     }
     
     try {
-        await command.execute(message, args, { client, supabase });
+        await command.execute(message, args, { client });
     } catch (error) {
         console.error(`Fehler bei ${commandName}:`, error);
         message.reply({ 
@@ -111,4 +121,30 @@ client.on('messageCreate', async (message) => {
     }
 });
 
+// ========== SNIPE LISTENER (Nachrichten löschen) ==========
+client.on('messageDelete', async (message) => {
+    if (message.author?.bot || (!message.content && !message.attachments.size)) return;
+    
+    const attachments = [];
+    message.attachments.forEach(att => attachments.push(att.url));
+    
+    client.snipes.set(message.channel.id, {
+        author: message.author?.tag || 'Unbekannt',
+        avatar: message.author?.displayAvatarURL() || null,
+        content: message.content || null,
+        attachments: attachments.length > 0 ? attachments : null,
+        time: new Date().toLocaleTimeString('de-DE')
+    });
+});
+
+// ========== ERROR HANDLING ==========
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
+});
+
+// ========== BOT LOGIN ==========
 client.login(process.env.TOKEN);

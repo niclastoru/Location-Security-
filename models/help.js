@@ -1,24 +1,45 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    async execute(message, args, { client, embed }) {
+    name: 'help',
+    category: 'Utility',
+    description: 'Zeigt alle Befehle',
+    
+    async execute(message, args, { client }) {
+        
+        // Kategorien für Dropdown erstellen
+        const options = [];
+        const categories = Array.from(client.categories.keys());
+        
+        const categoryEmojis = {
+            'Moderation': '🛡️',
+            'Utility': '🔧',
+            'Fun': '🎮',
+            'Economy': '💰',
+            'Admin': '⚙️'
+        };
+        
+        for (const cat of categories) {
+            options.push({
+                label: cat,
+                description: `${client.categories.get(cat).length} Befehle`,
+                value: cat.toLowerCase(),
+                emoji: categoryEmojis[cat] || '📁'
+            });
+        }
         
         const row = new ActionRowBuilder()
             .addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId('help_menu')
                     .setPlaceholder('📋 Wähle eine Kategorie')
-                    .addOptions([
-                        { label: 'Moderation', description: 'Moderations-Befehle', value: 'moderation', emoji: '🛡️' },
-                        { label: 'Utility', description: 'Nützliche Befehle', value: 'utility', emoji: '🔧' },
-                        { label: 'Fun', description: 'Spaß-Befehle', value: 'fun', emoji: '🎮' }
-                    ])
+                    .addOptions(options)
             );
         
         const helpEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('📚 Hilfe-Menü')
-            .setDescription('Wähle eine Kategorie aus dem Dropdown-Menü!')
+            .setDescription(`**${client.commands.size} Befehle** verfügbar!\nWähle eine Kategorie aus dem Dropdown-Menü!`)
             .setFooter({ text: `Angefordert von ${message.author.tag}` })
             .setTimestamp();
         
@@ -28,42 +49,30 @@ module.exports = {
         
         collector.on('collect', async (interaction) => {
             if (interaction.user.id !== message.author.id) {
-                return interaction.reply({ content: '❌ Nur der Befehls-Ausführer kann das Menü nutzen!', ephemeral: true });
+                return interaction.reply({ 
+                    content: '❌ Nur der Befehls-Ausführer kann das Menü nutzen!', 
+                    ephemeral: true 
+                });
             }
             
-            let categoryEmbed;
+            const selectedCategory = interaction.values[0];
+            const categoryName = categories.find(c => c.toLowerCase() === selectedCategory);
+            const commands = client.categories.get(categoryName);
             
-            if (interaction.values[0] === 'moderation') {
-                categoryEmbed = new EmbedBuilder()
-                    .setColor(0xFF0000)
-                    .setTitle('🛡️ Moderation')
-                    .addFields(
-                        { name: '!ban @User [Grund]', value: 'Bannt einen User', inline: true },
-                        { name: '!kick @User [Grund]', value: 'Kickt einen User', inline: true },
-                        { name: '!role add/remove @User <Rolle>', value: 'Verwaltet Rollen', inline: true },
-                        { name: '!r add/remove @User <Rolle>', value: 'Alias für !role', inline: true },
-                        { name: '!purge <1-100>', value: 'Löscht Nachrichten', inline: true },
-                        { name: '!lock / !unlock', value: 'Sperrt/Entsperrt Channel', inline: true }
-                    );
-            } else if (interaction.values[0] === 'utility') {
-                categoryEmbed = new EmbedBuilder()
-                    .setColor(0x00FF00)
-                    .setTitle('🔧 Utility')
-                    .addFields(
-                        { name: '!ping', value: 'Bot Latenz', inline: true },
-                        { name: '!userinfo', value: 'User Info', inline: true },
-                        { name: '!serverinfo', value: 'Server Info', inline: true }
-                    );
-            } else {
-                categoryEmbed = new EmbedBuilder()
-                    .setColor(0xFFA500)
-                    .setTitle('🎮 Fun')
-                    .addFields(
-                        { name: '!register', value: 'Registrieren', inline: true },
-                        { name: '!punkte', value: 'Punktestand', inline: true },
-                        { name: '!add <Zahl>', value: 'Punkte hinzufügen', inline: true }
-                    );
+            const categoryEmbed = new EmbedBuilder()
+                .setColor(categoryName === 'Moderation' ? 0xFF0000 : 
+                         categoryName === 'Utility' ? 0x00FF00 : 
+                         categoryName === 'Fun' ? 0xFFA500 : 0x0099FF)
+                .setTitle(`${categoryEmojis[categoryName] || '📁'} ${categoryName}`)
+                .setFooter({ text: `${commands.length} Befehle in dieser Kategorie` });
+            
+            let description = '';
+            for (const cmd of commands) {
+                const aliases = cmd.aliases ? ` (${cmd.aliases.join(', ')})` : '';
+                description += `**!${cmd.name}**${aliases}\n${cmd.description || 'Keine Beschreibung'}\n\n`;
             }
+            
+            categoryEmbed.setDescription(description || 'Keine Befehle gefunden');
             
             await interaction.update({ embeds: [categoryEmbed], components: [row] });
         });

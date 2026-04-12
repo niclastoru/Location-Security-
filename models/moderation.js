@@ -2,23 +2,21 @@ module.exports = {
     category: 'Moderation',
     subCommands: {
         
-        // ========== BAN ==========
         ban: {
             permissions: 'BanMembers',
             description: 'Bannt einen User permanent',
             category: 'Moderation',
             async execute(message, args) {
                 const target = message.mentions.members.first() || await message.guild.members.fetch(args[0]).catch(() => null);
-                if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!ban @User [Grund] oder !ban ID [Grund]')] });
+                if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!ban @User [Grund]')] });
                 if (!target.bannable) return message.reply({ embeds: [global.embed.error('Keine Rechte', 'Ich kann diesen User nicht bannen!')] });
                 
-                const reason = args.slice(1).join(' ') || 'Kein Grund angegeben';
+                const reason = args.slice(1).join(' ') || 'Kein Grund';
                 await target.ban({ reason });
                 return message.reply({ embeds: [global.embed.success('User gebannt', `${target.user.tag} wurde gebannt.\n**Grund:** ${reason}`)] });
             }
         },
         
-        // ========== UNBAN ==========
         unban: {
             permissions: 'BanMembers',
             description: 'Entbannt einen User',
@@ -36,7 +34,6 @@ module.exports = {
             }
         },
         
-        // ========== KICK ==========
         kick: {
             permissions: 'KickMembers',
             description: 'Kickt einen User vom Server',
@@ -46,13 +43,12 @@ module.exports = {
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!kick @User [Grund]')] });
                 if (!target.kickable) return message.reply({ embeds: [global.embed.error('Keine Rechte', 'Ich kann diesen User nicht kicken!')] });
                 
-                const reason = args.slice(1).join(' ') || 'Kein Grund angegeben';
+                const reason = args.slice(1).join(' ') || 'Kein Grund';
                 await target.kick(reason);
                 return message.reply({ embeds: [global.embed.success('User gekickt', `${target.user.tag} wurde gekickt.\n**Grund:** ${reason}`)] });
             }
         },
         
-        // ========== TIMEOUT ==========
         timeout: {
             aliases: ['mute'],
             permissions: 'ModerateMembers',
@@ -73,7 +69,6 @@ module.exports = {
             }
         },
         
-        // ========== UNTIMEOUT ==========
         untimeout: {
             aliases: ['unmute'],
             permissions: 'ModerateMembers',
@@ -91,14 +86,12 @@ module.exports = {
             }
         },
         
-        // ========== ROLE (mit Auto-Erkennung!) ==========
         role: {
             aliases: ['r'],
             permissions: 'ManageRoles',
-            description: 'Rolle hinzufügen/entfernen (automatisch)',
+            description: 'Rolle hinzufügen/entfernen (Auto-Erkennung)',
             category: 'Moderation',
             async execute(message, args) {
-                // !r @User Rolle
                 const target = message.mentions.members.first();
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!r @User <Rollenname>')] });
                 
@@ -112,30 +105,24 @@ module.exports = {
                 
                 if (!role) return message.reply({ embeds: [global.embed.error('Rolle nicht gefunden', `"${roleName}" existiert nicht.`)] });
                 
-                // Bot-Rechte check
                 if (role.position >= message.guild.members.me.roles.highest.position) {
                     return message.reply({ embeds: [global.embed.error('Keine Rechte', 'Ich kann diese Rolle nicht verwalten!')] });
                 }
                 
-                // User-Rechte check
                 if (role.position >= message.member.roles.highest.position) {
                     return message.reply({ embeds: [global.embed.error('Keine Rechte', 'Du kannst diese Rolle nicht verwalten!')] });
                 }
                 
-                // ⭐ AUTOMATISCHE ERKENNUNG: Hat User die Rolle?
                 if (target.roles.cache.has(role.id)) {
-                    // Rolle ENTFERNEN
                     await target.roles.remove(role);
                     return message.reply({ embeds: [global.embed.success('Rolle entfernt', `❌ ${role} von ${target} entfernt.`)] });
                 } else {
-                    // Rolle HINZUFÜGEN
                     await target.roles.add(role);
                     return message.reply({ embeds: [global.embed.success('Rolle hinzugefügt', `✅ ${role} an ${target} vergeben.`)] });
                 }
             }
         },
         
-        // ========== ROLES (alle Rollen eines Users anzeigen) ==========
         roles: {
             permissions: 'ManageRoles',
             description: 'Zeigt alle Rollen eines Users',
@@ -154,11 +141,10 @@ module.exports = {
             }
         },
         
-        // ========== NICKNAME ==========
         nickname: {
             aliases: ['nick'],
             permissions: 'ManageNicknames',
-            description: 'Ändert Nickname eines Users',
+            description: 'Ändert Nickname',
             category: 'Moderation',
             async execute(message, args) {
                 const target = message.mentions.members.first();
@@ -170,7 +156,6 @@ module.exports = {
             }
         },
         
-        // ========== CLEARNICK ==========
         clearnick: {
             permissions: 'ManageNicknames',
             description: 'Entfernt Nickname',
@@ -182,7 +167,6 @@ module.exports = {
             }
         },
         
-        // ========== PURGE ==========
         purge: {
             aliases: ['clear'],
             permissions: 'ManageMessages',
@@ -202,7 +186,6 @@ module.exports = {
             }
         },
         
-        // ========== LOCK ==========
         lock: {
             permissions: 'ManageChannels',
             description: 'Sperrt den Channel',
@@ -213,7 +196,6 @@ module.exports = {
             }
         },
         
-        // ========== UNLOCK ==========
         unlock: {
             permissions: 'ManageChannels',
             description: 'Entsperrt den Channel',
@@ -224,7 +206,6 @@ module.exports = {
             }
         },
         
-        // ========== SLOWMODE ==========
         slowmode: {
             permissions: 'ManageChannels',
             description: 'Setzt Slowmode',
@@ -232,7 +213,7 @@ module.exports = {
             async execute(message, args) {
                 const seconds = parseInt(args[0]);
                 if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
-                    return message.reply({ embeds: [global.embed.error('Ungültig', '0-21600 Sekunden (6 Stunden)!')] });
+                    return message.reply({ embeds: [global.embed.error('Ungültig', '0-21600 Sekunden!')] });
                 }
                 
                 await message.channel.setRateLimitPerUser(seconds);
@@ -240,7 +221,6 @@ module.exports = {
             }
         },
         
-        // ========== WARN ==========
         warn: {
             permissions: 'ModerateMembers',
             description: 'Verwarnt einen User',
@@ -248,25 +228,20 @@ module.exports = {
             async execute(message, args, { supabase }) {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!warn @User [Grund]')] });
-                if (target.id === message.author.id) return message.reply({ embeds: [global.embed.error('Fehler', 'Du kannst dich nicht selbst verwarnen!')] });
                 
                 const reason = args.slice(1).join(' ') || 'Kein Grund';
                 
-                // In Supabase speichern
-                const { error } = await supabase.from('warns').insert({
+                await supabase.from('warns').insert({
                     user_id: target.id,
                     moderator_id: message.author.id,
                     reason: reason,
                     guild_id: message.guild.id
                 });
                 
-                if (error) console.error(error);
-                
                 return message.reply({ embeds: [global.embed.warn('Verwarnt', `${target} wurde verwarnt.\n**Grund:** ${reason}`)] });
             }
         },
         
-        // ========== JAIL ==========
         jail: {
             permissions: 'ManageRoles',
             description: 'Sperrt User in Jail-Rolle',
@@ -275,18 +250,11 @@ module.exports = {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!jail @User [Grund]')] });
                 
-                // Jail-Rolle finden oder erstellen
                 let jailRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'jail');
                 if (!jailRole) {
-                    jailRole = await message.guild.roles.create({
-                        name: 'Jail',
-                        color: 0x808080,
-                        reason: 'Jail-Rolle für Mutes'
-                    });
-                    
-                    // Channel-Permissions für Jail-Rolle setzen
+                    jailRole = await message.guild.roles.create({ name: 'Jail', color: 0x808080 });
                     message.guild.channels.cache.forEach(channel => {
-                        channel.permissionOverwrites.create(jailRole, { SendMessages: false, AddReactions: false });
+                        channel.permissionOverwrites.create(jailRole, { SendMessages: false, AddReactions: false }).catch(() => {});
                     });
                 }
                 
@@ -296,7 +264,6 @@ module.exports = {
             }
         },
         
-        // ========== UNJAIL ==========
         unjail: {
             permissions: 'ManageRoles',
             description: 'Entlässt aus Jail',
@@ -313,7 +280,6 @@ module.exports = {
             }
         },
         
-        // ========== JAIL-LIST ==========
         'jail-list': {
             permissions: 'ManageRoles',
             description: 'Zeigt User im Jail',
@@ -332,25 +298,23 @@ module.exports = {
             }
         },
         
-        // ========== JAIL-SETTINGS ==========
         'jail-settings': {
             permissions: 'ManageRoles',
             description: 'Konfiguriert Jail',
             category: 'Moderation',
             async execute(message) {
-                return message.reply({ embeds: [global.embed.info('Jail Settings', 'Jail-Rolle wird automatisch erstellt.\nChannel-Permissions werden gesetzt.')] });
+                return message.reply({ embeds: [global.embed.info('Jail Settings', 'Jail-Rolle wird automatisch erstellt.')] });
             }
         },
         
-        // ========== DRAG ==========
         drag: {
             permissions: 'MoveMembers',
-            description: 'Zieht User in deinen Voice-Channel',
+            description: 'Zieht User in deinen VC',
             category: 'Moderation',
             async execute(message, args) {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!drag @User')] });
-                if (!target.voice.channel) return message.reply({ embeds: [global.embed.error('Nicht im VC', `${target} ist in keinem Voice-Channel!')] });
+                if (!target.voice.channel) return message.reply({ embeds: [global.embed.error('Nicht im VC', `${target} ist in keinem Voice-Channel!`)] });
                 if (!message.member.voice.channel) return message.reply({ embeds: [global.embed.error('Nicht im VC', 'Du bist in keinem Voice-Channel!')] });
                 
                 await target.voice.setChannel(message.member.voice.channel);
@@ -358,7 +322,6 @@ module.exports = {
             }
         },
         
-        // ========== MOVEALL ==========
         moveall: {
             permissions: 'MoveMembers',
             description: 'Zieht alle User in deinen VC',
@@ -384,10 +347,9 @@ module.exports = {
             }
         },
         
-        // ========== HISTORY ==========
         history: {
             permissions: 'ModerateMembers',
-            description: 'Zeigt Verwarnungen/History',
+            description: 'Zeigt Verwarnungen',
             category: 'Moderation',
             async execute(message, args, { supabase }) {
                 const target = message.mentions.members.first() || message.member;
@@ -413,7 +375,6 @@ module.exports = {
             }
         },
         
-        // ========== HISTORYCHANNEL ==========
         historychannel: {
             permissions: 'ManageChannels',
             description: 'Setzt History-Channel',
@@ -430,36 +391,30 @@ module.exports = {
             }
         },
         
-        // ========== WORDFILTER ==========
         wordfilter: {
             permissions: 'ManageMessages',
-            description: 'Fügt Wort zum Filter hinzu',
+            description: 'Wortfilter verwalten',
             category: 'Moderation',
             async execute(message, args, { supabase }) {
-                const word = args[0]?.toLowerCase();
-                if (!word) return message.reply({ embeds: [global.embed.error('Kein Wort', '!wordfilter <add/remove/list> <Wort>')] });
+                const action = args[0]?.toLowerCase();
                 
-                if (word === 'add') {
-                    const filterWord = args[1]?.toLowerCase();
-                    if (!filterWord) return message.reply({ embeds: [global.embed.error('Kein Wort', '!wordfilter add <Wort>')] });
+                if (action === 'add') {
+                    const word = args[1]?.toLowerCase();
+                    if (!word) return message.reply({ embeds: [global.embed.error('Kein Wort', '!wordfilter add <Wort>')] });
                     
-                    await supabase.from('wordfilter').insert({
-                        guild_id: message.guild.id,
-                        word: filterWord
-                    });
-                    
-                    return message.reply({ embeds: [global.embed.success('Wort hinzugefügt', `"${filterWord}" ist jetzt gefiltert.`)] });
+                    await supabase.from('wordfilter').insert({ guild_id: message.guild.id, word });
+                    return message.reply({ embeds: [global.embed.success('Wort hinzugefügt', `"${word}" ist jetzt gefiltert.`)] });
                 }
                 
-                if (word === 'remove') {
-                    const filterWord = args[1]?.toLowerCase();
-                    if (!filterWord) return message.reply({ embeds: [global.embed.error('Kein Wort', '!wordfilter remove <Wort>')] });
+                if (action === 'remove') {
+                    const word = args[1]?.toLowerCase();
+                    if (!word) return message.reply({ embeds: [global.embed.error('Kein Wort', '!wordfilter remove <Wort>')] });
                     
-                    await supabase.from('wordfilter').delete().eq('guild_id', message.guild.id).eq('word', filterWord);
-                    return message.reply({ embeds: [global.embed.success('Wort entfernt', `"${filterWord}" ist nicht mehr gefiltert.`)] });
+                    await supabase.from('wordfilter').delete().eq('guild_id', message.guild.id).eq('word', word);
+                    return message.reply({ embeds: [global.embed.success('Wort entfernt', `"${word}" ist nicht mehr gefiltert.`)] });
                 }
                 
-                if (word === 'list') {
+                if (action === 'list') {
                     const { data } = await supabase.from('wordfilter').select('word').eq('guild_id', message.guild.id);
                     const words = data?.map(w => w.word).join(', ') || 'Keine Wörter gefiltert';
                     
@@ -469,6 +424,8 @@ module.exports = {
                         description: words
                     }] });
                 }
+                
+                return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!wordfilter <add/remove/list>')] });
             }
         }
     }

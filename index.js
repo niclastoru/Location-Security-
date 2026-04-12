@@ -1,7 +1,10 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+
+// ⭐ VOICEMASTER IMPORT
+const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
 
 const client = new Client({
     intents: [
@@ -9,7 +12,8 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildVoiceStates
     ]
 });
 
@@ -27,14 +31,13 @@ global.embed = {
 client.commands = new Collection();
 client.categories = new Collection();
 
-// ========== SNIPE CACHE (ohne Supabase) ==========
+// ========== SNIPE CACHE ==========
 client.snipes = new Map();
 
 // Dynamisch alle Dateien aus /models laden
 const loadCommands = () => {
     const modelsPath = path.join(__dirname, 'models');
     
-    // Prüfen ob Ordner existiert
     if (!fs.existsSync(modelsPath)) {
         fs.mkdirSync(modelsPath);
         console.log('📁 models Ordner erstellt');
@@ -45,7 +48,6 @@ const loadCommands = () => {
     for (const file of files) {
         const module = require(path.join(modelsPath, file));
         
-        // Prüfen ob es Subcommands hat (wie moderation.js oder utils.js)
         if (module.subCommands) {
             for (const [name, cmd] of Object.entries(module.subCommands)) {
                 client.commands.set(name, cmd);
@@ -53,7 +55,6 @@ const loadCommands = () => {
                     cmd.aliases.forEach(alias => client.commands.set(alias, cmd));
                 }
                 
-                // Zur Kategorie hinzufügen
                 const category = cmd.category || module.category || 'Sonstiges';
                 if (!client.categories.has(category)) {
                     client.categories.set(category, []);
@@ -62,7 +63,6 @@ const loadCommands = () => {
             }
             console.log(`📦 ${Object.keys(module.subCommands).length} Subcommands aus ${file} geladen`);
         }
-        // Normaler Einzel-Befehl (wie help.js)
         else if (module.name) {
             client.commands.set(module.name, module);
             if (module.aliases) {
@@ -99,10 +99,8 @@ client.on('messageCreate', async (message) => {
     const commandName = args.shift().toLowerCase();
     
     const command = client.commands.get(commandName);
-    
     if (!command) return;
     
-    // Permission Check
     if (command.permissions) {
         if (!message.member.permissions.has(command.permissions)) {
             return message.reply({ 
@@ -121,7 +119,58 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ========== SNIPE LISTENER (Nachrichten löschen) ==========
+// ========== INTERACTION HANDLER ==========
+client.on('interactionCreate', async (interaction) => {
+    if (interaction.isButton()) {
+        // ⭐ VoiceMaster Buttons
+        if (interaction.customId.startsWith('vm_')) {
+            return handleVoiceMasterButton(interaction, client);
+        }
+    }
+});
+
+// ========== VOICE STATE UPDATE (Join-to-Create) ==========
+client.on('voiceStateUpdate', async (oldState, newState) => {
+    const config = vmCache.get(newState.guild.id);
+    if (!config) return;
+    
+    // User joint Join-to-Create Channel
+    if (newState.channelId === config.jtcChannel) {
+        const member = newState.member;
+        
+        // Neuen Voice-Channel erstellen
+        const newChannel = await newState.guild.channels.create({
+            name: `🎤 ${member.user.username}'s Channel`,
+            type: ChannelType.GuildVoice,
+            parent: newState.channel.parent,
+            permissionOverwrites: [
+                { id: member.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.MoveMembers] }
+            ]
+        });
+        
+        // User in neuen Channel moven
+        await member.voice.setChannel(newChannel);
+        
+        // Als Owner speichern
+        config.voiceChannels.set(newChannel.id, member.id);
+        vmCache.set(newState.guild.id, config);
+    }
+    
+    // Leere Voice-Channel löschen
+    if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
+        const channel = oldState.channel;
+        const config = vmCache.get(oldState.guild.id);
+        
+        if (config && config.voiceChannels.has(channel.id)) {
+            config.voiceChannels.delete(channel.id);
+            vmCache.set(oldState.guild.id, config);
+        }
+        
+        await channel.delete().catch(() => {});
+    }
+});
+
+// ========== SNIPE LISTENER ==========
 client.on('messageDelete', async (message) => {
     if (message.author?.bot || (!message.content && !message.attachments.size)) return;
     

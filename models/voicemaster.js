@@ -3,6 +3,113 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType,
 // Cache für VoiceMaster Channels
 const vmCache = new Map();
 
+// ========== HELPER FUNKTION ==========
+function isOwner(userId, channel, guildId) {
+    const config = vmCache.get(guildId);
+    if (!config) return false;
+    
+    const ownerId = config.voiceChannels.get(channel.id);
+    return ownerId === userId;
+}
+
+// ========== VOICEMASTER BUTTON HANDLER ==========
+async function handleVoiceMasterButton(interaction, client) {
+    const { customId, member, guild } = interaction;
+    const channel = member.voice.channel;
+    
+    if (!channel) {
+        return interaction.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')], ephemeral: true });
+    }
+    
+    if (!channel.name.includes('🎤')) {
+        return interaction.reply({ embeds: [global.embed.error('Kein VM Channel', 'Das ist kein VoiceMaster Channel!')], ephemeral: true });
+    }
+    
+    const config = vmCache.get(guild.id);
+    if (!config) {
+        return interaction.reply({ embeds: [global.embed.error('Kein Setup', 'VoiceMaster ist nicht eingerichtet!')], ephemeral: true });
+    }
+    
+    const isOwner = config.voiceChannels.get(channel.id) === member.id;
+    
+    switch (customId) {
+        case 'vm_lock':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: false });
+            return interaction.reply({ embeds: [global.embed.success('Gesperrt', 'Channel wurde gesperrt!')] });
+            
+        case 'vm_unlock':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: null });
+            return interaction.reply({ embeds: [global.embed.success('Entsperrt', 'Channel wurde entsperrt!')] });
+            
+        case 'vm_hide':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
+            return interaction.reply({ embeds: [global.embed.success('Versteckt', 'Channel ist jetzt versteckt!')] });
+            
+        case 'vm_reveal':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: null });
+            return interaction.reply({ embeds: [global.embed.success('Sichtbar', 'Channel ist jetzt sichtbar!')] });
+            
+        case 'vm_claim':
+            if (config.voiceChannels.has(channel.id)) {
+                return interaction.reply({ embeds: [global.embed.error('Bereits geclaimed', 'Dieser Channel hat bereits einen Owner!')], ephemeral: true });
+            }
+            config.voiceChannels.set(channel.id, member.id);
+            vmCache.set(guild.id, config);
+            await channel.setName(`🎤 ${member.user.username}'s Channel`);
+            return interaction.reply({ embeds: [global.embed.success('Geclaimed', `Du bist jetzt Owner von ${channel}!`)] });
+            
+        case 'vm_disconnect':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            return interaction.reply({ embeds: [global.embed.info('Disconnect', 'Nutze `!voice-kick @User` um jemanden zu kicken.')], ephemeral: true });
+            
+        case 'vm_activity':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            try {
+                await channel.createInvite({
+                    targetApplication: '880218394199220334',
+                    targetType: 2,
+                    maxAge: 300
+                }).then(invite => {
+                    interaction.reply({ embeds: [global.embed.success('Aktivität', `[Klick hier für YouTube Together](https://discord.gg/${invite.code})`)] });
+                });
+            } catch {
+                interaction.reply({ embeds: [global.embed.error('Fehler', 'Konnte Aktivität nicht starten!')], ephemeral: true });
+            }
+            break;
+            
+        case 'vm_info':
+            const owner = config.voiceChannels.get(channel.id);
+            const ownerUser = owner ? await client.users.fetch(owner).catch(() => null) : null;
+            
+            return interaction.reply({ embeds: [{
+                color: 0x0099FF,
+                title: `ℹ️ ${channel.name}`,
+                fields: [
+                    { name: 'Owner', value: ownerUser?.username || 'Keiner', inline: true },
+                    { name: 'User', value: `${channel.members.size}`, inline: true },
+                    { name: 'User-Limit', value: channel.userLimit === 0 ? 'Unbegrenzt' : `${channel.userLimit}`, inline: true },
+                    { name: 'Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
+                ]
+            }] });
+            
+        case 'vm_limit_plus':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            const newLimit = Math.min((channel.userLimit || 0) + 1, 99);
+            await channel.setUserLimit(newLimit);
+            return interaction.reply({ embeds: [global.embed.success('Limit erhöht', `Neues Limit: ${newLimit}`)] });
+            
+        case 'vm_limit_minus':
+            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
+            const decreasedLimit = Math.max((channel.userLimit || 0) - 1, 0);
+            await channel.setUserLimit(decreasedLimit);
+            return interaction.reply({ embeds: [global.embed.success('Limit verringert', `Neues Limit: ${decreasedLimit === 0 ? 'Unbegrenzt' : decreasedLimit}`)] });
+    }
+}
+
 module.exports = {
     category: 'Voicemaster',
     subCommands: {
@@ -15,14 +122,12 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client }) {
                 
-                // Join-to-Create Channel erstellen
                 const jtcChannel = await message.guild.channels.create({
                     name: '➕ Join to Create',
                     type: ChannelType.GuildVoice,
                     userLimit: 1
                 });
                 
-                // Interface Text-Channel erstellen
                 const interfaceChannel = await message.guild.channels.create({
                     name: '🎤｜voice-interface',
                     type: ChannelType.GuildText,
@@ -31,7 +136,6 @@ module.exports = {
                     ]
                 });
                 
-                // Interface Panel Nachricht
                 const panelEmbed = new EmbedBuilder()
                     .setColor(0x0099FF)
                     .setTitle('🎛️ VoiceMaster Interface')
@@ -51,7 +155,6 @@ module.exports = {
                     .setFooter({ text: message.guild.name })
                     .setTimestamp();
                 
-                // Buttons Row 1
                 const row1 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_lock').setLabel('Lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
@@ -61,7 +164,6 @@ module.exports = {
                         new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📋')
                     );
                 
-                // Buttons Row 2
                 const row2 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_disconnect').setLabel('Disconnect').setStyle(ButtonStyle.Danger).setEmoji('👢'),
@@ -73,7 +175,6 @@ module.exports = {
                 
                 await interfaceChannel.send({ embeds: [panelEmbed], components: [row1, row2] });
                 
-                // In Cache speichern
                 vmCache.set(message.guild.id, {
                     jtcChannel: jtcChannel.id,
                     interfaceChannel: interfaceChannel.id,
@@ -84,7 +185,7 @@ module.exports = {
                     embeds: [global.embed.success('VoiceMaster Setup', 
                         `✅ **Join-to-Create:** ${jtcChannel}\n` +
                         `✅ **Interface:** ${interfaceChannel}\n\n` +
-                        `User können jetzt dem Join-to-Create Channel beitreten um ihren eigenen Voice-Channel zu erstellen!`
+                        `User können jetzt dem Join-to-Create Channel beitreten!`
                     )] 
                 });
             }
@@ -105,7 +206,6 @@ module.exports = {
                     if (jtcChannel) await jtcChannel.delete().catch(() => {});
                     if (interfaceChannel) await interfaceChannel.delete().catch(() => {});
                     
-                    // Alle erstellten Voice-Channels löschen
                     for (const [userId, channelId] of config.voiceChannels) {
                         const channel = message.guild.channels.cache.get(channelId);
                         if (channel) await channel.delete().catch(() => {});
@@ -202,12 +302,10 @@ module.exports = {
                 const config = vmCache.get(message.guild.id);
                 if (!config) return message.reply({ embeds: [global.embed.error('Kein Setup', 'VoiceMaster ist nicht eingerichtet!')] });
                 
-                // Prüfen ob Channel von VoiceMaster ist
                 if (!channel.name.includes('🎤')) {
                     return message.reply({ embeds: [global.embed.error('Kein VM Channel', 'Das ist kein VoiceMaster Channel!')] });
                 }
                 
-                // Owner updaten
                 config.voiceChannels.set(channel.id, message.author.id);
                 vmCache.set(message.guild.id, config);
                 
@@ -217,7 +315,7 @@ module.exports = {
             }
         },
         
-        // ========== VOICE-TRANSFER / TRANSFER-NEW ==========
+        // ========== VOICE-TRANSFER ==========
         'voice-transfer': {
             aliases: ['vtransfer', 'transfer-new'],
             description: 'Überträgt Channel-Ownership',
@@ -233,7 +331,7 @@ module.exports = {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply({ embeds: [global.embed.error('Kein User', '!voice-transfer @User')] });
                 if (!target.voice.channel || target.voice.channel.id !== channel.id) {
-                    return message.reply({ embeds: [global.embed.error('Nicht im Channel', `${target} ist nicht in deinem Channel!')] });
+                    return message.reply({ embeds: [global.embed.error('Nicht im Channel', `${target} ist nicht in deinem Channel!`)] });
                 }
                 
                 const config = vmCache.get(message.guild.id);
@@ -342,114 +440,5 @@ module.exports = {
     }
 };
 
-// ========== HELPER FUNKTION ==========
-function isOwner(userId, channel, guildId) {
-    const config = vmCache.get(guildId);
-    if (!config) return false;
-    
-    const ownerId = config.voiceChannels.get(channel.id);
-    return ownerId === userId;
-}
-
-// ========== BUTTON HANDLER (in index.js einfügen) ==========
-async function handleVoiceMasterButton(interaction, client) {
-    const { customId, member, guild } = interaction;
-    const channel = member.voice.channel;
-    
-    if (!channel) {
-        return interaction.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')], ephemeral: true });
-    }
-    
-    if (!channel.name.includes('🎤')) {
-        return interaction.reply({ embeds: [global.embed.error('Kein VM Channel', 'Das ist kein VoiceMaster Channel!')], ephemeral: true });
-    }
-    
-    const config = vmCache.get(guild.id);
-    if (!config) {
-        return interaction.reply({ embeds: [global.embed.error('Kein Setup', 'VoiceMaster ist nicht eingerichtet!')], ephemeral: true });
-    }
-    
-    const isOwner = config.voiceChannels.get(channel.id) === member.id;
-    
-    switch (customId) {
-        case 'vm_lock':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: false });
-            return interaction.reply({ embeds: [global.embed.success('Gesperrt', 'Channel wurde gesperrt!')] });
-            
-        case 'vm_unlock':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: null });
-            return interaction.reply({ embeds: [global.embed.success('Entsperrt', 'Channel wurde entsperrt!')] });
-            
-        case 'vm_hide':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
-            return interaction.reply({ embeds: [global.embed.success('Versteckt', 'Channel ist jetzt versteckt!')] });
-            
-        case 'vm_reveal':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: null });
-            return interaction.reply({ embeds: [global.embed.success('Sichtbar', 'Channel ist jetzt sichtbar!')] });
-            
-        case 'vm_claim':
-            if (config.voiceChannels.has(channel.id)) {
-                return interaction.reply({ embeds: [global.embed.error('Bereits geclaimed', 'Dieser Channel hat bereits einen Owner!')], ephemeral: true });
-            }
-            config.voiceChannels.set(channel.id, member.id);
-            vmCache.set(guild.id, config);
-            await channel.setName(`🎤 ${member.user.username}'s Channel`);
-            return interaction.reply({ embeds: [global.embed.success('Geclaimed', `Du bist jetzt Owner von ${channel}!')] });
-            
-        case 'vm_disconnect':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            // Menü für User-Auswahl wäre hier - vereinfacht:
-            return interaction.reply({ embeds: [global.embed.info('Disconnect', 'Nutze `!voice-kick @User` um jemanden zu kicken.')], ephemeral: true });
-            
-        case 'vm_activity':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            try {
-                await channel.createInvite({
-                    targetApplication: '880218394199220334', // YouTube Together
-                    targetType: 2,
-                    maxAge: 300
-                }).then(invite => {
-                    interaction.reply({ embeds: [global.embed.success('Aktivität', `[Klick hier für YouTube Together](https://discord.gg/${invite.code})`)] });
-                });
-            } catch {
-                interaction.reply({ embeds: [global.embed.error('Fehler', 'Konnte Aktivität nicht starten!')], ephemeral: true });
-            }
-            break;
-            
-        case 'vm_info':
-            const owner = config.voiceChannels.get(channel.id);
-            const ownerUser = owner ? await client.users.fetch(owner).catch(() => null) : null;
-            
-            return interaction.reply({ embeds: [{
-                color: 0x0099FF,
-                title: `ℹ️ ${channel.name}`,
-                fields: [
-                    { name: 'Owner', value: ownerUser?.username || 'Keiner', inline: true },
-                    { name: 'User', value: `${channel.members.size}`, inline: true },
-                    { name: 'User-Limit', value: channel.userLimit === 0 ? 'Unbegrenzt' : `${channel.userLimit}`, inline: true },
-                    { name: 'Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
-                ]
-            }] });
-            
-        case 'vm_limit_plus':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            const newLimit = Math.min((channel.userLimit || 0) + 1, 99);
-            await channel.setUserLimit(newLimit);
-            return interaction.reply({ embeds: [global.embed.success('Limit erhöht', `Neues Limit: ${newLimit}`)] });
-            
-        case 'vm_limit_minus':
-            if (!isOwner) return interaction.reply({ embeds: [global.embed.error('Kein Owner', 'Nur der Channel-Owner kann das!')], ephemeral: true });
-            const decreasedLimit = Math.max((channel.userLimit || 0) - 1, 0);
-            await channel.setUserLimit(decreasedLimit);
-            return interaction.reply({ embeds: [global.embed.success('Limit verringert', `Neues Limit: ${decreasedLimit === 0 ? 'Unbegrenzt' : decreasedLimit}`)] });
-    }
-}
-
-// Export für index.js
 module.exports.handleVoiceMasterButton = handleVoiceMasterButton;
 module.exports.vmCache = vmCache;

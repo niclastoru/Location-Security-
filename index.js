@@ -177,7 +177,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
 // ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs) ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    // ⭐ Config aus Supabase laden (nicht nur aus Cache!)
+    // ⭐ Config aus Supabase laden
     const config = await loadConfig(newState.guild.id, supabase);
     
     // Join-to-Create Logik
@@ -186,26 +186,52 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         if (newState.channelId === config.jtcChannel) {
             const member = newState.member;
             
-            const newChannel = await newState.guild.channels.create({
-                name: `🎤 ${member.user.username}'s Channel`,
-                type: ChannelType.GuildVoice,
-                parent: newState.channel.parent,
-                permissionOverwrites: [
-                    { id: member.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.MoveMembers] }
-                ]
-            });
-            
-            await member.voice.setChannel(newChannel);
-            
-            // In Supabase speichern
-            await supabase.from('voicemaster_channels').insert({
-                guild_id: newState.guild.id,
-                channel_id: newChannel.id,
-                owner_id: member.id
-            });
-            
-            config.voiceChannels.set(newChannel.id, member.id);
-            vmCache.set(newState.guild.id, config);
+            try {
+                // Neuen Voice-Channel erstellen
+                const newChannel = await newState.guild.channels.create({
+                    name: `🎤 ${member.user.username}'s Channel`,
+                    type: ChannelType.GuildVoice,
+                    parent: newState.channel.parent,
+                    permissionOverwrites: [
+                        { 
+                            id: member.id, 
+                            allow: [
+                                PermissionFlagsBits.Connect, 
+                                PermissionFlagsBits.Speak, 
+                                PermissionFlagsBits.Stream,
+                                PermissionFlagsBits.UseVAD,
+                                PermissionFlagsBits.PrioritySpeaker,
+                                PermissionFlagsBits.MoveMembers,
+                                PermissionFlagsBits.MuteMembers,
+                                PermissionFlagsBits.DeafenMembers
+                            ] 
+                        },
+                        {
+                            id: newState.guild.roles.everyone.id,
+                            allow: [PermissionFlagsBits.Connect]
+                        }
+                    ]
+                });
+                
+                // ⭐ WICHTIG: User in den neuen Channel moven
+                await member.voice.setChannel(newChannel);
+                
+                // In Supabase speichern
+                await supabase.from('voicemaster_channels').insert({
+                    guild_id: newState.guild.id,
+                    channel_id: newChannel.id,
+                    owner_id: member.id
+                });
+                
+                // Cache updaten
+                config.voiceChannels.set(newChannel.id, member.id);
+                vmCache.set(newState.guild.id, config);
+                
+                console.log(`✅ VoiceMaster: Channel für ${member.user.tag} erstellt`);
+                
+            } catch (error) {
+                console.error('Fehler beim Erstellen des Voice-Channels:', error);
+            }
         }
         
         // Leere Voice-Channel löschen
@@ -216,14 +242,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             if (cfg && cfg.voiceChannels.has(channel.id)) {
                 cfg.voiceChannels.delete(channel.id);
                 vmCache.set(oldState.guild.id, cfg);
+                
+                // Aus Supabase löschen
+                await supabase.from('voicemaster_channels')
+                    .delete()
+                    .eq('channel_id', channel.id);
+                
+                // Channel löschen
+                await channel.delete().catch(err => console.error('Fehler beim Löschen:', err));
+                console.log(`🗑️ VoiceMaster: Leerer Channel gelöscht`);
             }
-            
-            // Aus Supabase löschen
-            await supabase.from('voicemaster_channels')
-                .delete()
-                .eq('channel_id', channel.id);
-            
-            await channel.delete().catch(() => {});
         }
     }
     

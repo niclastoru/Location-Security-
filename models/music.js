@@ -1,158 +1,60 @@
-const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
-const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
+const { LavalinkManager } = require('lavalink-client');
 
-// ⭐ SoundCloud Authorization (UMGEHT BLOCKS)
-play.setToken({
-    soundcloud: {
-        client_id: 'iZIs9mchVcX5lhVRyQGGAYlNPVldzAoX'
-    }
-});
+// Lavalink Manager (einmalig initialisieren)
+let manager = null;
 
-// Music Queue System
+function initLavalink(client) {
+    if (manager) return manager;
+    
+    manager = new LavalinkManager({
+        nodes: [
+            {
+                id: 'main',
+                host: 'lava.link',           // KOSTENLOSER Public Lavalink
+                port: 80,
+                authorization: 'youshallnotpass',
+                secure: false
+            },
+            {
+                id: 'fallback',
+                host: 'lavalink.oops.wtf',    // Backup Server
+                port: 443,
+                authorization: 'www.freelavalink.ga',
+                secure: true
+            },
+            {
+                id: 'fallback2',
+                host: 'node1.kartadharta.xyz', // Backup 2
+                port: 443,
+                authorization: 'kdlavalink',
+                secure: true
+            }
+        ],
+        sendToShard: (guildId, payload) => {
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) guild.shard.send(payload);
+        },
+        client: client
+    });
+    
+    manager.init(client);
+    return manager;
+}
+
+// Music Queue System (nur für Queue-Management)
 const musicQueues = new Map();
 
 function getQueue(guildId) {
     if (!musicQueues.has(guildId)) {
         musicQueues.set(guildId, {
             songs: [],
-            player: createAudioPlayer(),
-            connection: null,
-            channel: null,
             loop: false,
-            volume: 0.5,
+            volume: 50,
             nowPlaying: null
         });
     }
     return musicQueues.get(guildId);
-}
-
-// ⭐ SoundCloud Suche (KORRIGIERT)
-async function searchSoundCloud(query) {
-    try {
-        // Direkte SoundCloud Suche
-        const results = await play.search(query, {
-            limit: 1,
-            source: { soundcloud: 'tracks' }
-        });
-        
-        if (results && results.length > 0) {
-            return {
-                title: results[0].title,
-                url: results[0].url,
-                duration: results[0].durationRaw,
-                thumbnail: results[0].thumbnails[0]?.url || null,
-                platform: 'soundcloud'
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error('SoundCloud search error:', error);
-        return null;
-    }
-}
-
-// ⭐ Spotify zu SoundCloud
-async function spotifyToSoundCloud(query) {
-    try {
-        const spotify = require('spotify-url-info')();
-        const track = await spotify.getPreview(query);
-        const searchQuery = `${track.artist} ${track.title}`;
-        return await searchSoundCloud(searchQuery);
-    } catch (error) {
-        console.error('Spotify conversion error:', error);
-        return null;
-    }
-}
-
-// ⭐ Song Info
-async function getSongInfo(query) {
-    // Spotify Link?
-    if (query.includes('spotify.com') || query.includes('spotify.link')) {
-        return await spotifyToSoundCloud(query);
-    }
-    
-    // SoundCloud Link?
-    if (query.includes('soundcloud.com')) {
-        try {
-            const info = await play.video_info(query);
-            return {
-                title: info.video_details.title,
-                url: info.video_details.url,
-                duration: info.video_details.durationRaw,
-                thumbnail: info.video_details.thumbnails[0]?.url || null,
-                platform: 'soundcloud'
-            };
-        } catch (error) {
-            console.error('SoundCloud info error:', error);
-            return null;
-        }
-    }
-    
-    // Normale Suche
-    return await searchSoundCloud(query);
-}
-
-// ⭐ Play Song
-async function playSong(guild, channel, song, client) {
-    const queue = getQueue(guild.id);
-    
-    try {
-        console.log(`🎵 Versuche abzuspielen: ${song.title}`);
-        
-        const stream = await play.stream(song.url);
-        const resource = createAudioResource(stream.stream, { 
-            inputType: stream.type,
-            inlineVolume: true 
-        });
-        resource.volume.setVolume(queue.volume);
-        
-        queue.player.play(resource);
-        queue.nowPlaying = song;
-        queue.channel = channel;
-        
-        const embed = new EmbedBuilder()
-            .setColor(0xFF5500)
-            .setTitle('🟠 Jetzt spielt (SoundCloud)')
-            .setDescription(`[${song.title}](${song.url})`)
-            .addFields(
-                { name: '👤 Angefordert von', value: song.requestedBy, inline: true },
-                { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true }
-            )
-            .setTimestamp();
-        
-        if (song.thumbnail) {
-            embed.setThumbnail(song.thumbnail);
-        }
-        
-        channel.send({ embeds: [embed] });
-        
-        queue.player.once(AudioPlayerStatus.Idle, () => {
-            if (queue.loop && queue.nowPlaying) {
-                queue.songs.push(queue.nowPlaying);
-            }
-            queue.songs.shift();
-            if (queue.songs.length > 0) {
-                playSong(guild, channel, queue.songs[0], client);
-            } else {
-                queue.nowPlaying = null;
-            }
-        });
-        
-    } catch (error) {
-        console.error('Play error:', error);
-        
-        // ⭐ Fallback: Anderen Song versuchen
-        if (queue.songs.length > 0) {
-            channel.send({ embeds: [global.embed.error('Fehler', 'Song nicht verfügbar, versuche nächsten...')] });
-            queue.songs.shift();
-            if (queue.songs.length > 0) {
-                playSong(guild, channel, queue.songs[0], client);
-            }
-        } else {
-            channel.send({ embeds: [global.embed.error('Fehler', 'Konnte keinen Song abspielen!')] });
-        }
-    }
 }
 
 module.exports = {
@@ -160,8 +62,8 @@ module.exports = {
     subCommands: {
         
         play: {
-            aliases: ['p', 'add', 'sc'],
-            description: 'Spielt Musik von SoundCloud',
+            aliases: ['p', 'add'],
+            description: 'Spielt Musik (YouTube/Spotify/SoundCloud)',
             category: 'Music',
             async execute(message, args, { client }) {
                 const voiceChannel = message.member.voice.channel;
@@ -170,53 +72,106 @@ module.exports = {
                 }
                 
                 const query = args.join(' ');
-                if (!query) return message.reply({ embeds: [global.embed.error('Kein Song', '!play <SoundCloud/Spotify/Suche>')] });
+                if (!query) return message.reply({ embeds: [global.embed.error('Kein Song', '!play <Titel/URL>')] });
                 
+                const lavalink = initLavalink(client);
                 const queue = getQueue(message.guild.id);
                 
-                // Loading Nachricht
-                const loadingMsg = await message.reply({ embeds: [global.embed.info('Suche', '🔍 Suche auf SoundCloud...')] });
-                
                 try {
-                    const songInfo = await getSongInfo(query);
+                    // Player erstellen oder holen
+                    let player = lavalink.getPlayer(message.guild.id);
                     
-                    if (!songInfo) {
-                        return loadingMsg.edit({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song auf SoundCloud gefunden!')] });
+                    if (!player) {
+                        player = lavalink.createPlayer({
+                            guildId: message.guild.id,
+                            voiceChannelId: voiceChannel.id,
+                            textChannelId: message.channel.id,
+                            selfMute: false,
+                            selfDeaf: true,
+                            volume: queue.volume
+                        });
+                        
+                        player.connect();
                     }
                     
-                    const song = { ...songInfo, requestedBy: message.author.username };
-                    queue.songs.push(song);
+                    if (!player.connected) {
+                        player.voiceChannelId = voiceChannel.id;
+                        player.connect();
+                    }
+                    
+                    // Song suchen
+                    const result = await player.search({
+                        query: query,
+                        source: 'ytsearch' // YouTube, findet auch Spotify/SoundCloud!
+                    }, message.author);
+                    
+                    if (!result.tracks.length) {
+                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden!')] });
+                    }
+                    
+                    const track = result.tracks[0];
+                    track.requester = message.author;
+                    
+                    queue.songs.push(track);
                     
                     const embed = new EmbedBuilder()
-                        .setColor(0xFF5500)
+                        .setColor(0x00FF00)
                         .setTitle(queue.songs.length === 1 ? '🎵 Spielt jetzt' : '📋 Zur Queue hinzugefügt')
-                        .setDescription(`[${song.title}](${song.url})`)
+                        .setDescription(`[${track.info.title}](${track.info.uri})`)
                         .addFields(
                             { name: '👤 Angefordert von', value: message.author.username, inline: true },
-                            { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true },
+                            { name: '⏱️ Dauer', value: formatDuration(track.info.duration), inline: true },
                             { name: '📊 Position', value: `#${queue.songs.length}`, inline: true }
                         )
+                        .setThumbnail(track.info.artworkUrl || track.info.thumbnail)
                         .setTimestamp();
                     
-                    if (song.thumbnail) embed.setThumbnail(song.thumbnail);
+                    message.reply({ embeds: [embed] });
                     
-                    await loadingMsg.edit({ embeds: [embed] });
-                    
-                    if (queue.songs.length === 1) {
-                        if (!queue.connection) {
-                            queue.connection = joinVoiceChannel({
-                                channelId: voiceChannel.id,
-                                guildId: message.guild.id,
-                                adapterCreator: message.guild.voiceAdapterCreator
-                            });
-                            queue.connection.subscribe(queue.player);
-                        }
-                        playSong(message.guild, message.channel, song, client);
+                    // Song abspielen
+                    if (!player.playing && !player.paused) {
+                        player.play(track);
+                        queue.nowPlaying = track;
+                    } else if (player.playing || player.paused) {
+                        player.queue.add(track);
                     }
+                    
+                    // Event Handler
+                    player.on('end', () => {
+                        queue.songs.shift();
+                        
+                        if (queue.loop && queue.nowPlaying) {
+                            player.queue.add(queue.nowPlaying);
+                        }
+                        
+                        if (queue.songs.length > 0) {
+                            const nextTrack = queue.songs[0];
+                            player.play(nextTrack);
+                            queue.nowPlaying = nextTrack;
+                            
+                            const nextEmbed = new EmbedBuilder()
+                                .setColor(0x00FF00)
+                                .setTitle('🎵 Jetzt spielt')
+                                .setDescription(`[${nextTrack.info.title}](${nextTrack.info.uri})`)
+                                .addFields(
+                                    { name: '👤 Angefordert von', value: nextTrack.requester.username, inline: true }
+                                )
+                                .setTimestamp();
+                            
+                            message.channel.send({ embeds: [nextEmbed] });
+                        } else {
+                            queue.nowPlaying = null;
+                        }
+                    });
+                    
+                    player.on('error', (error) => {
+                        console.error('Player error:', error);
+                        message.channel.send({ embeds: [global.embed.error('Fehler', 'Player-Fehler!')] });
+                    });
                     
                 } catch (error) {
                     console.error('Play error:', error);
-                    loadingMsg.edit({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
+                    message.reply({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
                 }
             }
         },
@@ -225,12 +180,15 @@ module.exports = {
             aliases: ['s', 'next'],
             description: 'Überspringt den aktuellen Song',
             category: 'Music',
-            async execute(message) {
-                const queue = getQueue(message.guild.id);
-                if (!queue.nowPlaying) {
+            async execute(message, args, { client }) {
+                const lavalink = initLavalink(client);
+                const player = lavalink.getPlayer(message.guild.id);
+                
+                if (!player || !player.playing) {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
                 }
-                queue.player.stop();
+                
+                player.stop();
                 return message.reply({ embeds: [global.embed.success('Übersprungen', 'Song wurde übersprungen! ⏭️')] });
             }
         },
@@ -239,16 +197,18 @@ module.exports = {
             aliases: ['leave', 'dc'],
             description: 'Stoppt die Musik',
             category: 'Music',
-            async execute(message) {
+            async execute(message, args, { client }) {
+                const lavalink = initLavalink(client);
+                const player = lavalink.getPlayer(message.guild.id);
+                
+                if (player) {
+                    player.destroy();
+                }
+                
                 const queue = getQueue(message.guild.id);
                 queue.songs = [];
-                queue.loop = false;
-                queue.player.stop();
-                if (queue.connection) {
-                    queue.connection.destroy();
-                    queue.connection = null;
-                }
                 queue.nowPlaying = null;
+                
                 return message.reply({ embeds: [global.embed.success('Gestoppt', 'Musik wurde gestoppt! 👋')] });
             }
         },
@@ -257,10 +217,15 @@ module.exports = {
             aliases: ['hold'],
             description: 'Pausiert die Musik',
             category: 'Music',
-            async execute(message) {
-                const queue = getQueue(message.guild.id);
-                if (!queue.nowPlaying) return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
-                queue.player.pause();
+            async execute(message, args, { client }) {
+                const lavalink = initLavalink(client);
+                const player = lavalink.getPlayer(message.guild.id);
+                
+                if (!player || !player.playing) {
+                    return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
+                }
+                
+                player.pause();
                 return message.reply({ embeds: [global.embed.success('Pausiert', 'Musik wurde pausiert! ⏸️')] });
             }
         },
@@ -269,10 +234,15 @@ module.exports = {
             aliases: ['unpause'],
             description: 'Setzt die Musik fort',
             category: 'Music',
-            async execute(message) {
-                const queue = getQueue(message.guild.id);
-                if (!queue.nowPlaying) return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
-                queue.player.unpause();
+            async execute(message, args, { client }) {
+                const lavalink = initLavalink(client);
+                const player = lavalink.getPlayer(message.guild.id);
+                
+                if (!player || !player.paused) {
+                    return message.reply({ embeds: [global.embed.error('Kein Song', 'Musik ist nicht pausiert!')] });
+                }
+                
+                player.resume();
                 return message.reply({ embeds: [global.embed.success('Fortgesetzt', 'Musik wird fortgesetzt! ▶️')] });
             }
         },
@@ -281,16 +251,23 @@ module.exports = {
             aliases: ['vol', 'v'],
             description: 'Ändert die Lautstärke',
             category: 'Music',
-            async execute(message, args) {
-                const queue = getQueue(message.guild.id);
+            async execute(message, args, { client }) {
+                const lavalink = initLavalink(client);
+                const player = lavalink.getPlayer(message.guild.id);
+                
+                if (!player) {
+                    return message.reply({ embeds: [global.embed.error('Kein Player', 'Kein aktiver Player!')] });
+                }
+                
                 const volume = parseInt(args[0]);
                 if (isNaN(volume) || volume < 0 || volume > 200) {
                     return message.reply({ embeds: [global.embed.error('Ungültig', 'Volume muss zwischen 0 und 200 sein!')] });
                 }
-                queue.volume = volume / 100;
-                if (queue.player.state.resource) {
-                    queue.player.state.resource.volume.setVolume(queue.volume);
-                }
+                
+                player.setVolume(volume);
+                const queue = getQueue(message.guild.id);
+                queue.volume = volume;
+                
                 return message.reply({ embeds: [global.embed.success('Lautstärke', `Lautstärke auf **${volume}%** gesetzt! 🔊`)] });
             }
         },
@@ -301,6 +278,7 @@ module.exports = {
             category: 'Music',
             async execute(message) {
                 const queue = getQueue(message.guild.id);
+                
                 if (queue.songs.length === 0) {
                     return message.reply({ embeds: [global.embed.info('Queue leer', 'Keine Songs in der Queue!')] });
                 }
@@ -310,23 +288,23 @@ module.exports = {
                 
                 let description = '';
                 if (nowPlaying) {
-                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.title}](${nowPlaying.url})\n\n`;
+                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.info.title}](${nowPlaying.info.uri})\n\n`;
                 }
                 
                 if (upcoming.length > 0) {
                     description += '**📋 Als nächstes:**\n';
-                    upcoming.forEach((song, i) => {
-                        description += `\`${i+1}.\` [${song.title}](${song.url})\n`;
+                    upcoming.forEach((track, i) => {
+                        description += `\`${i+1}.\` [${track.info.title}](${track.info.uri}) | ${track.requester.username}\n`;
                     });
                 }
                 
                 const embed = new EmbedBuilder()
-                    .setColor(0xFF5500)
+                    .setColor(0x00FF00)
                     .setTitle('📋 Musik Queue')
                     .setDescription(description)
                     .addFields(
                         { name: '🔁 Loop', value: queue.loop ? '✅ An' : '❌ Aus', inline: true },
-                        { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
+                        { name: '🔊 Volume', value: `${queue.volume}%`, inline: true }
                     )
                     .setTimestamp();
                 
@@ -340,22 +318,22 @@ module.exports = {
             category: 'Music',
             async execute(message) {
                 const queue = getQueue(message.guild.id);
+                
                 if (!queue.nowPlaying) {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
                 }
                 
-                const song = queue.nowPlaying;
+                const track = queue.nowPlaying;
                 const embed = new EmbedBuilder()
-                    .setColor(0xFF5500)
-                    .setTitle('🟠 Jetzt spielt (SoundCloud)')
-                    .setDescription(`[${song.title}](${song.url})`)
+                    .setColor(0x00FF00)
+                    .setTitle('🎵 Jetzt spielt')
+                    .setDescription(`[${track.info.title}](${track.info.uri})`)
                     .addFields(
-                        { name: '👤 Angefordert von', value: song.requestedBy, inline: true },
-                        { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true }
+                        { name: '👤 Angefordert von', value: track.requester.username, inline: true },
+                        { name: '⏱️ Dauer', value: formatDuration(track.info.duration), inline: true }
                     )
+                    .setThumbnail(track.info.artworkUrl || track.info.thumbnail)
                     .setTimestamp();
-                
-                if (song.thumbnail) embed.setThumbnail(song.thumbnail);
                 
                 message.reply({ embeds: [embed] });
             }
@@ -378,16 +356,15 @@ module.exports = {
             category: 'Music',
             async execute(message) {
                 const queue = getQueue(message.guild.id);
+                
                 if (queue.songs.length < 2) {
                     return message.reply({ embeds: [global.embed.error('Zu wenige Songs', 'Nicht genug Songs zum Mischen!')] });
                 }
                 
-                const current = queue.songs.shift();
                 for (let i = queue.songs.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [queue.songs[i], queue.songs[j]] = [queue.songs[j], queue.songs[i]];
                 }
-                queue.songs.unshift(current);
                 
                 return message.reply({ embeds: [global.embed.success('Gemischt', 'Queue wurde gemischt! 🔀')] });
             }
@@ -399,13 +376,26 @@ module.exports = {
             category: 'Music',
             async execute(message) {
                 return message.reply({ embeds: [{
-                    color: 0xFF5500,
-                    title: '🎵 Music Befehle (SoundCloud)',
-                    description: '**Funktioniert:**\n✅ SoundCloud Links\n✅ SoundCloud Suche\n✅ Spotify → SoundCloud\n\n**Befehle:**\n`!play` `!pause` `!resume` `!stop` `!skip` `!volume` `!queue` `!nowplaying` `!loop` `!shuffle`'
+                    color: 0x00FF00,
+                    title: '🎵 Music Befehle (Lavalink)',
+                    fields: [
+                        { name: '🎧 Plattformen', value: '✅ YouTube\n✅ Spotify\n✅ SoundCloud\n✅ ALLES!', inline: false },
+                        { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
+                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!loop`', inline: false }
+                    ]
                 }] });
             }
         }
     }
 };
 
+function formatDuration(ms) {
+    if (!ms) return '0:00';
+    const seconds = Math.floor(ms / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+module.exports.initLavalink = initLavalink;
 module.exports.musicQueues = musicQueues;

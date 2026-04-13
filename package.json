@@ -8,11 +8,11 @@
   },
   "dependencies": {
     "@discordjs/voice": "^0.16.0",
-    "@distube/ytdl-core": "^4.13.5",
     "@supabase/supabase-js": "^2.38.0",
     "discord.js": "^14.14.0",
     "dotenv": "^16.3.1",
     "ffmpeg-static": "^5.2.0",
+    "play-dl": "^1.9.7",
     "spotify-url-info": "^3.2.8"
   },
   "devDependencies": {

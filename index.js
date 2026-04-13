@@ -8,6 +8,8 @@ const path = require('path');
 const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
 // ⭐ GIVEAWAY IMPORT
 const { handleGiveawayReaction } = require('./models/giveaway');
+// ⭐ LOGS IMPORT
+const { logEvent } = require('./models/logs');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -20,7 +22,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMessageReactions  // ⭐ WICHTIG für Giveaways!
+        GatewayIntentBits.GuildMessageReactions
     ]
 });
 
@@ -136,44 +138,67 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ========== VOICE STATE UPDATE (Join-to-Create) ==========
+// ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs) ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const config = vmCache.get(newState.guild.id);
-    if (!config) return;
     
-    // User joint Join-to-Create Channel
-    if (newState.channelId === config.jtcChannel) {
-        const member = newState.member;
-        
-        // Neuen Voice-Channel erstellen
-        const newChannel = await newState.guild.channels.create({
-            name: `🎤 ${member.user.username}'s Channel`,
-            type: ChannelType.GuildVoice,
-            parent: newState.channel.parent,
-            permissionOverwrites: [
-                { id: member.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.MoveMembers] }
-            ]
-        });
-        
-        // User in neuen Channel moven
-        await member.voice.setChannel(newChannel);
-        
-        // Als Owner speichern
-        config.voiceChannels.set(newChannel.id, member.id);
-        vmCache.set(newState.guild.id, config);
-    }
-    
-    // Leere Voice-Channel löschen
-    if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
-        const channel = oldState.channel;
-        const config = vmCache.get(oldState.guild.id);
-        
-        if (config && config.voiceChannels.has(channel.id)) {
-            config.voiceChannels.delete(channel.id);
-            vmCache.set(oldState.guild.id, config);
+    // Join-to-Create Logik
+    if (config) {
+        // User joint Join-to-Create Channel
+        if (newState.channelId === config.jtcChannel) {
+            const member = newState.member;
+            
+            const newChannel = await newState.guild.channels.create({
+                name: `🎤 ${member.user.username}'s Channel`,
+                type: ChannelType.GuildVoice,
+                parent: newState.channel.parent,
+                permissionOverwrites: [
+                    { id: member.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.MoveMembers] }
+                ]
+            });
+            
+            await member.voice.setChannel(newChannel);
+            config.voiceChannels.set(newChannel.id, member.id);
+            vmCache.set(newState.guild.id, config);
         }
         
-        await channel.delete().catch(() => {});
+        // Leere Voice-Channel löschen
+        if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
+            const channel = oldState.channel;
+            const cfg = vmCache.get(oldState.guild.id);
+            
+            if (cfg && cfg.voiceChannels.has(channel.id)) {
+                cfg.voiceChannels.delete(channel.id);
+                vmCache.set(oldState.guild.id, cfg);
+            }
+            
+            await channel.delete().catch(() => {});
+        }
+    }
+    
+    // ⭐ VOICE LOGS
+    // Voice Join
+    if (!oldState.channelId && newState.channelId) {
+        await logEvent(newState.guild.id, 'voice_join', {
+            user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },
+            target: { id: newState.channelId, tag: newState.channel.name }
+        }, supabase, client);
+    }
+    
+    // Voice Leave
+    if (oldState.channelId && !newState.channelId) {
+        await logEvent(oldState.guild.id, 'voice_leave', {
+            user: { id: oldState.member.id, tag: oldState.member.user.tag, avatar: oldState.member.user.displayAvatarURL() },
+            target: { id: oldState.channelId, tag: oldState.channel.name }
+        }, supabase, client);
+    }
+    
+    // Voice Move
+    if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+        await logEvent(newState.guild.id, 'voice_move', {
+            user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },
+            details: `${oldState.channel.name} → ${newState.channel.name}`
+        }, supabase, client);
     }
 });
 
@@ -181,11 +206,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.partial) {
-        try {
-            await reaction.fetch();
-        } catch {
-            return;
-        }
+        try { await reaction.fetch(); } catch { return; }
     }
     await handleGiveawayReaction(reaction, user, client, supabase, true);
 });
@@ -193,29 +214,130 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageReactionRemove', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.partial) {
-        try {
-            await reaction.fetch();
-        } catch {
-            return;
-        }
+        try { await reaction.fetch(); } catch { return; }
     }
     await handleGiveawayReaction(reaction, user, client, supabase, false);
 });
 
-// ========== SNIPE LISTENER ==========
+// ========== LOGGING LISTENERS ==========
+
+// Message Delete (Log + Snipe)
 client.on('messageDelete', async (message) => {
-    if (message.author?.bot || (!message.content && !message.attachments.size)) return;
+    // Snipe
+    if (!message.author?.bot || message.content || message.attachments.size) {
+        const attachments = [];
+        message.attachments.forEach(att => attachments.push(att.url));
+        
+        client.snipes.set(message.channel.id, {
+            author: message.author?.tag || 'Unbekannt',
+            avatar: message.author?.displayAvatarURL() || null,
+            content: message.content || null,
+            attachments: attachments.length > 0 ? attachments : null,
+            time: new Date().toLocaleTimeString('de-DE')
+        });
+    }
     
-    const attachments = [];
-    message.attachments.forEach(att => attachments.push(att.url));
+    // Log
+    if (message.author?.bot || !message.guild) return;
     
-    client.snipes.set(message.channel.id, {
-        author: message.author?.tag || 'Unbekannt',
-        avatar: message.author?.displayAvatarURL() || null,
-        content: message.content || null,
-        attachments: attachments.length > 0 ? attachments : null,
-        time: new Date().toLocaleTimeString('de-DE')
-    });
+    await logEvent(message.guild.id, 'message_delete', {
+        user: { id: message.author?.id, tag: message.author?.tag, avatar: message.author?.displayAvatarURL() },
+        target: { id: message.channel.id, tag: `#${message.channel.name}` },
+        details: message.content || '*Kein Text*'
+    }, supabase, client);
+});
+
+// Message Edit
+client.on('messageUpdate', async (oldMessage, newMessage) => {
+    if (oldMessage.author?.bot || !oldMessage.guild || oldMessage.content === newMessage.content) return;
+    
+    await logEvent(oldMessage.guild.id, 'message_edit', {
+        user: { id: oldMessage.author?.id, tag: oldMessage.author?.tag, avatar: oldMessage.author?.displayAvatarURL() },
+        target: { id: oldMessage.channel.id, tag: `#${oldMessage.channel.name}` },
+        oldContent: oldMessage.content || '*Kein Text*',
+        newContent: newMessage.content || '*Kein Text*'
+    }, supabase, client);
+});
+
+// Member Join
+client.on('guildMemberAdd', async (member) => {
+    await logEvent(member.guild.id, 'member_join', {
+        user: { id: member.id, tag: member.user.tag, avatar: member.user.displayAvatarURL() }
+    }, supabase, client);
+});
+
+// Member Leave
+client.on('guildMemberRemove', async (member) => {
+    await logEvent(member.guild.id, 'member_leave', {
+        user: { id: member.id, tag: member.user.tag, avatar: member.user.displayAvatarURL() }
+    }, supabase, client);
+});
+
+// Member Ban
+client.on('guildBanAdd', async (ban) => {
+    const logs = await ban.guild.fetchAuditLogs({ type: 22, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(ban.guild.id, 'member_ban', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: ban.user.id, tag: ban.user.tag },
+        reason: entry?.reason || 'Kein Grund'
+    }, supabase, client);
+});
+
+// Member Unban
+client.on('guildBanRemove', async (ban) => {
+    const logs = await ban.guild.fetchAuditLogs({ type: 23, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(ban.guild.id, 'member_unban', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: ban.user.id, tag: ban.user.tag }
+    }, supabase, client);
+});
+
+// Channel Create
+client.on('channelCreate', async (channel) => {
+    const logs = await channel.guild.fetchAuditLogs({ type: 10, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(channel.guild.id, 'channel_create', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: channel.id, tag: channel.name }
+    }, supabase, client);
+});
+
+// Channel Delete
+client.on('channelDelete', async (channel) => {
+    const logs = await channel.guild.fetchAuditLogs({ type: 12, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(channel.guild.id, 'channel_delete', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: channel.id, tag: channel.name }
+    }, supabase, client);
+});
+
+// Role Create
+client.on('roleCreate', async (role) => {
+    const logs = await role.guild.fetchAuditLogs({ type: 30, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(role.guild.id, 'role_create', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: role.id, tag: role.name }
+    }, supabase, client);
+});
+
+// Role Delete
+client.on('roleDelete', async (role) => {
+    const logs = await role.guild.fetchAuditLogs({ type: 32, limit: 1 });
+    const entry = logs.entries.first();
+    
+    await logEvent(role.guild.id, 'role_delete', {
+        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
+        target: { id: role.id, tag: role.name }
+    }, supabase, client);
 });
 
 // ========== ERROR HANDLING ==========

@@ -236,7 +236,7 @@ module.exports = {
         
         // ========== BR-LEAVE ==========
         'br-leave': {
-            aliases: ['br-delete', 'br-remove'],
+            aliases: ['br-delete', 'br-remove-self'],
             description: 'Löscht deine Booster-Rolle',
             category: 'Booster',
             async execute(message, args, { supabase }) {
@@ -286,7 +286,7 @@ module.exports = {
                     .single();
                 
                 if (!existing) {
-                    return message.reply({ embeds: [global.embed.error('Keine Rolle', `${target} hat keine Booster-Rolle!')] });
+                    return message.reply({ embeds: [global.embed.error('Keine Rolle', `${target} hat keine Booster-Rolle!`)] });
                 }
                 
                 const role = message.guild.roles.cache.get(existing.role_id);
@@ -363,7 +363,7 @@ module.exports = {
                     .single();
                 
                 if (shared) {
-                    return message.reply({ embeds: [global.embed.error('Bereits geteilt', `Du teilst die Rolle bereits mit ${target}!')] });
+                    return message.reply({ embeds: [global.embed.error('Bereits geteilt', `Du teilst die Rolle bereits mit ${target}!`)] });
                 }
                 
                 await supabase.from('booster_shares').insert({

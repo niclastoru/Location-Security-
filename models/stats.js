@@ -11,20 +11,30 @@ module.exports = {
         
         // ========== STATS ==========
         stats: {
-            aliases: ['serverstats', 'ranking'],
-            description: 'Zeigt Server-Statistiken als Bild',
+            aliases: ['serverstats', 'ranking', 'statistics'],
+            description: 'Zeigt Statistiken (User oder Server)',
             category: 'Stats',
             async execute(message, args, { client, supabase }) {
-                const target = message.mentions.users.first() || message.author;
-                const period = args[0]?.toLowerCase() || '14d';
+                const type = args[0]?.toLowerCase();
                 
-                const loadingMsg = await message.reply({ embeds: [global.embed.info('Stats', '📊 Generiere Statistiken...')] });
+                // Server Stats
+                if (type === 'server' || type === 'guild') {
+                    return await generateServerStats(message, args, client, supabase);
+                }
+                
+                // User Stats (Standard)
+                const target = message.mentions.users.first() || 
+                               (args[0] && !isNaN(args[0]) ? await client.users.fetch(args[0]).catch(() => null) : null) || 
+                               message.author;
+                const period = args[1]?.toLowerCase() || '14d';
+                
+                const loadingMsg = await message.reply({ embeds: [global.embed.info('Stats', '📊 Generiere User-Statistiken...')] });
                 
                 try {
-                    const days = period === '1d' ? 1 : period === '7d' ? 7 : 14;
-                    const stats = await collectStats(message.guild.id, target.id, days, supabase, client);
+                    const days = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 14;
+                    const stats = await collectUserStats(message.guild.id, target.id, days, supabase, client);
                     
-                    const imageBuffer = await generateStatsImage(stats, target, message.guild);
+                    const imageBuffer = await generateUserStatsImage(stats, target, message.guild, days);
                     const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
                     
                     const embed = new EmbedBuilder()
@@ -104,8 +114,205 @@ module.exports = {
     }
 };
 
-// ⭐ Stats sammeln
-async function collectStats(guildId, userId, days, supabase, client) {
+// ⭐ SERVER STATS GENERIEREN
+async function generateServerStats(message, args, client, supabase) {
+    const period = args[1]?.toLowerCase() || '14d';
+    const loadingMsg = await message.reply({ embeds: [global.embed.info('Server Stats', '📊 Generiere Server-Statistiken...')] });
+    
+    try {
+        const days = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 14;
+        const stats = await collectServerStats(message.guild.id, days, supabase, client);
+        
+        const imageBuffer = await generateServerStatsImage(stats, message.guild, days, client);
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'server-stats.png' });
+        
+        const embed = new EmbedBuilder()
+            .setColor(0x2F3136)
+            .setTitle(`📊 Server Statistiken`)
+            .setImage('attachment://server-stats.png')
+            .setFooter({ text: `Lookback: Last ${days} days • Powered by ${client.user.username}` })
+            .setTimestamp();
+        
+        await loadingMsg.edit({ embeds: [embed], files: [attachment] });
+        
+    } catch (error) {
+        console.error('Server stats error:', error);
+        loadingMsg.edit({ embeds: [global.embed.error('Fehler', 'Konnte Server-Stats nicht generieren!')] });
+    }
+}
+
+// ⭐ Server Stats sammeln
+async function collectServerStats(guildId, days, supabase, client) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceStr = since.toISOString().split('T')[0];
+    
+    // Nachrichten Stats (gesamt)
+    const { data: msgStats } = await supabase
+        .from('message_stats')
+        .select('message_count, date')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    // Voice Stats (gesamt)
+    const { data: voiceStats } = await supabase
+        .from('voice_stats')
+        .select('duration, date')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    // Nachrichten pro Tag berechnen
+    const messagesByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
+    const voiceByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
+    
+    const now = new Date();
+    
+    if (msgStats) {
+        msgStats.forEach(s => {
+            const date = new Date(s.date);
+            const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 1) messagesByDay['1d'] += s.message_count;
+            if (diffDays < 7) messagesByDay['7d'] += s.message_count;
+            if (diffDays < 14) messagesByDay['14d'] += s.message_count;
+            messagesByDay['30d'] += s.message_count;
+        });
+    }
+    
+    if (voiceStats) {
+        voiceStats.forEach(s => {
+            const date = new Date(s.date);
+            const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 1) voiceByDay['1d'] += s.duration;
+            if (diffDays < 7) voiceByDay['7d'] += s.duration;
+            if (diffDays < 14) voiceByDay['14d'] += s.duration;
+            voiceByDay['30d'] += s.duration;
+        });
+    }
+    
+    // Top Channels (Nachrichten)
+    const { data: channelMessages } = await supabase
+        .from('message_stats')
+        .select('channel_id, message_count')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    const channelMsgTotals = new Map();
+    if (channelMessages) {
+        channelMessages.forEach(c => {
+            const current = channelMsgTotals.get(c.channel_id) || 0;
+            channelMsgTotals.set(c.channel_id, current + c.message_count);
+        });
+    }
+    
+    const topMsgChannels = Array.from(channelMsgTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+    
+    // Top Voice Channels
+    const { data: channelVoice } = await supabase
+        .from('voice_stats')
+        .select('channel_id, duration')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    const channelVoiceTotals = new Map();
+    if (channelVoice) {
+        channelVoice.forEach(c => {
+            const current = channelVoiceTotals.get(c.channel_id) || 0;
+            channelVoiceTotals.set(c.channel_id, current + c.duration);
+        });
+    }
+    
+    const topVoiceChannels = Array.from(channelVoiceTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+    
+    // Top User (Nachrichten)
+    const { data: userMessages } = await supabase
+        .from('message_stats')
+        .select('user_id, message_count')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    const userMsgTotals = new Map();
+    if (userMessages) {
+        userMessages.forEach(u => {
+            const current = userMsgTotals.get(u.user_id) || 0;
+            userMsgTotals.set(u.user_id, current + u.message_count);
+        });
+    }
+    
+    const topMsgUsers = Array.from(userMsgTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+    
+    // Top User (Voice)
+    const { data: userVoice } = await supabase
+        .from('voice_stats')
+        .select('user_id, duration')
+        .eq('guild_id', guildId)
+        .gte('date', sinceStr);
+    
+    const userVoiceTotals = new Map();
+    if (userVoice) {
+        userVoice.forEach(u => {
+            const current = userVoiceTotals.get(u.user_id) || 0;
+            userVoiceTotals.set(u.user_id, current + u.duration);
+        });
+    }
+    
+    const topVoiceUsers = Array.from(userVoiceTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+    
+    // Channel Namen holen
+    const channelNames = new Map();
+    const { data: savedNames } = await supabase
+        .from('channel_names')
+        .select('channel_id, channel_name')
+        .eq('guild_id', guildId);
+    
+    if (savedNames) {
+        savedNames.forEach(c => channelNames.set(c.channel_id, c.channel_name));
+    }
+    
+    // Member Stats
+    const guild = client.guilds.cache.get(guildId);
+    const totalMembers = guild?.memberCount || 0;
+    const onlineMembers = guild?.members.cache.filter(m => m.presence?.status === 'online').size || 0;
+    const botCount = guild?.members.cache.filter(m => m.user.bot).size || 0;
+    const humanCount = totalMembers - botCount;
+    
+    return {
+        messages: messagesByDay,
+        voice: voiceByDay,
+        totalMembers,
+        onlineMembers,
+        botCount,
+        humanCount,
+        topMsgChannels: await Promise.all(topMsgChannels.map(async ([id, count]) => ({
+            name: channelNames.get(id) || (await client.channels.fetch(id).catch(() => ({ name: 'Deleted Channel' }))).name,
+            count
+        }))),
+        topVoiceChannels: await Promise.all(topVoiceChannels.map(async ([id, duration]) => ({
+            name: channelNames.get(id) || (await client.channels.fetch(id).catch(() => ({ name: 'Deleted Channel' }))).name,
+            duration
+        }))),
+        topMsgUsers: await Promise.all(topMsgUsers.map(async ([id, count]) => ({
+            name: (await client.users.fetch(id).catch(() => ({ username: 'Unknown' }))).username,
+            count
+        }))),
+        topVoiceUsers: await Promise.all(topVoiceUsers.map(async ([id, duration]) => ({
+            name: (await client.users.fetch(id).catch(() => ({ username: 'Unknown' }))).username,
+            duration
+        })))
+    };
+}
+
+// ⭐ User Stats sammeln
+async function collectUserStats(guildId, userId, days, supabase, client) {
     const since = new Date();
     since.setDate(since.getDate() - days);
     const sinceStr = since.toISOString().split('T')[0];
@@ -127,8 +334,8 @@ async function collectStats(guildId, userId, days, supabase, client) {
         .gte('date', sinceStr);
     
     // Nachrichten pro Tag berechnen
-    const messagesByDay = { '1d': 0, '7d': 0, '14d': 0 };
-    const voiceByDay = { '1d': 0, '7d': 0, '14d': 0 };
+    const messagesByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
+    const voiceByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
     
     const now = new Date();
     
@@ -139,7 +346,8 @@ async function collectStats(guildId, userId, days, supabase, client) {
             
             if (diffDays < 1) messagesByDay['1d'] += s.message_count;
             if (diffDays < 7) messagesByDay['7d'] += s.message_count;
-            messagesByDay['14d'] += s.message_count;
+            if (diffDays < 14) messagesByDay['14d'] += s.message_count;
+            messagesByDay['30d'] += s.message_count;
         });
     }
     
@@ -150,7 +358,8 @@ async function collectStats(guildId, userId, days, supabase, client) {
             
             if (diffDays < 1) voiceByDay['1d'] += s.duration;
             if (diffDays < 7) voiceByDay['7d'] += s.duration;
-            voiceByDay['14d'] += s.duration;
+            if (diffDays < 14) voiceByDay['14d'] += s.duration;
+            voiceByDay['30d'] += s.duration;
         });
     }
     
@@ -191,7 +400,6 @@ async function collectStats(guildId, userId, days, supabase, client) {
         savedNames.forEach(c => channelNames.set(c.channel_id, c.channel_name));
     }
     
-    // Fallback: Discord API
     for (const [channelId] of [...topMsgChannels, ...topVoiceChannels]) {
         if (!channelNames.has(channelId)) {
             const channel = client.channels.cache.get(channelId);
@@ -213,10 +421,197 @@ async function collectStats(guildId, userId, days, supabase, client) {
     };
 }
 
-// ⭐ Stats Bild generieren (Canvas)
-async function generateStatsImage(stats, user, guild) {
+// ⭐ Server Stats Bild generieren
+async function generateServerStatsImage(stats, guild, days, client) {
+    const width = 900;
+    const height = 700;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    
+    // Hintergrund
+    ctx.fillStyle = '#1a1b1e';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Header Bereich
+    ctx.fillStyle = '#2c2f33';
+    ctx.fillRect(0, 0, width, 120);
+    
+    // Server Icon
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(60, 60, 40, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    
+    try {
+        const icon = await loadImage(guild.iconURL({ extension: 'png', size: 128 }) || 'https://cdn.discordapp.com/embed/avatars/0.png');
+        ctx.drawImage(icon, 20, 20, 80, 80);
+    } catch (e) {
+        ctx.fillStyle = '#7289DA';
+        ctx.fillRect(20, 20, 80, 80);
+    }
+    ctx.restore();
+    
+    // Server Name & Stats
+    ctx.font = 'bold 28px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(guild.name, 120, 50);
+    
+    ctx.font = '16px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    ctx.fillText(`👥 ${stats.totalMembers} Members (${stats.onlineMembers} online)`, 120, 80);
+    ctx.fillText(`👤 ${stats.humanCount} Humans • 🤖 ${stats.botCount} Bots`, 120, 105);
+    
+    // Trennlinie
+    ctx.strokeStyle = '#40444b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, 135);
+    ctx.lineTo(width - 20, 135);
+    ctx.stroke();
+    
+    let yPos = 170;
+    
+    // Messages Sektion
+    ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('📊 Messages (Gesamt)', 30, yPos);
+    yPos += 35;
+    
+    const msgStats = stats.messages;
+    ctx.font = '14px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    ctx.fillText(`1d: ${msgStats['1d'] || 0}`, 40, yPos);
+    ctx.fillText(`7d: ${msgStats['7d'] || 0}`, 160, yPos);
+    ctx.fillText(`14d: ${msgStats['14d'] || 0}`, 280, yPos);
+    ctx.fillText(`30d: ${msgStats['30d'] || 0}`, 400, yPos);
+    yPos += 40;
+    
+    // Voice Sektion
+    ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('🎤 Voice Activity (Gesamt)', 30, yPos);
+    yPos += 35;
+    
+    const voiceStats = stats.voice;
+    const formatVoice = (s) => {
+        if (!s) return '0h';
+        const hours = Math.floor(s / 3600);
+        return `${hours}h`;
+    };
+    
+    ctx.font = '14px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    ctx.fillText(`1d: ${formatVoice(voiceStats['1d'])}`, 40, yPos);
+    ctx.fillText(`7d: ${formatVoice(voiceStats['7d'])}`, 160, yPos);
+    ctx.fillText(`14d: ${formatVoice(voiceStats['14d'])}`, 280, yPos);
+    ctx.fillText(`30d: ${formatVoice(voiceStats['30d'])}`, 400, yPos);
+    yPos += 50;
+    
+    // Trennlinie
+    ctx.strokeStyle = '#40444b';
+    ctx.beginPath();
+    ctx.moveTo(20, yPos);
+    ctx.lineTo(width - 20, yPos);
+    ctx.stroke();
+    yPos += 30;
+    
+    // Top Text Channels
+    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('💬 Top Text Channels', 30, yPos);
+    yPos += 30;
+    
+    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    
+    if (stats.topMsgChannels.length > 0) {
+        stats.topMsgChannels.forEach((ch, i) => {
+            ctx.fillText(`${i+1}. #${ch.name}: ${ch.count} messages`, 40, yPos);
+            yPos += 22;
+        });
+    } else {
+        ctx.fillText('No Data', 40, yPos);
+        yPos += 22;
+    }
+    yPos += 15;
+    
+    // Top Voice Channels
+    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('🎤 Top Voice Channels', 30, yPos);
+    yPos += 30;
+    
+    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    
+    if (stats.topVoiceChannels.length > 0) {
+        stats.topVoiceChannels.forEach((ch, i) => {
+            ctx.fillText(`${i+1}. #${ch.name}: ${formatVoice(ch.duration)}`, 40, yPos);
+            yPos += 22;
+        });
+    } else {
+        ctx.fillText('No Data', 40, yPos);
+        yPos += 22;
+    }
+    yPos += 15;
+    
+    // Top User (Messages) - Rechte Spalte
+    const rightColX = 480;
+    let rightY = 170;
+    
+    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('🏆 Top User (Nachrichten)', rightColX, rightY);
+    rightY += 30;
+    
+    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    
+    if (stats.topMsgUsers.length > 0) {
+        stats.topMsgUsers.forEach((u, i) => {
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+            ctx.fillText(`${medal} ${u.name}: ${u.count}`, rightColX + 10, rightY);
+            rightY += 25;
+        });
+    } else {
+        ctx.fillText('No Data', rightColX + 10, rightY);
+        rightY += 25;
+    }
+    rightY += 20;
+    
+    // Top User (Voice)
+    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('🎤 Top User (Voice)', rightColX, rightY);
+    rightY += 30;
+    
+    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#b9bbbe';
+    
+    if (stats.topVoiceUsers.length > 0) {
+        stats.topVoiceUsers.forEach((u, i) => {
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+            ctx.fillText(`${medal} ${u.name}: ${formatVoice(u.duration)}`, rightColX + 10, rightY);
+            rightY += 25;
+        });
+    } else {
+        ctx.fillText('No Data', rightColX + 10, rightY);
+    }
+    
+    // Footer
+    ctx.font = '12px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#72767d';
+    ctx.fillText(`LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
+    ctx.fillText(`POWERED BY ${client.user.username.toUpperCase()}`, width - 250, height - 30);
+    
+    return canvas.toBuffer('image/png');
+}
+
+// ⭐ User Stats Bild generieren
+async function generateUserStatsImage(stats, user, guild, days) {
     const width = 800;
-    const height = 600;
+    const height = 550;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
@@ -264,25 +659,20 @@ async function generateStatsImage(stats, user, guild) {
     // Messages Sektion
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Messages', 30, 150);
+    ctx.fillText('📊 Messages', 30, 150);
     
-    // Message Stats
     const msgStats = stats.messages;
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(`1d`, 40, 190);
-    ctx.fillText(`${msgStats['1d'] || 0} messages`, 40, 210);
-    
-    ctx.fillText(`7d`, 200, 190);
-    ctx.fillText(`${msgStats['7d'] || 0} messages`, 200, 210);
-    
-    ctx.fillText(`14d`, 360, 190);
-    ctx.fillText(`${msgStats['14d'] || 0} messages`, 360, 210);
+    ctx.fillText(`1d: ${msgStats['1d'] || 0} messages`, 40, 185);
+    ctx.fillText(`7d: ${msgStats['7d'] || 0} messages`, 180, 185);
+    ctx.fillText(`14d: ${msgStats['14d'] || 0} messages`, 320, 185);
+    ctx.fillText(`30d: ${msgStats['30d'] || 0} messages`, 460, 185);
     
     // Voice Activity Sektion
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Voice Activity', 30, 270);
+    ctx.fillText('🎤 Voice Activity', 30, 240);
     
     const voiceStats = stats.voice;
     const formatVoice = (s) => {
@@ -294,37 +684,31 @@ async function generateStatsImage(stats, user, guild) {
     
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(`1d`, 40, 310);
-    ctx.fillText(formatVoice(voiceStats['1d']), 40, 330);
+    ctx.fillText(`1d: ${formatVoice(voiceStats['1d'])}`, 40, 275);
+    ctx.fillText(`7d: ${formatVoice(voiceStats['7d'])}`, 180, 275);
+    ctx.fillText(`14d: ${formatVoice(voiceStats['14d'])}`, 320, 275);
+    ctx.fillText(`30d: ${formatVoice(voiceStats['30d'])}`, 460, 275);
     
-    ctx.fillText(`7d`, 200, 310);
-    ctx.fillText(formatVoice(voiceStats['7d']), 200, 330);
-    
-    ctx.fillText(`14d`, 360, 310);
-    ctx.fillText(formatVoice(voiceStats['14d']), 360, 330);
-    
-    // Top Channels & Applications
+    // Top Channels
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Top Channels & Applications', 30, 400);
+    ctx.fillText('Top Channels', 30, 340);
     
-    // Top Message Channel
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
     ctx.fillText(stats.topMsgChannel ? 
-        `${stats.topMsgChannel.name}  ${stats.topMsgChannel.count} messages` : 
-        'No Data  No Data', 40, 440);
+        `💬 ${stats.topMsgChannel.name}: ${stats.topMsgChannel.count} messages` : 
+        '💬 No Data', 40, 375);
     
-    // Top Voice Channel
     ctx.fillText(stats.topVoiceChannel ? 
-        `${stats.topVoiceChannel.name}  ${formatVoice(stats.topVoiceChannel.duration)}` : 
-        'No Data  No Data', 40, 470);
+        `🎤 ${stats.topVoiceChannel.name}: ${formatVoice(stats.topVoiceChannel.duration)}` : 
+        '🎤 No Data', 40, 405);
     
     // Footer
     ctx.font = '12px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#72767d';
-    ctx.fillText(`LOOKBACK: LAST 14 DAYS`, 30, 560);
-    ctx.fillText(`POWERED BY ${guild.client.user.username.toUpperCase()}`, width - 250, 560);
+    ctx.fillText(`LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
+    ctx.fillText(`POWERED BY ${guild.client.user.username.toUpperCase()}`, width - 250, height - 30);
     
     return canvas.toBuffer('image/png');
 }
@@ -451,13 +835,12 @@ async function getTopUsers(guildId, type, limit, days, supabase, client) {
     }
 }
 
-// ⭐ Tracking Handler (für index.js)
+// ⭐ Tracking Handler
 async function trackMessage(message, supabase) {
     if (message.author.bot || !message.guild) return;
     
     const today = new Date().toISOString().split('T')[0];
     
-    // Prüfen ob heute schon Eintrag existiert
     const { data } = await supabase
         .from('message_stats')
         .select('message_count')
@@ -487,7 +870,6 @@ async function trackMessage(message, supabase) {
             });
     }
     
-    // Channel Namen speichern
     await supabase
         .from('channel_names')
         .upsert({
@@ -497,7 +879,6 @@ async function trackMessage(message, supabase) {
         });
 }
 
-// Voice Tracking
 const voiceConnections = new Map();
 
 function trackVoiceStart(state, supabase) {
@@ -509,7 +890,6 @@ function trackVoiceStart(state, supabase) {
         startTime: Date.now()
     });
     
-    // Channel Namen speichern
     supabase.from('channel_names').upsert({
         guild_id: state.guild.id,
         channel_id: state.channel.id,

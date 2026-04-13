@@ -1,23 +1,56 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 
-// Cache für VoiceMaster Channels
+// Cache für schnellen Zugriff (wird aus Supabase geladen)
 const vmCache = new Map();
 
+// ========== HELPER: Konfiguration aus Supabase laden ==========
+async function loadConfig(guildId, supabase) {
+    if (vmCache.has(guildId)) return vmCache.get(guildId);
+    
+    const { data } = await supabase
+        .from('voicemaster_config')
+        .select('*')
+        .eq('guild_id', guildId)
+        .single();
+    
+    if (data) {
+        const { data: channels } = await supabase
+            .from('voicemaster_channels')
+            .select('*')
+            .eq('guild_id', guildId);
+        
+        const voiceChannels = new Map();
+        if (channels) {
+            channels.forEach(c => voiceChannels.set(c.channel_id, c.owner_id));
+        }
+        
+        const config = {
+            jtcChannel: data.jtc_channel,
+            interfaceChannel: data.interface_channel,
+            voiceChannels: voiceChannels
+        };
+        
+        vmCache.set(guildId, config);
+        return config;
+    }
+    
+    return null;
+}
+
 // ========== HELPER FUNKTION ==========
-function isOwner(userId, channel, guildId) {
-    const config = vmCache.get(guildId);
+async function isOwner(userId, channel, guildId, supabase) {
+    const config = await loadConfig(guildId, supabase);
     if (!config) return false;
     
     const ownerId = config.voiceChannels.get(channel.id);
     return ownerId === userId;
 }
 
-// ========== VOICEMASTER BUTTON HANDLER (OPTIMIERT) ==========
-async function handleVoiceMasterButton(interaction, client) {
+// ========== VOICEMASTER BUTTON HANDLER ==========
+async function handleVoiceMasterButton(interaction, client, supabase) {
     const { customId, member, guild } = interaction;
     const channel = member.voice.channel;
     
-    // ⭐ SOFORT deferen für schnelle Antwort
     await interaction.deferReply({ ephemeral: true });
     
     if (!channel) {
@@ -28,7 +61,7 @@ async function handleVoiceMasterButton(interaction, client) {
         return interaction.editReply({ embeds: [global.embed.error('Kein VM Channel', 'Das ist kein VoiceMaster Channel!')] });
     }
     
-    const config = vmCache.get(guild.id);
+    const config = await loadConfig(guild.id, supabase);
     if (!config) {
         return interaction.editReply({ embeds: [global.embed.error('Kein Setup', 'VoiceMaster ist nicht eingerichtet!')] });
     }
@@ -62,6 +95,14 @@ async function handleVoiceMasterButton(interaction, client) {
             }
             config.voiceChannels.set(channel.id, member.id);
             vmCache.set(guild.id, config);
+            
+            // In Supabase speichern
+            await supabase.from('voicemaster_channels').upsert({
+                guild_id: guild.id,
+                channel_id: channel.id,
+                owner_id: member.id
+            });
+            
             await channel.setName(`🎤 ${member.user.username}'s Channel`);
             return interaction.editReply({ embeds: [global.embed.success('Geclaimed', `Du bist jetzt Owner von ${channel}!`)] });
             
@@ -124,10 +165,22 @@ module.exports = {
             permissions: 'Administrator',
             description: 'Erstellt das VoiceMaster System',
             category: 'Voicemaster',
-            async execute(message, args, { client }) {
+            async execute(message, args, { client, supabase }) {
                 
-                // Loading Nachricht
                 const loadingMsg = await message.reply({ embeds: [global.embed.info('Setup', '⏳ Erstelle VoiceMaster...')] });
+                
+                // Alte Config löschen falls vorhanden
+                const existing = await loadConfig(message.guild.id, supabase);
+                if (existing) {
+                    const jtcChannel = message.guild.channels.cache.get(existing.jtcChannel);
+                    const interfaceChannel = message.guild.channels.cache.get(existing.interfaceChannel);
+                    if (jtcChannel) await jtcChannel.delete().catch(() => {});
+                    if (interfaceChannel) await interfaceChannel.delete().catch(() => {});
+                    
+                    await supabase.from('voicemaster_config').delete().eq('guild_id', message.guild.id);
+                    await supabase.from('voicemaster_channels').delete().eq('guild_id', message.guild.id);
+                    vmCache.delete(message.guild.id);
+                }
                 
                 const jtcChannel = await message.guild.channels.create({
                     name: '➕ Join to Create',
@@ -182,6 +235,13 @@ module.exports = {
                 
                 await interfaceChannel.send({ embeds: [panelEmbed], components: [row1, row2] });
                 
+                // In Supabase speichern
+                await supabase.from('voicemaster_config').insert({
+                    guild_id: message.guild.id,
+                    jtc_channel: jtcChannel.id,
+                    interface_channel: interfaceChannel.id
+                });
+                
                 vmCache.set(message.guild.id, {
                     jtcChannel: jtcChannel.id,
                     interfaceChannel: interfaceChannel.id,
@@ -204,8 +264,8 @@ module.exports = {
             permissions: 'Administrator',
             description: 'Setzt VoiceMaster zurück',
             category: 'Voicemaster',
-            async execute(message) {
-                const config = vmCache.get(message.guild.id);
+            async execute(message, args, { supabase }) {
+                const config = await loadConfig(message.guild.id, supabase);
                 if (config) {
                     const jtcChannel = message.guild.channels.cache.get(config.jtcChannel);
                     const interfaceChannel = message.guild.channels.cache.get(config.interfaceChannel);
@@ -213,11 +273,13 @@ module.exports = {
                     if (jtcChannel) await jtcChannel.delete().catch(() => {});
                     if (interfaceChannel) await interfaceChannel.delete().catch(() => {});
                     
-                    for (const [userId, channelId] of config.voiceChannels) {
+                    for (const [channelId, ownerId] of config.voiceChannels) {
                         const channel = message.guild.channels.cache.get(channelId);
                         if (channel) await channel.delete().catch(() => {});
                     }
                     
+                    await supabase.from('voicemaster_config').delete().eq('guild_id', message.guild.id);
+                    await supabase.from('voicemaster_channels').delete().eq('guild_id', message.guild.id);
                     vmCache.delete(message.guild.id);
                 }
                 
@@ -230,11 +292,11 @@ module.exports = {
             aliases: ['vlock'],
             description: 'Sperrt deinen Voice-Channel',
             category: 'Voicemaster',
-            async execute(message) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -248,11 +310,11 @@ module.exports = {
             aliases: ['vunlock'],
             description: 'Entsperrt deinen Voice-Channel',
             category: 'Voicemaster',
-            async execute(message) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -266,11 +328,11 @@ module.exports = {
             aliases: ['vhide', 'ghost'],
             description: 'Versteckt deinen Voice-Channel',
             category: 'Voicemaster',
-            async execute(message) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -284,11 +346,11 @@ module.exports = {
             aliases: ['vunhide', 'reveal'],
             description: 'Zeigt deinen Voice-Channel',
             category: 'Voicemaster',
-            async execute(message) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -302,11 +364,11 @@ module.exports = {
             aliases: ['vclaim'],
             description: 'Übernimmt einen Voice-Channel',
             category: 'Voicemaster',
-            async execute(message) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                const config = vmCache.get(message.guild.id);
+                const config = await loadConfig(message.guild.id, supabase);
                 if (!config) return message.reply({ embeds: [global.embed.error('Kein Setup', 'VoiceMaster ist nicht eingerichtet!')] });
                 
                 if (!channel.name.includes('🎤')) {
@@ -315,6 +377,12 @@ module.exports = {
                 
                 config.voiceChannels.set(channel.id, message.author.id);
                 vmCache.set(message.guild.id, config);
+                
+                await supabase.from('voicemaster_channels').upsert({
+                    guild_id: message.guild.id,
+                    channel_id: channel.id,
+                    owner_id: message.author.id
+                });
                 
                 await channel.setName(`🎤 ${message.author.username}'s Channel`);
                 
@@ -327,11 +395,11 @@ module.exports = {
             aliases: ['vtransfer', 'transfer-new'],
             description: 'Überträgt Channel-Ownership',
             category: 'Voicemaster',
-            async execute(message, args) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -341,10 +409,16 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Nicht im Channel', `${target} ist nicht in deinem Channel!`)] });
                 }
                 
-                const config = vmCache.get(message.guild.id);
+                const config = await loadConfig(message.guild.id, supabase);
                 if (config) {
                     config.voiceChannels.set(channel.id, target.id);
                     vmCache.set(message.guild.id, config);
+                    
+                    await supabase.from('voicemaster_channels').upsert({
+                        guild_id: message.guild.id,
+                        channel_id: channel.id,
+                        owner_id: target.id
+                    });
                 }
                 
                 await channel.setName(`🎤 ${target.user.username}'s Channel`);
@@ -358,11 +432,11 @@ module.exports = {
             aliases: ['vlimit'],
             description: 'Setzt User-Limit',
             category: 'Voicemaster',
-            async execute(message, args) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -381,11 +455,11 @@ module.exports = {
             aliases: ['vrename'],
             description: 'Benennt Channel um',
             category: 'Voicemaster',
-            async execute(message, args) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -403,11 +477,11 @@ module.exports = {
             aliases: ['vban'],
             description: 'Bannt User vom Channel',
             category: 'Voicemaster',
-            async execute(message, args) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -430,11 +504,11 @@ module.exports = {
             aliases: ['vunban', 'voice-unban-new'],
             description: 'Entbannt User vom Channel',
             category: 'Voicemaster',
-            async execute(message, args) {
+            async execute(message, args, { supabase }) {
                 const channel = message.member.voice.channel;
                 if (!channel) return message.reply({ embeds: [global.embed.error('Kein VC', 'Du bist in keinem Voice-Channel!')] });
                 
-                if (!isOwner(message.author.id, channel, message.guild.id)) {
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
                     return message.reply({ embeds: [global.embed.error('Kein Owner', 'Du bist nicht der Owner dieses Channels!')] });
                 }
                 
@@ -451,3 +525,4 @@ module.exports = {
 
 module.exports.handleVoiceMasterButton = handleVoiceMasterButton;
 module.exports.vmCache = vmCache;
+module.exports.loadConfig = loadConfig;

@@ -10,6 +10,8 @@ const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
 // ⭐ LOGS IMPORT
 const { logEvent } = require('./models/logs');
+// ⭐ LEVELING IMPORT
+const { handleLevelingMessage } = require('./models/leveling');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -102,7 +104,12 @@ client.once('ready', () => {
 
 // ========== MESSAGE CREATE ==========
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+    if (message.author.bot) return;
+    
+    // ⭐ LEVELING XP VERGEBEN (vor Command-Check!)
+    await handleLevelingMessage(message, supabase);
+    
+    if (!message.content.startsWith(PREFIX)) return;
     
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();

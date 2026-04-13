@@ -10,6 +10,7 @@ const { handleGiveawayReaction } = require('./models/giveaway');
 const { logEvent } = require('./models/logs');
 const { handleLevelingMessage } = require('./models/leveling');
 const { handleAfkReturn } = require('./models/misc');
+const { handleBoosterUpdate } = require('./models/booster');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -144,6 +145,11 @@ client.on('interactionCreate', async (interaction) => {
             return handleVoiceMasterButton(interaction, client);
         }
     }
+});
+
+// ========== GUILD MEMBER UPDATE (Booster) ==========
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    await handleBoosterUpdate(oldMember, newMember, supabase);
 });
 
 // ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs) ==========

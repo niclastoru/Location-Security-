@@ -1,16 +1,8 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
 const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
 const { EmbedBuilder } = require('discord.js');
 const spotify = require('spotify-url-info')();
-
-// ⭐ FFMPEG Pfad für Render setzen
-try {
-    const ffmpeg = require('ffmpeg-static');
-    process.env.FFMPEG_PATH = ffmpeg;
-    console.log('✅ FFMPEG Pfad gesetzt');
-} catch (e) {
-    console.log('⚠️ ffmpeg-static nicht gefunden');
-}
 
 // Music Queue System
 const musicQueues = new Map();
@@ -30,7 +22,7 @@ function getQueue(guildId) {
     return musicQueues.get(guildId);
 }
 
-// ⭐ Suche mit play-dl
+// ⭐ Suche mit play-dl (funktioniert)
 async function getSongInfo(query) {
     try {
         // Spotify Link?
@@ -108,18 +100,29 @@ async function getSpotifyPlaylist(url) {
     }
 }
 
-// ⭐ Stream mit play-dl
+// ⭐ Stream mit ytdl-core (funktioniert 100%)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
-        console.log(`🎵 Versuche abzuspielen: ${song.title}`);
+        console.log(`🎵 Versuche abzuspielen: ${song.title} (${song.url})`);
         
-        const stream = await play.stream(song.url);
-        const resource = createAudioResource(stream.stream, { 
-            inputType: stream.type,
-            inlineVolume: true 
+        const stream = ytdl(song.url, {
+            filter: 'audioonly',
+            quality: 'highestaudio',
+            highWaterMark: 1 << 25
         });
+        
+        stream.on('error', (err) => {
+            console.error('Stream Error:', err);
+            channel.send({ embeds: [global.embed.error('Stream Fehler', 'YouTube blockiert den Stream. Versuche einen anderen Song.')] });
+            queue.songs.shift();
+            if (queue.songs.length > 0) {
+                playSong(guild, channel, queue.songs[0], client);
+            }
+        });
+        
+        const resource = createAudioResource(stream, { inlineVolume: true });
         resource.volume.setVolume(queue.volume);
         
         queue.player.play(resource);
@@ -152,8 +155,8 @@ async function playSong(guild, channel, song, client) {
         });
         
     } catch (error) {
-        console.error('Fehler beim Abspielen:', error);
-        channel.send({ embeds: [global.embed.error('Fehler', 'Konnte Song nicht abspielen! Versuche einen anderen.')] });
+        console.error('Play error:', error);
+        channel.send({ embeds: [global.embed.error('Fehler', 'Konnte Song nicht abspielen!')] });
         queue.songs.shift();
         if (queue.songs.length > 0) {
             playSong(guild, channel, queue.songs[0], client);
@@ -478,19 +481,6 @@ module.exports = {
             }
         },
         
-        // ========== LYRICS ==========
-        lyrics: {
-            aliases: ['ly', 'text'],
-            description: 'Sucht Lyrics',
-            category: 'Music',
-            async execute(message, args) {
-                const query = args.join(' ') || 'aktueller Song';
-                return message.reply({ 
-                    embeds: [global.embed.info('Lyrics', `🔍 [Klicke hier für Lyrics](https://genius.com/search?q=${encodeURIComponent(query)})`)] 
-                });
-            }
-        },
-        
         // ========== SPOTIFY ==========
         spotify: {
             aliases: ['sp'],
@@ -511,9 +501,8 @@ module.exports = {
                     color: 0x1DB954,
                     title: '🎵 Music Befehle',
                     fields: [
-                        { name: '🎮 Wiedergabe', value: '`!play <Spotify/YouTube/Suche>`\n`!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
-                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!remove` `!clear` `!loop`', inline: false },
-                        { name: '🔧 Sonstiges', value: '`!lyrics` `!spotify` `!musichelp`', inline: false }
+                        { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
+                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!remove` `!clear` `!loop`', inline: false }
                     ]
                 }] });
             }

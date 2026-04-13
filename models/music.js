@@ -1,5 +1,6 @@
-const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
+const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
 const ytdl = require('@distube/ytdl-core');
+const ytsr = require('ytsr'); // ⭐ NEU: YouTube Search
 const { EmbedBuilder } = require('discord.js');
 
 // Music Queue System
@@ -18,6 +19,28 @@ function getQueue(guildId) {
         });
     }
     return musicQueues.get(guildId);
+}
+
+// ⭐ NEUE HELPER: YouTube Suche
+async function searchYouTube(query) {
+    try {
+        const filters = await ytsr.getFilters(query);
+        const filter = filters.get('Type').get('Video');
+        const results = await ytsr(filter.url, { limit: 1 });
+        
+        if (results.items.length === 0) return null;
+        
+        const video = results.items[0];
+        return {
+            title: video.title,
+            url: video.url,
+            duration: video.duration,
+            thumbnail: video.bestThumbnail.url
+        };
+    } catch (error) {
+        console.error('Search error:', error);
+        return null;
+    }
 }
 
 async function playSong(guild, channel, song, client) {
@@ -43,7 +66,7 @@ async function playSong(guild, channel, song, client) {
             .setDescription(`[${song.title}](${song.url})`)
             .addFields(
                 { name: '👤 Angefordert von', value: song.requestedBy, inline: true },
-                { name: '⏱️ Dauer', value: song.duration, inline: true }
+                { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true }
             )
             .setThumbnail(song.thumbnail)
             .setTimestamp();
@@ -64,7 +87,7 @@ async function playSong(guild, channel, song, client) {
         
     } catch (error) {
         console.error('Fehler beim Abspielen:', error);
-        channel.send({ embeds: [global.embed.error('Fehler', 'Konnte Song nicht abspielen!')] });
+        channel.send({ embeds: [global.embed.error('Fehler', 'Konnte Song nicht abspielen! Versuche einen anderen.')] });
         queue.songs.shift();
         if (queue.songs.length > 0) {
             playSong(guild, channel, queue.songs[0], client);
@@ -88,7 +111,7 @@ module.exports = {
     category: 'Music',
     subCommands: {
         
-        // ========== PLAY ==========
+        // ========== PLAY (KORRIGIERT) ==========
         play: {
             aliases: ['p', 'add'],
             description: 'Spielt einen Song ab',
@@ -105,14 +128,32 @@ module.exports = {
                 const queue = getQueue(message.guild.id);
                 
                 try {
-                    const songInfo = await ytdl.getInfo(query);
-                    const song = {
-                        title: songInfo.videoDetails.title,
-                        url: songInfo.videoDetails.video_url,
-                        duration: formatDuration(songInfo.videoDetails.lengthSeconds),
-                        thumbnail: songInfo.videoDetails.thumbnails[0].url,
-                        requestedBy: message.author.username
-                    };
+                    let song;
+                    
+                    // Prüfen ob es eine URL ist
+                    if (query.includes('youtube.com') || query.includes('youtu.be')) {
+                        const songInfo = await ytdl.getInfo(query);
+                        song = {
+                            title: songInfo.videoDetails.title,
+                            url: songInfo.videoDetails.video_url,
+                            duration: formatDuration(songInfo.videoDetails.lengthSeconds),
+                            thumbnail: songInfo.videoDetails.thumbnails[0].url,
+                            requestedBy: message.author.username
+                        };
+                    } else {
+                        // Suche nach Titel
+                        const searchResult = await searchYouTube(query);
+                        if (!searchResult) {
+                            return message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden!')] });
+                        }
+                        song = {
+                            title: searchResult.title,
+                            url: searchResult.url,
+                            duration: searchResult.duration,
+                            thumbnail: searchResult.thumbnail,
+                            requestedBy: message.author.username
+                        };
+                    }
                     
                     queue.songs.push(song);
                     
@@ -122,7 +163,7 @@ module.exports = {
                         .setDescription(`[${song.title}](${song.url})`)
                         .addFields(
                             { name: '👤 Angefordert von', value: message.author.username, inline: true },
-                            { name: '⏱️ Dauer', value: song.duration, inline: true },
+                            { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true },
                             { name: '📊 Position', value: `#${queue.songs.length}`, inline: true }
                         )
                         .setThumbnail(song.thumbnail)
@@ -143,12 +184,13 @@ module.exports = {
                     }
                     
                 } catch (error) {
-                    message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Song konnte nicht gefunden werden!')] });
+                    console.error('Play error:', error);
+                    message.reply({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
                 }
             }
         },
         
-        // ========== SPOTIFY ==========
+        // ========== SPOTIFY (Search) ==========
         spotify: {
             aliases: ['spotifysearch', 'splay'],
             description: 'Sucht Spotify Songs (über YouTube)',
@@ -294,13 +336,13 @@ module.exports = {
                 
                 let description = '';
                 if (nowPlaying) {
-                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.title}](${nowPlaying.url}) | \`${nowPlaying.duration}\`\n\n`;
+                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.title}](${nowPlaying.url}) | \`${nowPlaying.duration || 'Live'}\`\n\n`;
                 }
                 
                 if (upcoming.length > 0) {
                     description += '**📋 Als nächstes:**\n';
                     upcoming.forEach((song, i) => {
-                        description += `\`${i+1}.\` [${song.title}](${song.url}) | \`${song.duration}\`\n`;
+                        description += `\`${i+1}.\` [${song.title}](${song.url}) | \`${song.duration || 'Live'}\`\n`;
                     });
                 }
                 
@@ -342,7 +384,7 @@ module.exports = {
                     .setDescription(`[${song.title}](${song.url})`)
                     .addFields(
                         { name: '👤 Angefordert von', value: song.requestedBy, inline: true },
-                        { name: '⏱️ Dauer', value: song.duration, inline: true },
+                        { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true },
                         { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true },
                         { name: '🔁 Loop', value: queue.loop ? '✅ An' : '❌ Aus', inline: true }
                     )
@@ -436,117 +478,6 @@ module.exports = {
             }
         },
         
-        // ========== PLAYLIST ==========
-        playlist: {
-            aliases: ['pl', 'saveplaylist'],
-            description: 'Speichert/lädt Playlists',
-            category: 'Music',
-            async execute(message, args, { client, supabase }) {
-                const action = args[0]?.toLowerCase();
-                const name = args.slice(1).join(' ');
-                
-                if (action === 'save' && name) {
-                    const queue = getQueue(message.guild.id);
-                    
-                    if (queue.songs.length === 0) {
-                        return message.reply({ embeds: [global.embed.error('Queue leer', 'Keine Songs zum Speichern!')] });
-                    }
-                    
-                    const songs = queue.songs.map(s => s.url);
-                    
-                    await supabase.from('playlists').upsert({
-                        guild_id: message.guild.id,
-                        user_id: message.author.id,
-                        name: name,
-                        songs: songs
-                    });
-                    
-                    return message.reply({ embeds: [global.embed.success('Gespeichert', `Playlist **${name}** mit ${songs.length} Songs gespeichert!`)] });
-                }
-                
-                if (action === 'load' && name) {
-                    const { data } = await supabase
-                        .from('playlists')
-                        .select('songs')
-                        .eq('guild_id', message.guild.id)
-                        .eq('user_id', message.author.id)
-                        .eq('name', name)
-                        .single();
-                    
-                    if (!data) {
-                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', `Playlist "${name}" nicht gefunden!`)] });
-                    }
-                    
-                    const voiceChannel = message.member.voice.channel;
-                    if (!voiceChannel) {
-                        return message.reply({ embeds: [global.embed.error('Kein VC', 'Du musst in einem Voice-Channel sein!')] });
-                    }
-                    
-                    message.reply({ embeds: [global.embed.info('Lade Playlist', `⏳ Lade ${data.songs.length} Songs...`)] });
-                    
-                    const queue = getQueue(message.guild.id);
-                    
-                    for (const url of data.songs) {
-                        try {
-                            const songInfo = await ytdl.getInfo(url);
-                            const song = {
-                                title: songInfo.videoDetails.title,
-                                url: songInfo.videoDetails.video_url,
-                                duration: formatDuration(songInfo.videoDetails.lengthSeconds),
-                                thumbnail: songInfo.videoDetails.thumbnails[0].url,
-                                requestedBy: message.author.username
-                            };
-                            
-                            queue.songs.push(song);
-                            
-                            if (queue.songs.length === 1) {
-                                if (!queue.connection) {
-                                    queue.connection = joinVoiceChannel({
-                                        channelId: voiceChannel.id,
-                                        guildId: message.guild.id,
-                                        adapterCreator: message.guild.voiceAdapterCreator
-                                    });
-                                    queue.connection.subscribe(queue.player);
-                                }
-                                playSong(message.guild, message.channel, song, client);
-                            }
-                        } catch (e) {
-                            console.error('Fehler beim Laden eines Songs:', e);
-                        }
-                    }
-                    
-                    return;
-                }
-                
-                if (action === 'list') {
-                    const { data } = await supabase
-                        .from('playlists')
-                        .select('name')
-                        .eq('guild_id', message.guild.id)
-                        .eq('user_id', message.author.id);
-                    
-                    if (!data || data.length === 0) {
-                        return message.reply({ embeds: [global.embed.info('Keine Playlists', 'Du hast keine gespeicherten Playlists.')] });
-                    }
-                    
-                    const list = data.map(p => `📁 ${p.name}`).join('\n');
-                    return message.reply({ embeds: [global.embed.info('Deine Playlists', list)] });
-                }
-                
-                if (action === 'delete' && name) {
-                    await supabase.from('playlists')
-                        .delete()
-                        .eq('guild_id', message.guild.id)
-                        .eq('user_id', message.author.id)
-                        .eq('name', name);
-                    
-                    return message.reply({ embeds: [global.embed.success('Gelöscht', `Playlist **${name}** wurde gelöscht!`)] });
-                }
-                
-                return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!playlist save/load/list/delete <Name>')] });
-            }
-        },
-        
         // ========== MUSICHELP ==========
         musichelp: {
             aliases: ['music', 'mhelp'],
@@ -559,7 +490,6 @@ module.exports = {
                     fields: [
                         { name: '🎮 Wiedergabe', value: '`!play`, `!pause`, `!resume`, `!stop`, `!skip`, `!volume`', inline: false },
                         { name: '📋 Queue', value: '`!queue`, `!nowplaying`, `!shuffle`, `!remove`, `!clear`, `!loop`', inline: false },
-                        { name: '📁 Playlists', value: '`!playlist save/load/list/delete`', inline: false },
                         { name: '🔧 Sonstiges', value: '`!lyrics`, `!spotify`, `!leave`', inline: false }
                     ]
                 }] });

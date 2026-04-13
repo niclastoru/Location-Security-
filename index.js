@@ -11,6 +11,7 @@ const { logEvent } = require('./models/logs');
 const { handleLevelingMessage } = require('./models/leveling');
 const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
+const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -128,6 +129,9 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
+    // ⭐ STATS TRACKING (Messages)
+    await trackMessage(message, supabase);
+    
     // ⭐ AFK CHECK
     await handleAfkReturn(message, supabase);
     
@@ -175,8 +179,16 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await handleBoosterUpdate(oldMember, newMember, supabase);
 });
 
-// ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs) ==========
+// ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs + Stats) ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
+    // ⭐ STATS TRACKING (Voice)
+    if (!oldState.channelId && newState.channelId) {
+        trackVoiceStart(newState, supabase);
+    }
+    if (oldState.channelId && !newState.channelId) {
+        await trackVoiceEnd(oldState, supabase);
+    }
+    
     // ⭐ Config aus Supabase laden
     const config = await loadConfig(newState.guild.id, supabase);
     

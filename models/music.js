@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { LavalinkManager } = require('lavalink-client');
 
-// Lavalink Manager (einmalig initialisieren)
+// Lavalink Manager mit AKTIVEN Servern
 let manager = null;
 
 function initLavalink(client) {
@@ -10,25 +10,32 @@ function initLavalink(client) {
     manager = new LavalinkManager({
         nodes: [
             {
-                id: 'main',
-                host: 'lava.link',           // KOSTENLOSER Public Lavalink
-                port: 80,
+                id: 'terrible',
+                host: 'terrible.lavalink.rocks',
+                port: 443,
                 authorization: 'youshallnotpass',
-                secure: false
+                secure: true
             },
             {
-                id: 'fallback',
-                host: 'lavalink.oops.wtf',    // Backup Server
+                id: 'oops',
+                host: 'lavalink.oops.wtf',
                 port: 443,
                 authorization: 'www.freelavalink.ga',
                 secure: true
             },
             {
-                id: 'fallback2',
-                host: 'node1.kartadharta.xyz', // Backup 2
+                id: 'kartadharta',
+                host: 'node1.kartadharta.xyz',
                 port: 443,
                 authorization: 'kdlavalink',
                 secure: true
+            },
+            {
+                id: 'lava-link',
+                host: 'lava.link',
+                port: 80,
+                authorization: 'youshallnotpass',
+                secure: false
             }
         ],
         sendToShard: (guildId, payload) => {
@@ -39,10 +46,20 @@ function initLavalink(client) {
     });
     
     manager.init(client);
+    
+    // Debug
+    manager.on('nodeConnect', (node) => {
+        console.log(`✅ Lavalink verbunden: ${node.id}`);
+    });
+    
+    manager.on('nodeError', (node, error) => {
+        console.error(`❌ Lavalink Fehler (${node.id}):`, error);
+    });
+    
     return manager;
 }
 
-// Music Queue System (nur für Queue-Management)
+// Music Queue System
 const musicQueues = new Map();
 
 function getQueue(guildId) {
@@ -77,6 +94,9 @@ module.exports = {
                 const lavalink = initLavalink(client);
                 const queue = getQueue(message.guild.id);
                 
+                // Loading
+                const loadingMsg = await message.reply({ embeds: [global.embed.info('Suche', '🔍 Suche Song...')] });
+                
                 try {
                     // Player erstellen oder holen
                     let player = lavalink.getPlayer(message.guild.id);
@@ -90,23 +110,22 @@ module.exports = {
                             selfDeaf: true,
                             volume: queue.volume
                         });
-                        
-                        player.connect();
+                        await player.connect();
                     }
                     
                     if (!player.connected) {
                         player.voiceChannelId = voiceChannel.id;
-                        player.connect();
+                        await player.connect();
                     }
                     
-                    // Song suchen
+                    // ⭐ WICHTIG: Korrekte Suche mit Lavalink
+                    const searchQuery = query.includes('http') ? query : `ytsearch:${query}`;
                     const result = await player.search({
-                        query: query,
-                        source: 'ytsearch' // YouTube, findet auch Spotify/SoundCloud!
+                        query: searchQuery
                     }, message.author);
                     
-                    if (!result.tracks.length) {
-                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden!')] });
+                    if (!result || !result.tracks || result.tracks.length === 0) {
+                        return loadingMsg.edit({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden! Versuche einen anderen Titel.')] });
                     }
                     
                     const track = result.tracks[0];
@@ -126,52 +145,56 @@ module.exports = {
                         .setThumbnail(track.info.artworkUrl || track.info.thumbnail)
                         .setTimestamp();
                     
-                    message.reply({ embeds: [embed] });
+                    await loadingMsg.edit({ embeds: [embed] });
                     
-                    // Song abspielen
+                    // Song abspielen oder queuen
                     if (!player.playing && !player.paused) {
-                        player.play(track);
+                        await player.play({ track: track });
                         queue.nowPlaying = track;
-                    } else if (player.playing || player.paused) {
-                        player.queue.add(track);
+                    } else {
+                        await player.queue.add(track);
                     }
                     
-                    // Event Handler
-                    player.on('end', () => {
-                        queue.songs.shift();
+                    // Event Handler (nur einmal setzen)
+                    if (!player._eventsSet) {
+                        player._eventsSet = true;
                         
-                        if (queue.loop && queue.nowPlaying) {
-                            player.queue.add(queue.nowPlaying);
-                        }
+                        player.on('trackEnd', async () => {
+                            queue.songs.shift();
+                            
+                            if (queue.loop && queue.nowPlaying) {
+                                queue.songs.push(queue.nowPlaying);
+                            }
+                            
+                            if (queue.songs.length > 0) {
+                                const nextTrack = queue.songs[0];
+                                await player.play({ track: nextTrack });
+                                queue.nowPlaying = nextTrack;
+                                
+                                const nextEmbed = new EmbedBuilder()
+                                    .setColor(0x00FF00)
+                                    .setTitle('🎵 Jetzt spielt')
+                                    .setDescription(`[${nextTrack.info.title}](${nextTrack.info.uri})`)
+                                    .addFields(
+                                        { name: '👤 Angefordert von', value: nextTrack.requester.username, inline: true }
+                                    )
+                                    .setThumbnail(nextTrack.info.artworkUrl || nextTrack.info.thumbnail)
+                                    .setTimestamp();
+                                
+                                message.channel.send({ embeds: [nextEmbed] });
+                            } else {
+                                queue.nowPlaying = null;
+                            }
+                        });
                         
-                        if (queue.songs.length > 0) {
-                            const nextTrack = queue.songs[0];
-                            player.play(nextTrack);
-                            queue.nowPlaying = nextTrack;
-                            
-                            const nextEmbed = new EmbedBuilder()
-                                .setColor(0x00FF00)
-                                .setTitle('🎵 Jetzt spielt')
-                                .setDescription(`[${nextTrack.info.title}](${nextTrack.info.uri})`)
-                                .addFields(
-                                    { name: '👤 Angefordert von', value: nextTrack.requester.username, inline: true }
-                                )
-                                .setTimestamp();
-                            
-                            message.channel.send({ embeds: [nextEmbed] });
-                        } else {
-                            queue.nowPlaying = null;
-                        }
-                    });
-                    
-                    player.on('error', (error) => {
-                        console.error('Player error:', error);
-                        message.channel.send({ embeds: [global.embed.error('Fehler', 'Player-Fehler!')] });
-                    });
+                        player.on('error', (error) => {
+                            console.error('Player error:', error);
+                        });
+                    }
                     
                 } catch (error) {
                     console.error('Play error:', error);
-                    message.reply({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
+                    await loadingMsg.edit({ embeds: [global.embed.error('Fehler', 'Lavalink-Server nicht erreichbar. Versuche es später nochmal.')] });
                 }
             }
         },
@@ -188,7 +211,7 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
                 }
                 
-                player.stop();
+                await player.stop();
                 return message.reply({ embeds: [global.embed.success('Übersprungen', 'Song wurde übersprungen! ⏭️')] });
             }
         },
@@ -202,7 +225,7 @@ module.exports = {
                 const player = lavalink.getPlayer(message.guild.id);
                 
                 if (player) {
-                    player.destroy();
+                    await player.destroy();
                 }
                 
                 const queue = getQueue(message.guild.id);
@@ -225,7 +248,7 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
                 }
                 
-                player.pause();
+                await player.pause();
                 return message.reply({ embeds: [global.embed.success('Pausiert', 'Musik wurde pausiert! ⏸️')] });
             }
         },
@@ -242,7 +265,7 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Musik ist nicht pausiert!')] });
                 }
                 
-                player.resume();
+                await player.resume();
                 return message.reply({ embeds: [global.embed.success('Fortgesetzt', 'Musik wird fortgesetzt! ▶️')] });
             }
         },
@@ -264,7 +287,7 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Ungültig', 'Volume muss zwischen 0 und 200 sein!')] });
                 }
                 
-                player.setVolume(volume);
+                await player.setVolume(volume);
                 const queue = getQueue(message.guild.id);
                 queue.volume = volume;
                 
@@ -377,9 +400,9 @@ module.exports = {
             async execute(message) {
                 return message.reply({ embeds: [{
                     color: 0x00FF00,
-                    title: '🎵 Music Befehle (Lavalink)',
+                    title: '🎵 Music Befehle',
                     fields: [
-                        { name: '🎧 Plattformen', value: '✅ YouTube\n✅ Spotify\n✅ SoundCloud\n✅ ALLES!', inline: false },
+                        { name: '🎧 Plattformen', value: '✅ YouTube\n✅ Spotify\n✅ SoundCloud', inline: false },
                         { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
                         { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!loop`', inline: false }
                     ]

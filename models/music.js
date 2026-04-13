@@ -1,7 +1,13 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
-const spotify = require('spotify-url-info')();
+
+// ⭐ SoundCloud Authorization (UMGEHT BLOCKS)
+play.setToken({
+    soundcloud: {
+        client_id: 'iZIs9mchVcX5lhVRyQGGAYlNPVldzAoX'
+    }
+});
 
 // Music Queue System
 const musicQueues = new Map();
@@ -21,64 +27,78 @@ function getQueue(guildId) {
     return musicQueues.get(guildId);
 }
 
-// ⭐ Song Info (SoundCloud + Spotify)
-async function getSongInfo(query) {
+// ⭐ SoundCloud Suche (KORRIGIERT)
+async function searchSoundCloud(query) {
     try {
-        // Spotify Link? (konvertiert zu SoundCloud Suche)
-        if (query.includes('spotify.com') || query.includes('spotify.link')) {
-            const track = await spotify.getPreview(query);
-            const searchQuery = `${track.artist} ${track.title}`;
-            const searched = await play.search(searchQuery, { limit: 1, source: { soundcloud: 'tracks' } });
-            
-            if (searched.length > 0) {
-                return {
-                    title: searched[0].title,
-                    url: searched[0].url,
-                    duration: searched[0].durationRaw,
-                    thumbnail: searched[0].thumbnails[0]?.url || track.coverArt,
-                    platform: 'soundcloud'
-                };
-            }
-        }
+        // Direkte SoundCloud Suche
+        const results = await play.search(query, {
+            limit: 1,
+            source: { soundcloud: 'tracks' }
+        });
         
-        // SoundCloud Link?
-        if (query.includes('soundcloud.com')) {
+        if (results && results.length > 0) {
+            return {
+                title: results[0].title,
+                url: results[0].url,
+                duration: results[0].durationRaw,
+                thumbnail: results[0].thumbnails[0]?.url || null,
+                platform: 'soundcloud'
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('SoundCloud search error:', error);
+        return null;
+    }
+}
+
+// ⭐ Spotify zu SoundCloud
+async function spotifyToSoundCloud(query) {
+    try {
+        const spotify = require('spotify-url-info')();
+        const track = await spotify.getPreview(query);
+        const searchQuery = `${track.artist} ${track.title}`;
+        return await searchSoundCloud(searchQuery);
+    } catch (error) {
+        console.error('Spotify conversion error:', error);
+        return null;
+    }
+}
+
+// ⭐ Song Info
+async function getSongInfo(query) {
+    // Spotify Link?
+    if (query.includes('spotify.com') || query.includes('spotify.link')) {
+        return await spotifyToSoundCloud(query);
+    }
+    
+    // SoundCloud Link?
+    if (query.includes('soundcloud.com')) {
+        try {
             const info = await play.video_info(query);
             return {
                 title: info.video_details.title,
                 url: info.video_details.url,
                 duration: info.video_details.durationRaw,
-                thumbnail: info.video_details.thumbnails[0]?.url,
+                thumbnail: info.video_details.thumbnails[0]?.url || null,
                 platform: 'soundcloud'
             };
+        } catch (error) {
+            console.error('SoundCloud info error:', error);
+            return null;
         }
-        
-        // ⭐ Normale Suche auf SoundCloud
-        const searched = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
-        
-        if (searched.length > 0) {
-            return {
-                title: searched[0].title,
-                url: searched[0].url,
-                duration: searched[0].durationRaw,
-                thumbnail: searched[0].thumbnails[0]?.url,
-                platform: 'soundcloud'
-            };
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Search error:', error);
-        return null;
     }
+    
+    // Normale Suche
+    return await searchSoundCloud(query);
 }
 
-// ⭐ Play Song mit play-dl (SoundCloud)
+// ⭐ Play Song
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
-        console.log(`🎵 Versuche abzuspielen: ${song.title} (SoundCloud)`);
+        console.log(`🎵 Versuche abzuspielen: ${song.title}`);
         
         const stream = await play.stream(song.url);
         const resource = createAudioResource(stream.stream, { 
@@ -121,10 +141,16 @@ async function playSong(guild, channel, song, client) {
         
     } catch (error) {
         console.error('Play error:', error);
-        channel.send({ embeds: [global.embed.error('Fehler', 'Konnte Song nicht abspielen!')] });
-        queue.songs.shift();
+        
+        // ⭐ Fallback: Anderen Song versuchen
         if (queue.songs.length > 0) {
-            playSong(guild, channel, queue.songs[0], client);
+            channel.send({ embeds: [global.embed.error('Fehler', 'Song nicht verfügbar, versuche nächsten...')] });
+            queue.songs.shift();
+            if (queue.songs.length > 0) {
+                playSong(guild, channel, queue.songs[0], client);
+            }
+        } else {
+            channel.send({ embeds: [global.embed.error('Fehler', 'Konnte keinen Song abspielen!')] });
         }
     }
 }
@@ -134,8 +160,8 @@ module.exports = {
     subCommands: {
         
         play: {
-            aliases: ['p', 'add'],
-            description: 'Spielt Musik von SoundCloud/Spotify',
+            aliases: ['p', 'add', 'sc'],
+            description: 'Spielt Musik von SoundCloud',
             category: 'Music',
             async execute(message, args, { client }) {
                 const voiceChannel = message.member.voice.channel;
@@ -148,11 +174,14 @@ module.exports = {
                 
                 const queue = getQueue(message.guild.id);
                 
+                // Loading Nachricht
+                const loadingMsg = await message.reply({ embeds: [global.embed.info('Suche', '🔍 Suche auf SoundCloud...')] });
+                
                 try {
                     const songInfo = await getSongInfo(query);
                     
                     if (!songInfo) {
-                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden!')] });
+                        return loadingMsg.edit({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song auf SoundCloud gefunden!')] });
                     }
                     
                     const song = { ...songInfo, requestedBy: message.author.username };
@@ -171,7 +200,7 @@ module.exports = {
                     
                     if (song.thumbnail) embed.setThumbnail(song.thumbnail);
                     
-                    message.reply({ embeds: [embed] });
+                    await loadingMsg.edit({ embeds: [embed] });
                     
                     if (queue.songs.length === 1) {
                         if (!queue.connection) {
@@ -187,7 +216,7 @@ module.exports = {
                     
                 } catch (error) {
                     console.error('Play error:', error);
-                    message.reply({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
+                    loadingMsg.edit({ embeds: [global.embed.error('Fehler', 'Song konnte nicht abgespielt werden!')] });
                 }
             }
         },
@@ -372,11 +401,7 @@ module.exports = {
                 return message.reply({ embeds: [{
                     color: 0xFF5500,
                     title: '🎵 Music Befehle (SoundCloud)',
-                    fields: [
-                        { name: '🎧 Plattformen', value: '✅ SoundCloud\n✅ Spotify (Suche → SoundCloud)\n❌ YouTube (geblockt)', inline: false },
-                        { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
-                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!loop`', inline: false }
-                    ]
+                    description: '**Funktioniert:**\n✅ SoundCloud Links\n✅ SoundCloud Suche\n✅ Spotify → SoundCloud\n\n**Befehle:**\n`!play` `!pause` `!resume` `!stop` `!skip` `!volume` `!queue` `!nowplaying` `!loop` `!shuffle`'
                 }] });
             }
         }

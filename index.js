@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ⭐ ALLE IMPORTS
-const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
+const { vmCache, handleVoiceMasterButton, loadConfig } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
 const { logEvent } = require('./models/logs');
 const { handleLevelingMessage } = require('./models/leveling');
@@ -95,10 +95,33 @@ const loadCommands = () => {
 
 loadCommands();
 
-// ========== BOT READY ==========
-client.once('ready', () => {
+// ========== BOT READY (VoiceMaster Configs laden) ==========
+client.once('ready', async () => {
     console.log(`✅ ${client.user.tag} ist online!`);
     console.log(`🌐 ${client.guilds.cache.size} Server verbunden`);
+    
+    // ⭐ Alle VoiceMaster Configs aus Supabase laden
+    const { data: configs } = await supabase.from('voicemaster_config').select('*');
+    if (configs) {
+        for (const cfg of configs) {
+            const { data: channels } = await supabase
+                .from('voicemaster_channels')
+                .select('*')
+                .eq('guild_id', cfg.guild_id);
+            
+            const voiceChannels = new Map();
+            if (channels) {
+                channels.forEach(c => voiceChannels.set(c.channel_id, c.owner_id));
+            }
+            
+            vmCache.set(cfg.guild_id, {
+                jtcChannel: cfg.jtc_channel,
+                interfaceChannel: cfg.interface_channel,
+                voiceChannels: voiceChannels
+            });
+        }
+        console.log(`📦 ${configs.length} VoiceMaster Configs geladen`);
+    }
 });
 
 // ========== MESSAGE CREATE ==========
@@ -140,9 +163,9 @@ client.on('messageCreate', async (message) => {
 // ========== INTERACTION HANDLER ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
-        // ⭐ VoiceMaster Buttons
+        // ⭐ VoiceMaster Buttons (mit Supabase)
         if (interaction.customId.startsWith('vm_')) {
-            return handleVoiceMasterButton(interaction, client);
+            return handleVoiceMasterButton(interaction, client, supabase);
         }
     }
 });
@@ -154,7 +177,8 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
 // ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs) ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    const config = vmCache.get(newState.guild.id);
+    // ⭐ Config aus Supabase laden (nicht nur aus Cache!)
+    const config = await loadConfig(newState.guild.id, supabase);
     
     // Join-to-Create Logik
     if (config) {
@@ -172,6 +196,14 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             });
             
             await member.voice.setChannel(newChannel);
+            
+            // In Supabase speichern
+            await supabase.from('voicemaster_channels').insert({
+                guild_id: newState.guild.id,
+                channel_id: newChannel.id,
+                owner_id: member.id
+            });
+            
             config.voiceChannels.set(newChannel.id, member.id);
             vmCache.set(newState.guild.id, config);
         }
@@ -185,6 +217,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 cfg.voiceChannels.delete(channel.id);
                 vmCache.set(oldState.guild.id, cfg);
             }
+            
+            // Aus Supabase löschen
+            await supabase.from('voicemaster_channels')
+                .delete()
+                .eq('channel_id', channel.id);
             
             await channel.delete().catch(() => {});
         }

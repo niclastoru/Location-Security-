@@ -1,9 +1,14 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
 const play = require('play-dl');
-const youtubedl = require('youtube-dl-exec');
+const ytdl = require('@distube/ytdl-core');
 const { EmbedBuilder } = require('discord.js');
 const spotify = require('spotify-url-info')();
-const { spawn } = require('child_process');
+
+// ⭐ YTDL COOKIE (umgeht YouTube Blocks)
+const COOKIE = 'VISITOR_INFO1_LIVE=; PREF=; GPS=1; YSC=; SOCS=CAISNQgDEhJhYjc2YjI0MjM3MjM0MjM0MjM0Mg; LOGIN_INFO=; SID=; __Secure-3PSID=; HSID=; SSID=; APISID=; SAPISID=; __Secure-1PAPISID=; __Secure-3PAPISID=; SIDCC=; __Secure-1PSID=; __Secure-3PSID=; YEC=';
+
+// YouTube Agent
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 // Music Queue System
 const musicQueues = new Map();
@@ -101,23 +106,42 @@ async function getSpotifyPlaylist(url) {
     }
 }
 
-// ⭐ Stream mit youtube-dl-exec (umgeht YouTube Blocks)
+// ⭐ Stream mit ytdl-core + Cookies
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Versuche abzuspielen: ${song.title}`);
         
-        // youtube-dl-exec Prozess starten
-        const process = spawn('yt-dlp', [
-            song.url,
-            '-f', 'bestaudio',
-            '--no-playlist',
-            '--no-warnings',
-            '-o', '-'
-        ]);
+        const agent = ytdl.createAgent(JSON.parse(JSON.stringify([
+            { name: 'Cookie', value: COOKIE }
+        ])));
         
-        const resource = createAudioResource(process.stdout, { inlineVolume: true });
+        const stream = ytdl(song.url, {
+            filter: 'audioonly',
+            quality: 'highestaudio',
+            highWaterMark: 1 << 25,
+            requestOptions: {
+                headers: {
+                    'User-Agent': USER_AGENT,
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Cookie': COOKIE
+                }
+            },
+            agent: agent
+        });
+        
+        stream.on('error', (err) => {
+            console.error('Stream Error:', err);
+            channel.send({ embeds: [global.embed.error('Stream Fehler', 'YouTube blockiert. Versuche: !play Believer')] });
+            queue.songs.shift();
+            if (queue.songs.length > 0) {
+                playSong(guild, channel, queue.songs[0], client);
+            }
+        });
+        
+        const resource = createAudioResource(stream, { inlineVolume: true });
         resource.volume.setVolume(queue.volume);
         
         queue.player.play(resource);
@@ -137,21 +161,7 @@ async function playSong(guild, channel, song, client) {
         
         channel.send({ embeds: [embed] });
         
-        process.stderr.on('data', (data) => {
-            console.error(`yt-dlp error: ${data}`);
-        });
-        
-        process.on('error', (err) => {
-            console.error('Process error:', err);
-            channel.send({ embeds: [global.embed.error('Fehler', 'Stream konnte nicht gestartet werden!')] });
-            queue.songs.shift();
-            if (queue.songs.length > 0) {
-                playSong(guild, channel, queue.songs[0], client);
-            }
-        });
-        
         queue.player.once(AudioPlayerStatus.Idle, () => {
-            process.kill();
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push(queue.nowPlaying);
             }
@@ -177,10 +187,9 @@ module.exports = {
     category: 'Music',
     subCommands: {
         
-        // ========== PLAY ==========
         play: {
             aliases: ['p', 'add'],
-            description: 'Spielt einen Song ab (YouTube/Spotify)',
+            description: 'Spielt einen Song ab',
             category: 'Music',
             async execute(message, args, { client }) {
                 const voiceChannel = message.member.voice.channel;
@@ -224,18 +233,13 @@ module.exports = {
                         return;
                     }
                     
-                    // Einzelner Song
                     const songInfo = await getSongInfo(query);
                     
                     if (!songInfo) {
                         return message.reply({ embeds: [global.embed.error('Nicht gefunden', 'Kein Song gefunden!')] });
                     }
                     
-                    const song = {
-                        ...songInfo,
-                        requestedBy: message.author.username
-                    };
-                    
+                    const song = { ...songInfo, requestedBy: message.author.username };
                     queue.songs.push(song);
                     
                     const embed = new EmbedBuilder()
@@ -244,8 +248,7 @@ module.exports = {
                         .setDescription(`[${song.title}](${song.url})`)
                         .addFields(
                             { name: '👤 Angefordert von', value: message.author.username, inline: true },
-                            { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true },
-                            { name: '📊 Position', value: `#${queue.songs.length}`, inline: true }
+                            { name: '⏱️ Dauer', value: song.duration || 'Unbekannt', inline: true }
                         )
                         .setThumbnail(song.thumbnail)
                         .setTimestamp();
@@ -271,7 +274,6 @@ module.exports = {
             }
         },
         
-        // ========== SKIP ==========
         skip: {
             aliases: ['s', 'next'],
             description: 'Überspringt den aktuellen Song',
@@ -286,10 +288,9 @@ module.exports = {
             }
         },
         
-        // ========== STOP ==========
         stop: {
             aliases: ['leave', 'dc'],
-            description: 'Stoppt die Musik und verlässt den VC',
+            description: 'Stoppt die Musik',
             category: 'Music',
             async execute(message) {
                 const queue = getQueue(message.guild.id);
@@ -305,7 +306,6 @@ module.exports = {
             }
         },
         
-        // ========== PAUSE ==========
         pause: {
             aliases: ['hold'],
             description: 'Pausiert die Musik',
@@ -320,7 +320,6 @@ module.exports = {
             }
         },
         
-        // ========== RESUME ==========
         resume: {
             aliases: ['unpause'],
             description: 'Setzt die Musik fort',
@@ -335,7 +334,6 @@ module.exports = {
             }
         },
         
-        // ========== VOLUME ==========
         volume: {
             aliases: ['vol', 'v'],
             description: 'Ändert die Lautstärke',
@@ -354,7 +352,6 @@ module.exports = {
             }
         },
         
-        // ========== QUEUE ==========
         queue: {
             aliases: ['q', 'list'],
             description: 'Zeigt die aktuelle Queue',
@@ -370,13 +367,13 @@ module.exports = {
                 
                 let description = '';
                 if (nowPlaying) {
-                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.title}](${nowPlaying.url}) | \`${nowPlaying.duration || 'Live'}\`\n\n`;
+                    description += `**🎵 Jetzt spielt:**\n[${nowPlaying.title}](${nowPlaying.url})\n\n`;
                 }
                 
                 if (upcoming.length > 0) {
                     description += '**📋 Als nächstes:**\n';
                     upcoming.forEach((song, i) => {
-                        description += `\`${i+1}.\` [${song.title}](${song.url}) | \`${song.duration || 'Live'}\`\n`;
+                        description += `\`${i+1}.\` [${song.title}](${song.url})\n`;
                     });
                 }
                 
@@ -384,17 +381,12 @@ module.exports = {
                     .setColor(0x1DB954)
                     .setTitle('📋 Musik Queue')
                     .setDescription(description)
-                    .addFields(
-                        { name: '🔁 Loop', value: queue.loop ? '✅ An' : '❌ Aus', inline: true },
-                        { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
-                    )
                     .setTimestamp();
                 
                 message.reply({ embeds: [embed] });
             }
         },
         
-        // ========== NOWPLAYING ==========
         nowplaying: {
             aliases: ['np', 'current'],
             description: 'Zeigt den aktuellen Song',
@@ -421,7 +413,6 @@ module.exports = {
             }
         },
         
-        // ========== LOOP ==========
         loop: {
             aliases: ['repeat', 'l'],
             description: 'Schaltet Loop ein/aus',
@@ -433,7 +424,6 @@ module.exports = {
             }
         },
         
-        // ========== SHUFFLE ==========
         shuffle: {
             aliases: ['mix'],
             description: 'Mischt die Queue',
@@ -455,7 +445,6 @@ module.exports = {
             }
         },
         
-        // ========== SPOTIFY ==========
         spotify: {
             aliases: ['sp'],
             description: 'Spielt Spotify Songs/Playlists',
@@ -465,7 +454,6 @@ module.exports = {
             }
         },
         
-        // ========== MUSICHELP ==========
         musichelp: {
             aliases: ['music', 'mhelp'],
             description: 'Zeigt alle Music-Befehle',
@@ -474,10 +462,7 @@ module.exports = {
                 return message.reply({ embeds: [{
                     color: 0x1DB954,
                     title: '🎵 Music Befehle',
-                    fields: [
-                        { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
-                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!loop`', inline: false }
-                    ]
+                    description: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume` `!queue` `!nowplaying` `!loop` `!shuffle` `!spotify`'
                 }] });
             }
         }

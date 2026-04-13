@@ -1,10 +1,16 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
 // ⭐ VOICEMASTER IMPORT
 const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
+// ⭐ GIVEAWAY IMPORT
+const { handleGiveawayReaction } = require('./models/giveaway');
+
+// ⭐ SUPABASE CLIENT
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const client = new Client({
     intents: [
@@ -13,7 +19,8 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessageReactions  // ⭐ WICHTIG für Giveaways!
     ]
 });
 
@@ -110,7 +117,7 @@ client.on('messageCreate', async (message) => {
     }
     
     try {
-        await command.execute(message, args, { client });
+        await command.execute(message, args, { client, supabase });
     } catch (error) {
         console.error(`Fehler bei ${commandName}:`, error);
         message.reply({ 
@@ -168,6 +175,31 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         
         await channel.delete().catch(() => {});
     }
+});
+
+// ========== GIVEAWAY REACTION HANDLER ==========
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+    if (reaction.partial) {
+        try {
+            await reaction.fetch();
+        } catch {
+            return;
+        }
+    }
+    await handleGiveawayReaction(reaction, user, client, supabase, true);
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot) return;
+    if (reaction.partial) {
+        try {
+            await reaction.fetch();
+        } catch {
+            return;
+        }
+    }
+    await handleGiveawayReaction(reaction, user, client, supabase, false);
 });
 
 // ========== SNIPE LISTENER ==========

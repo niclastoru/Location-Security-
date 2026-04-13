@@ -4,14 +4,12 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-// ⭐ VOICEMASTER IMPORT
+// ⭐ ALLE IMPORTS
 const { vmCache, handleVoiceMasterButton } = require('./models/voicemaster');
-// ⭐ GIVEAWAY IMPORT
 const { handleGiveawayReaction } = require('./models/giveaway');
-// ⭐ LOGS IMPORT
 const { logEvent } = require('./models/logs');
-// ⭐ LEVELING IMPORT
 const { handleLevelingMessage } = require('./models/leveling');
+const { handleAfkReturn } = require('./models/misc');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -106,7 +104,10 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
-    // ⭐ LEVELING XP VERGEBEN (vor Command-Check!)
+    // ⭐ AFK CHECK
+    await handleAfkReturn(message, supabase);
+    
+    // ⭐ LEVELING XP
     await handleLevelingMessage(message, supabase);
     
     if (!message.content.startsWith(PREFIX)) return;
@@ -184,7 +185,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
     
     // ⭐ VOICE LOGS
-    // Voice Join
     if (!oldState.channelId && newState.channelId) {
         await logEvent(newState.guild.id, 'voice_join', {
             user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },
@@ -192,7 +192,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }, supabase, client);
     }
     
-    // Voice Leave
     if (oldState.channelId && !newState.channelId) {
         await logEvent(oldState.guild.id, 'voice_leave', {
             user: { id: oldState.member.id, tag: oldState.member.user.tag, avatar: oldState.member.user.displayAvatarURL() },
@@ -200,7 +199,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }, supabase, client);
     }
     
-    // Voice Move
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         await logEvent(newState.guild.id, 'voice_move', {
             user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },

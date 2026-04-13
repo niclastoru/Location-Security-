@@ -37,7 +37,6 @@ async function playSong(guild, channel, song, client) {
         queue.nowPlaying = song;
         queue.channel = channel;
         
-        // Embed senden
         const embed = new EmbedBuilder()
             .setColor(0x1DB954)
             .setTitle('🎵 Jetzt spielt')
@@ -71,6 +70,18 @@ async function playSong(guild, channel, song, client) {
             playSong(guild, channel, queue.songs[0], client);
         }
     }
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '0:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 module.exports = {
@@ -137,7 +148,7 @@ module.exports = {
             }
         },
         
-        // ========== SPOTIFY (Search) ==========
+        // ========== SPOTIFY ==========
         spotify: {
             aliases: ['spotifysearch', 'splay'],
             description: 'Sucht Spotify Songs (über YouTube)',
@@ -430,9 +441,9 @@ module.exports = {
             aliases: ['pl', 'saveplaylist'],
             description: 'Speichert/lädt Playlists',
             category: 'Music',
-            async execute(message, args, { supabase }) {
+            async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
-                const name = args[1];
+                const name = args.slice(1).join(' ');
                 
                 if (action === 'save' && name) {
                     const queue = getQueue(message.guild.id);
@@ -463,7 +474,7 @@ module.exports = {
                         .single();
                     
                     if (!data) {
-                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', `Playlist "${name}" nicht gefunden!')] });
+                        return message.reply({ embeds: [global.embed.error('Nicht gefunden', `Playlist "${name}" nicht gefunden!`)] });
                     }
                     
                     const voiceChannel = message.member.voice.channel;
@@ -472,6 +483,8 @@ module.exports = {
                     }
                     
                     message.reply({ embeds: [global.embed.info('Lade Playlist', `⏳ Lade ${data.songs.length} Songs...`)] });
+                    
+                    const queue = getQueue(message.guild.id);
                     
                     for (const url of data.songs) {
                         try {
@@ -484,7 +497,6 @@ module.exports = {
                                 requestedBy: message.author.username
                             };
                             
-                            const queue = getQueue(message.guild.id);
                             queue.songs.push(song);
                             
                             if (queue.songs.length === 1) {
@@ -498,7 +510,9 @@ module.exports = {
                                 }
                                 playSong(message.guild, message.channel, song, client);
                             }
-                        } catch (e) {}
+                        } catch (e) {
+                            console.error('Fehler beim Laden eines Songs:', e);
+                        }
                     }
                     
                     return;
@@ -533,7 +547,7 @@ module.exports = {
             }
         },
         
-        // ========== MUSICHELP / MUSIC ==========
+        // ========== MUSICHELP ==========
         musichelp: {
             aliases: ['music', 'mhelp'],
             description: 'Zeigt alle Music-Befehle',
@@ -553,18 +567,5 @@ module.exports = {
         }
     }
 };
-
-// Helper: Dauer formatieren
-function formatDuration(seconds) {
-    if (!seconds) return '0:00';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hrs > 0) {
-        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
 
 module.exports.musicQueues = musicQueues;

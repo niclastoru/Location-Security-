@@ -1,8 +1,9 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
 const play = require('play-dl');
-const ytdl = require('@distube/ytdl-core');
+const youtubedl = require('youtube-dl-exec');
 const { EmbedBuilder } = require('discord.js');
 const spotify = require('spotify-url-info')();
+const { spawn } = require('child_process');
 
 // Music Queue System
 const musicQueues = new Map();
@@ -22,7 +23,7 @@ function getQueue(guildId) {
     return musicQueues.get(guildId);
 }
 
-// ⭐ Suche mit play-dl (funktioniert)
+// ⭐ Suche mit play-dl
 async function getSongInfo(query) {
     try {
         // Spotify Link?
@@ -100,29 +101,23 @@ async function getSpotifyPlaylist(url) {
     }
 }
 
-// ⭐ Stream mit ytdl-core (funktioniert 100%)
+// ⭐ Stream mit youtube-dl-exec (umgeht YouTube Blocks)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
-        console.log(`🎵 Versuche abzuspielen: ${song.title} (${song.url})`);
+        console.log(`🎵 Versuche abzuspielen: ${song.title}`);
         
-        const stream = ytdl(song.url, {
-            filter: 'audioonly',
-            quality: 'highestaudio',
-            highWaterMark: 1 << 25
-        });
+        // youtube-dl-exec Prozess starten
+        const process = spawn('yt-dlp', [
+            song.url,
+            '-f', 'bestaudio',
+            '--no-playlist',
+            '--no-warnings',
+            '-o', '-'
+        ]);
         
-        stream.on('error', (err) => {
-            console.error('Stream Error:', err);
-            channel.send({ embeds: [global.embed.error('Stream Fehler', 'YouTube blockiert den Stream. Versuche einen anderen Song.')] });
-            queue.songs.shift();
-            if (queue.songs.length > 0) {
-                playSong(guild, channel, queue.songs[0], client);
-            }
-        });
-        
-        const resource = createAudioResource(stream, { inlineVolume: true });
+        const resource = createAudioResource(process.stdout, { inlineVolume: true });
         resource.volume.setVolume(queue.volume);
         
         queue.player.play(resource);
@@ -142,7 +137,21 @@ async function playSong(guild, channel, song, client) {
         
         channel.send({ embeds: [embed] });
         
+        process.stderr.on('data', (data) => {
+            console.error(`yt-dlp error: ${data}`);
+        });
+        
+        process.on('error', (err) => {
+            console.error('Process error:', err);
+            channel.send({ embeds: [global.embed.error('Fehler', 'Stream konnte nicht gestartet werden!')] });
+            queue.songs.shift();
+            if (queue.songs.length > 0) {
+                playSong(guild, channel, queue.songs[0], client);
+            }
+        });
+        
         queue.player.once(AudioPlayerStatus.Idle, () => {
+            process.kill();
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push(queue.nowPlaying);
             }
@@ -371,10 +380,6 @@ module.exports = {
                     });
                 }
                 
-                if (queue.songs.length > 10) {
-                    description += `\n... und ${queue.songs.length - 10} weitere Songs`;
-                }
-                
                 const embed = new EmbedBuilder()
                     .setColor(0x1DB954)
                     .setTitle('📋 Musik Queue')
@@ -450,37 +455,6 @@ module.exports = {
             }
         },
         
-        // ========== REMOVE ==========
-        remove: {
-            aliases: ['delete', 'rm'],
-            description: 'Entfernt einen Song aus der Queue',
-            category: 'Music',
-            async execute(message, args) {
-                const queue = getQueue(message.guild.id);
-                const index = parseInt(args[0]) - 1;
-                
-                if (isNaN(index) || index < 0 || index >= queue.songs.length) {
-                    return message.reply({ embeds: [global.embed.error('Ungültig', `Gib eine Nummer zwischen 1 und ${queue.songs.length} an!`)] });
-                }
-                
-                const removed = queue.songs.splice(index, 1)[0];
-                return message.reply({ embeds: [global.embed.success('Entfernt', `**${removed.title}** wurde aus der Queue entfernt!`)] });
-            }
-        },
-        
-        // ========== CLEAR ==========
-        clear: {
-            aliases: ['empty', 'cq'],
-            description: 'Leert die Queue',
-            category: 'Music',
-            async execute(message) {
-                const queue = getQueue(message.guild.id);
-                const current = queue.songs[0];
-                queue.songs = current ? [current] : [];
-                return message.reply({ embeds: [global.embed.success('Geleert', 'Queue wurde geleert! 🗑️')] });
-            }
-        },
-        
         // ========== SPOTIFY ==========
         spotify: {
             aliases: ['sp'],
@@ -502,7 +476,7 @@ module.exports = {
                     title: '🎵 Music Befehle',
                     fields: [
                         { name: '🎮 Wiedergabe', value: '`!play` `!pause` `!resume` `!stop` `!skip` `!volume`', inline: false },
-                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!remove` `!clear` `!loop`', inline: false }
+                        { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!loop`', inline: false }
                     ]
                 }] });
             }

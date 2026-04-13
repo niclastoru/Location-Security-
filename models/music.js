@@ -1,5 +1,5 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
-const ytdl = require('@distube/ytdl-core');
+const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 const spotify = require('spotify-url-info')();
 
@@ -21,29 +21,21 @@ function getQueue(guildId) {
     return musicQueues.get(guildId);
 }
 
-// ⭐ Spotify zu YouTube konvertieren
+// ⭐ Song Info mit play-dl
 async function getSongInfo(query) {
     try {
         // Spotify Link?
         if (query.includes('spotify.com') || query.includes('spotify.link')) {
             const track = await spotify.getPreview(query);
             const searchQuery = `${track.artist} ${track.title}`;
-            const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+            const searched = await play.search(searchQuery, { limit: 1 });
             
-            const response = await fetch(searchUrl);
-            const html = await response.text();
-            const match = html.match(/"videoId":"([^"]+)"/);
-            
-            if (match) {
-                const videoId = match[1];
-                const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-                const songInfo = await ytdl.getInfo(videoUrl);
-                
+            if (searched.length > 0) {
                 return {
-                    title: `${track.title} - ${track.artist}`,
-                    url: videoUrl,
-                    duration: formatDuration(songInfo.videoDetails.lengthSeconds),
-                    thumbnail: songInfo.videoDetails.thumbnails[0].url,
+                    title: searched[0].title,
+                    url: searched[0].url,
+                    duration: searched[0].durationRaw,
+                    thumbnail: searched[0].thumbnails[0].url,
                     spotify: true
                 };
             }
@@ -51,31 +43,24 @@ async function getSongInfo(query) {
         
         // YouTube Link?
         if (query.includes('youtube.com') || query.includes('youtu.be')) {
-            const songInfo = await ytdl.getInfo(query);
+            const info = await play.video_info(query);
             return {
-                title: songInfo.videoDetails.title,
-                url: songInfo.videoDetails.video_url,
-                duration: formatDuration(songInfo.videoDetails.lengthSeconds),
-                thumbnail: songInfo.videoDetails.thumbnails[0].url
+                title: info.video_details.title,
+                url: info.video_details.url,
+                duration: info.video_details.durationRaw,
+                thumbnail: info.video_details.thumbnails[0].url
             };
         }
         
-        // Normale Suche
-        const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-        const response = await fetch(searchUrl);
-        const html = await response.text();
-        const match = html.match(/"videoId":"([^"]+)"/);
+        // ⭐ Normale Suche mit play-dl
+        const searched = await play.search(query, { limit: 1 });
         
-        if (match) {
-            const videoId = match[1];
-            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            const songInfo = await ytdl.getInfo(videoUrl);
-            
+        if (searched.length > 0) {
             return {
-                title: songInfo.videoDetails.title,
-                url: videoUrl,
-                duration: formatDuration(songInfo.videoDetails.lengthSeconds),
-                thumbnail: songInfo.videoDetails.thumbnails[0].url
+                title: searched[0].title,
+                url: searched[0].url,
+                duration: searched[0].durationRaw,
+                thumbnail: searched[0].thumbnails[0].url
             };
         }
         
@@ -86,7 +71,7 @@ async function getSongInfo(query) {
     }
 }
 
-// Playlist Support
+// Spotify Playlist
 async function getSpotifyPlaylist(url) {
     try {
         const playlist = await spotify.getTracks(url);
@@ -94,20 +79,14 @@ async function getSpotifyPlaylist(url) {
         
         for (const track of playlist) {
             const searchQuery = `${track.artists[0].name} ${track.name}`;
-            const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+            const searched = await play.search(searchQuery, { limit: 1 });
             
-            const response = await fetch(searchUrl);
-            const html = await response.text();
-            const match = html.match(/"videoId":"([^"]+)"/);
-            
-            if (match) {
-                const videoId = match[1];
-                const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            if (searched.length > 0) {
                 songs.push({
-                    title: `${track.name} - ${track.artists[0].name}`,
-                    url: videoUrl,
-                    duration: formatDuration(Math.floor(track.duration_ms / 1000)),
-                    thumbnail: track.album.images[0]?.url,
+                    title: searched[0].title,
+                    url: searched[0].url,
+                    duration: searched[0].durationRaw,
+                    thumbnail: track.album.images[0]?.url || searched[0].thumbnails[0].url,
                     spotify: true
                 });
             }
@@ -124,13 +103,8 @@ async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
-        const stream = ytdl(song.url, {
-            filter: 'audioonly',
-            quality: 'highestaudio',
-            highWaterMark: 1 << 25
-        });
-        
-        const resource = createAudioResource(stream, { inlineVolume: true });
+        const stream = await play.stream(song.url);
+        const resource = createAudioResource(stream.stream, { inputType: stream.type, inlineVolume: true });
         resource.volume.setVolume(queue.volume);
         
         queue.player.play(resource);
@@ -207,11 +181,11 @@ module.exports = {
                 try {
                     // Spotify Playlist?
                     if (query.includes('spotify.com/playlist')) {
-                        message.reply({ embeds: [global.embed.info('Lade Playlist', '⏳ Lade Spotify Playlist...')] });
+                        const loadingMsg = await message.reply({ embeds: [global.embed.info('Lade Playlist', '⏳ Lade Spotify Playlist...')] });
                         
                         const songs = await getSpotifyPlaylist(query);
                         if (songs.length === 0) {
-                            return message.reply({ embeds: [global.embed.error('Fehler', 'Playlist konnte nicht geladen werden!')] });
+                            return loadingMsg.edit({ embeds: [global.embed.error('Fehler', 'Playlist konnte nicht geladen werden!')] });
                         }
                         
                         for (const song of songs) {
@@ -219,7 +193,7 @@ module.exports = {
                             queue.songs.push(song);
                         }
                         
-                        message.channel.send({ embeds: [global.embed.success('Playlist hinzugefügt', `${songs.length} Songs zur Queue hinzugefügt!`)] });
+                        loadingMsg.edit({ embeds: [global.embed.success('Playlist hinzugefügt', `${songs.length} Songs zur Queue hinzugefügt!`)] });
                         
                         if (queue.songs.length === songs.length) {
                             if (!queue.connection) {
@@ -282,16 +256,6 @@ module.exports = {
             }
         },
         
-        // ========== SPOTIFY ==========
-        spotify: {
-            aliases: ['sp'],
-            description: 'Spielt Spotify Songs/Playlists',
-            category: 'Music',
-            async execute(message, args, { client }) {
-                return module.exports.subCommands.play.execute(message, args, { client });
-            }
-        },
-        
         // ========== SKIP ==========
         skip: {
             aliases: ['s', 'next'],
@@ -342,10 +306,6 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
                 }
                 
-                if (queue.player.state.status === AudioPlayerStatus.Paused) {
-                    return message.reply({ embeds: [global.embed.error('Bereits pausiert', 'Musik ist bereits pausiert!')] });
-                }
-                
                 queue.player.pause();
                 return message.reply({ embeds: [global.embed.success('Pausiert', 'Musik wurde pausiert! ⏸️')] });
             }
@@ -361,10 +321,6 @@ module.exports = {
                 
                 if (!queue.nowPlaying) {
                     return message.reply({ embeds: [global.embed.error('Kein Song', 'Es wird kein Song abgespielt!')] });
-                }
-                
-                if (queue.player.state.status === AudioPlayerStatus.Playing) {
-                    return message.reply({ embeds: [global.embed.error('Spielt bereits', 'Musik spielt bereits!')] });
                 }
                 
                 queue.player.unpause();
@@ -547,6 +503,16 @@ module.exports = {
             }
         },
         
+        // ========== SPOTIFY ==========
+        spotify: {
+            aliases: ['sp'],
+            description: 'Spielt Spotify Songs/Playlists',
+            category: 'Music',
+            async execute(message, args, { client }) {
+                return module.exports.subCommands.play.execute(message, args, { client });
+            }
+        },
+        
         // ========== MUSICHELP ==========
         musichelp: {
             aliases: ['music', 'mhelp'],
@@ -557,7 +523,7 @@ module.exports = {
                     color: 0x1DB954,
                     title: '🎵 Music Befehle',
                     fields: [
-                        { name: '🎮 Wiedergabe', value: '`!play <Spotify/YouTube>`\n`!pause`, `!resume`, `!stop`, `!skip`, `!volume`', inline: false },
+                        { name: '🎮 Wiedergabe', value: '`!play <Spotify/YouTube/Suche>`\n`!pause`, `!resume`, `!stop`, `!skip`, `!volume`', inline: false },
                         { name: '📋 Queue', value: '`!queue`, `!nowplaying`, `!shuffle`, `!remove`, `!clear`, `!loop`', inline: false },
                         { name: '🔧 Sonstiges', value: '`!lyrics`, `!spotify`', inline: false }
                     ]

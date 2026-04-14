@@ -42,9 +42,9 @@ async function sendLogMessage(guild, logType, embed, supabase) {
     }
 }
 
-// ⭐ Team-Beitritt speichern
+// ⭐ Team-Beitritt speichern (mit Moderator)
 async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByTag, supabase) {
-    await supabase.from('team_join').upsert({
+    await supabase.from('team_join').insert({
         guild_id: guildId,
         user_id: userId,
         role_id: roleId,
@@ -53,6 +53,21 @@ async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByT
         given_by_tag: givenByTag,
         joined_at: new Date().toISOString()
     });
+}
+
+// ⭐ Team-Beitritt für User holen
+async function getTeamJoin(guildId, userId, roleId, supabase) {
+    const { data } = await supabase
+        .from('team_join')
+        .select('*')
+        .eq('guild_id', guildId)
+        .eq('user_id', userId)
+        .eq('role_id', roleId)
+        .order('joined_at', { ascending: false })
+        .limit(1)
+        .single();
+    
+    return data;
 }
 
 module.exports = {
@@ -69,6 +84,10 @@ module.exports = {
                 const user = target.user;
                 
                 const hierarchy = await loadHierarchy(message.guild.id, supabase);
+                if (hierarchy.length === 0) {
+                    return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Die Team-Hierarchie wurde nicht konfiguriert! Nutze `!teamhierarchy set @Rolle1 @Rolle2`')] });
+                }
+                
                 const teamRoleIds = hierarchy.map(h => h.role_id);
                 const userTeamRoles = target.roles.cache.filter(r => teamRoleIds.includes(r.id));
                 
@@ -76,23 +95,21 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Kein Team-Mitglied', `${target} ist kein Team-Mitglied!`)] });
                 }
                 
-                const { data: teamJoins } = await supabase
-                    .from('team_join')
-                    .select('*')
-                    .eq('guild_id', message.guild.id)
-                    .eq('user_id', target.id)
-                    .order('joined_at', { ascending: false });
-                
                 const roleInfo = [];
                 const rolesList = [];
                 
                 for (const role of userTeamRoles.values()) {
                     rolesList.push(`${role}`);
-                    const join = teamJoins?.find(j => j.role_id === role.id);
+                    
+                    // Team-Beitritt für diese Rolle holen
+                    const join = await getTeamJoin(message.guild.id, target.id, role.id, supabase);
+                    
                     if (join) {
-                        roleInfo.push(`**${role.name}**\n┗ 📅 <t:${Math.floor(new Date(join.joined_at).getTime() / 1000)}:D>\n┗ 👤 Gegeben von: ${join.given_by_tag}`);
+                        const joinDate = new Date(join.joined_at);
+                        const timestamp = Math.floor(joinDate.getTime() / 1000);
+                        roleInfo.push(`**${role.name}**\n┗ 📅 Team seit: <t:${timestamp}:D>\n┗ 👤 Gegeben von: ${join.given_by_tag}`);
                     } else {
-                        roleInfo.push(`**${role.name}**\n┗ 📅 Unbekannt\n┗ 👤 Unbekannt`);
+                        roleInfo.push(`**${role.name}**\n┗ 📅 Team seit: Unbekannt\n┗ 👤 Gegeben von: Unbekannt`);
                     }
                 }
                 
@@ -102,7 +119,7 @@ module.exports = {
                     .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 1024 }))
                     .addFields(
                         { name: '🆔 User ID', value: user.id, inline: true },
-                        { name: '👤 Account erstellt', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
+                        { name: '👤 Discord beigetreten', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
                         { name: `🎭 Team-Rollen [${userTeamRoles.size}]`, value: rolesList.join(' ') || 'Keine', inline: false },
                         { name: '📋 Rollen-Info', value: roleInfo.join('\n\n') || 'Keine Informationen', inline: false }
                     )
@@ -129,28 +146,31 @@ module.exports = {
                 
                 const hierarchy = await loadHierarchy(message.guild.id, supabase);
                 if (hierarchy.length === 0) {
-                    return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Die Team-Hierarchie wurde nicht konfiguriert! Nutze `!teamhierarchy`')] });
+                    return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Die Team-Hierarchie wurde nicht konfiguriert! Nutze `!teamhierarchy set @Rolle1 @Rolle2`')] });
                 }
                 
-                const userRoles = target.roles.cache;
-                let currentRoleIndex = -1;
-                let currentRole = null;
+                // Team-Rollen des Users finden
+                const teamRoleIds = hierarchy.map(h => h.role_id);
+                const userTeamRoles = target.roles.cache.filter(r => teamRoleIds.includes(r.id));
                 
-                for (let i = hierarchy.length - 1; i >= 0; i--) {
-                    const hr = hierarchy[i];
-                    if (userRoles.has(hr.role_id)) {
-                        currentRoleIndex = i;
-                        currentRole = hr;
-                        break;
-                    }
-                }
-                
-                if (currentRoleIndex === -1) {
+                if (userTeamRoles.size === 0) {
                     return message.reply({ embeds: [global.embed.error('Keine Team-Rolle', `${target} hat keine Team-Rolle!`)] });
                 }
                 
+                // Höchste Team-Rolle des Users finden
+                let currentRoleIndex = -1;
+                let currentRole = null;
+                
+                for (const role of userTeamRoles.values()) {
+                    const index = hierarchy.findIndex(h => h.role_id === role.id);
+                    if (index > currentRoleIndex) {
+                        currentRoleIndex = index;
+                        currentRole = hierarchy[index];
+                    }
+                }
+                
                 if (currentRoleIndex === hierarchy.length - 1) {
-                    return message.reply({ embeds: [global.embed.error('Bereits höchste Rolle', `${target} hat bereits die höchste Team-Rolle!`)] });
+                    return message.reply({ embeds: [global.embed.error('Bereits höchste Rolle', `${target} hat bereits die höchste Team-Rolle (${currentRole.role_name})!`)] });
                 }
                 
                 const newRoleData = hierarchy[currentRoleIndex + 1];
@@ -160,10 +180,12 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Rolle nicht gefunden', 'Die Ziel-Rolle existiert nicht mehr!')] });
                 }
                 
+                // Alte Rolle entfernen, neue hinzufügen
                 const oldRole = message.guild.roles.cache.get(currentRole.role_id);
                 await target.roles.remove(oldRole);
                 await target.roles.add(newRole);
                 
+                // Team-Beitritt speichern
                 await saveTeamJoin(
                     message.guild.id, 
                     target.id, 
@@ -174,6 +196,7 @@ module.exports = {
                     supabase
                 );
                 
+                // In History speichern
                 await supabase.from('uprank_history').insert({
                     guild_id: message.guild.id,
                     user_id: target.id,
@@ -224,25 +247,28 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Die Team-Hierarchie wurde nicht konfiguriert!')] });
                 }
                 
-                const userRoles = target.roles.cache;
-                let currentRoleIndex = -1;
-                let currentRole = null;
+                // Team-Rollen des Users finden
+                const teamRoleIds = hierarchy.map(h => h.role_id);
+                const userTeamRoles = target.roles.cache.filter(r => teamRoleIds.includes(r.id));
                 
-                for (let i = hierarchy.length - 1; i >= 0; i--) {
-                    const hr = hierarchy[i];
-                    if (userRoles.has(hr.role_id)) {
-                        currentRoleIndex = i;
-                        currentRole = hr;
-                        break;
-                    }
-                }
-                
-                if (currentRoleIndex === -1) {
+                if (userTeamRoles.size === 0) {
                     return message.reply({ embeds: [global.embed.error('Keine Team-Rolle', `${target} hat keine Team-Rolle!`)] });
                 }
                 
+                // Höchste Team-Rolle des Users finden
+                let currentRoleIndex = -1;
+                let currentRole = null;
+                
+                for (const role of userTeamRoles.values()) {
+                    const index = hierarchy.findIndex(h => h.role_id === role.id);
+                    if (index > currentRoleIndex) {
+                        currentRoleIndex = index;
+                        currentRole = hierarchy[index];
+                    }
+                }
+                
                 if (currentRoleIndex === 0) {
-                    return message.reply({ embeds: [global.embed.error('Bereits niedrigste Rolle', `${target} hat bereits die niedrigste Team-Rolle!`)] });
+                    return message.reply({ embeds: [global.embed.error('Bereits niedrigste Rolle', `${target} hat bereits die niedrigste Team-Rolle (${currentRole.role_name})!`)] });
                 }
                 
                 const newRoleData = hierarchy[currentRoleIndex - 1];
@@ -252,10 +278,12 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.error('Rolle nicht gefunden', 'Die Ziel-Rolle existiert nicht mehr!')] });
                 }
                 
+                // Alte Rolle entfernen, neue hinzufügen
                 const oldRole = message.guild.roles.cache.get(currentRole.role_id);
                 await target.roles.remove(oldRole);
                 await target.roles.add(newRole);
                 
+                // Team-Beitritt speichern
                 await saveTeamJoin(
                     message.guild.id, 
                     target.id, 
@@ -266,6 +294,7 @@ module.exports = {
                     supabase
                 );
                 
+                // In History speichern
                 await supabase.from('derank_history').insert({
                     guild_id: message.guild.id,
                     user_id: target.id,
@@ -325,8 +354,10 @@ module.exports = {
                     .setTimestamp();
                 
                 data.forEach((u) => {
+                    const date = new Date(u.created_at);
+                    const timestamp = Math.floor(date.getTime() / 1000);
                     embed.addFields({
-                        name: `📅 ${new Date(u.created_at).toLocaleDateString('de-DE')}`,
+                        name: `📅 <t:${timestamp}:D>`,
                         value: `**Von:** ${u.old_role_name || 'Keine'}\n**Zu:** ${u.new_role_name}\n**Mod:** ${u.moderator_tag}`,
                         inline: true
                     });
@@ -364,8 +395,10 @@ module.exports = {
                     .setTimestamp();
                 
                 data.forEach((u) => {
+                    const date = new Date(u.created_at);
+                    const timestamp = Math.floor(date.getTime() / 1000);
                     embed.addFields({
-                        name: `📅 ${new Date(u.created_at).toLocaleDateString('de-DE')}`,
+                        name: `📅 <t:${timestamp}:D>`,
                         value: `**Von:** ${u.old_role_name}\n**Zu:** ${u.new_role_name || 'Keine Rolle'}\n**Mod:** ${u.moderator_tag}`,
                         inline: true
                     });
@@ -385,36 +418,44 @@ module.exports = {
                 const action = args[0]?.toLowerCase();
                 
                 if (action === 'set') {
-                    const roles = message.mentions.roles;
-                    if (roles.size < 2) {
-                        return message.reply({ embeds: [global.embed.error('Zu wenige Rollen', 'Erwähne mindestens 2 Rollen in der Reihenfolge: NIEDRIGSTE zuerst, HÖCHSTE zuletzt!\nBeispiel: !teamhierarchy set @Supporter @Moderator @Admin')] });
+                    // Rollen aus der Nachricht extrahieren
+                    const roleMentions = message.content.match(/<@&(\d+)>/g);
+                    if (!roleMentions || roleMentions.length < 2) {
+                        return message.reply({ embeds: [global.embed.error('Zu wenige Rollen', 'Erwähne mindestens 2 Rollen!\nBeispiel: !teamhierarchy set @Supporter @Moderator @Admin\n\n**Wichtig:** NIEDRIGSTE Rolle ZUERST!')] });
                     }
                     
+                    // Alte Hierarchie löschen
                     await supabase.from('team_hierarchy').delete().eq('guild_id', message.guild.id);
                     
+                    // Neue Hierarchie speichern
                     let position = 1;
-                    for (const role of roles.values()) {
-                        await supabase.from('team_hierarchy').insert({
-                            guild_id: message.guild.id,
-                            role_id: role.id,
-                            role_name: role.name,
-                            position: position
-                        });
-                        position++;
+                    for (const mention of roleMentions) {
+                        const roleId = mention.match(/\d+/)[0];
+                        const role = message.guild.roles.cache.get(roleId);
+                        if (role) {
+                            await supabase.from('team_hierarchy').insert({
+                                guild_id: message.guild.id,
+                                role_id: role.id,
+                                role_name: role.name,
+                                position: position
+                            });
+                            position++;
+                        }
                     }
                     
                     clearHierarchyCache(message.guild.id);
                     
-                    const roleList = Array.from(roles.values()).map((r, i) => `${i+1}. ${r.name}`).join('\n');
+                    const hierarchy = await loadHierarchy(message.guild.id, supabase);
+                    const roleList = hierarchy.map((h, i) => `${i+1}. ${h.role_name}`).join('\n');
                     
-                    return message.reply({ embeds: [global.embed.success('Hierarchie gespeichert', `Reihenfolge (1 = niedrigste):\n${roleList}`)] });
+                    return message.reply({ embeds: [global.embed.success('Hierarchie gespeichert', `**Reihenfolge (1 = niedrigste, ${position-1} = höchste):**\n${roleList}`)] });
                 }
                 
                 if (action === 'list' || !action) {
                     const hierarchy = await loadHierarchy(message.guild.id, supabase);
                     
                     if (hierarchy.length === 0) {
-                        return message.reply({ embeds: [global.embed.info('Keine Hierarchie', 'Noch keine Team-Hierarchie konfiguriert.\n\nNutze `!teamhierarchy set @Rolle1 @Rolle2 ...`\n**Wichtig:** Niedrigste Rolle zuerst!')] });
+                        return message.reply({ embeds: [global.embed.info('Keine Hierarchie', 'Noch keine Team-Hierarchie konfiguriert.\n\nNutze: `!teamhierarchy set @Rolle1 @Rolle2 ...`\n**Wichtig:** Niedrigste Rolle zuerst!')] });
                     }
                     
                     const list = hierarchy.map((h, i) => `${i+1}. <@&${h.role_id}>`).join('\n');
@@ -423,11 +464,17 @@ module.exports = {
                         color: 0x0099FF,
                         title: '📊 Team Hierarchie',
                         description: list,
-                        footer: { text: '1 = Niedrigste Rolle • Höchste Nummer = Höchste Rolle' }
+                        footer: { text: '1 = Niedrigste • Höchste Nummer = Höchste Rolle' }
                     }] });
                 }
                 
-                return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!teamhierarchy set @Rolle1 @Rolle2 ...\n!teamhierarchy list')] });
+                if (action === 'reset' || action === 'clear') {
+                    await supabase.from('team_hierarchy').delete().eq('guild_id', message.guild.id);
+                    clearHierarchyCache(message.guild.id);
+                    return message.reply({ embeds: [global.embed.success('Hierarchie gelöscht', 'Die Team-Hierarchie wurde zurückgesetzt.')] });
+                }
+                
+                return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!teamhierarchy set @Rolle1 @Rolle2 ...\n!teamhierarchy list\n!teamhierarchy reset')] });
             }
         },
         

@@ -13,7 +13,6 @@ async function loadHierarchy(guildId, supabase) {
         return [];
     }
     
-    console.log(`📊 Hierarchie geladen: ${data?.length || 0} Rollen`);
     return data || [];
 }
 
@@ -168,7 +167,6 @@ module.exports = {
                 const teamRoleIds = hierarchy.map(h => h.role_id);
                 const userTeamRoles = target.roles.cache.filter(r => teamRoleIds.includes(r.id));
                 
-                // KEINE Team-Rolle -> Erste geben
                 if (userTeamRoles.size === 0) {
                     const firstRoleData = hierarchy[0];
                     const firstRole = message.guild.roles.cache.get(firstRoleData.role_id);
@@ -203,7 +201,6 @@ module.exports = {
                     return;
                 }
                 
-                // Höchste Rolle finden
                 let currentRoleIndex = -1;
                 let currentRole = null;
                 for (const role of userTeamRoles.values()) {
@@ -291,7 +288,6 @@ module.exports = {
                     }
                 }
                 
-                // Niedrigste Rolle -> Komplett entfernen
                 if (currentRoleIndex === 0) {
                     const oldRole = message.guild.roles.cache.get(currentRole.role_id);
                     await target.roles.remove(oldRole);
@@ -450,41 +446,46 @@ module.exports = {
                 const action = args[0]?.toLowerCase();
                 
                 if (action === 'set') {
-                    // ⭐ ALLE ERWÄHNTEN ROLLEN EINSAMMELN
-                    const roles = message.mentions.roles;
+                    // ⭐ MANUELLE ROLLEN-EXTRAKTION (funktioniert IMMER)
+                    const content = message.content;
+                    const roleRegex = /<@&(\d+)>/g;
+                    const roleIds = [];
+                    let match;
                     
-                    if (roles.size === 0) {
+                    while ((match = roleRegex.exec(content)) !== null) {
+                        roleIds.push(match[1]);
+                    }
+                    
+                    if (roleIds.length === 0) {
                         return message.reply({ embeds: [global.embed.error('Keine Rollen', 'Erwähne mindestens 1 Rolle mit @!\n`!teamhierarchy set @Supporter @Moderator @Admin`')] });
                     }
                     
                     // ALT LÖSCHEN
                     await supabase.from('team_hierarchy').delete().eq('guild_id', message.guild.id);
                     
-                    // NEU SPEICHERN (in der Reihenfolge der Erwähnung)
+                    // NEU SPEICHERN
                     let position = 1;
                     const savedRoles = [];
                     
-                    // Rollen in der Reihenfolge der Erwähnung durchgehen
-                    const roleArray = Array.from(roles.values());
-                    
-                    for (const role of roleArray) {
-                        const { error } = await supabase.from('team_hierarchy').insert({
-                            guild_id: message.guild.id,
-                            role_id: role.id,
-                            role_name: role.name,
-                            position: position
-                        });
-                        
-                        if (error) {
-                            console.error('Insert error:', error);
-                        } else {
-                            savedRoles.push(`${position}. ${role.name}`);
-                            position++;
+                    for (const roleId of roleIds) {
+                        const role = message.guild.roles.cache.get(roleId);
+                        if (role) {
+                            const { error } = await supabase.from('team_hierarchy').insert({
+                                guild_id: message.guild.id,
+                                role_id: role.id,
+                                role_name: role.name,
+                                position: position
+                            });
+                            
+                            if (!error) {
+                                savedRoles.push(`${position}. ${role.name}`);
+                                position++;
+                            }
                         }
                     }
                     
                     if (savedRoles.length === 0) {
-                        return message.reply({ embeds: [global.embed.error('Fehler', 'Keine Rollen gespeichert!')] });
+                        return message.reply({ embeds: [global.embed.error('Fehler', 'Keine gültigen Rollen gefunden!')] });
                     }
                     
                     return message.reply({ 

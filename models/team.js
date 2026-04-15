@@ -1,11 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 
-// Cache für Hierarchie
-const hierarchyCache = new Map();
-
 // ⭐ Rollen-Hierarchie laden (1 = niedrigste)
 async function loadHierarchy(guildId, supabase) {
-    // IMMER aus Supabase laden, nicht aus Cache
     const { data, error } = await supabase
         .from('team_hierarchy')
         .select('*')
@@ -17,7 +13,7 @@ async function loadHierarchy(guildId, supabase) {
         return [];
     }
     
-    console.log(`📊 Hierarchie für ${guildId} geladen: ${data?.length || 0} Rollen`);
+    console.log(`📊 Hierarchie geladen: ${data?.length || 0} Rollen`);
     return data || [];
 }
 
@@ -40,7 +36,7 @@ async function sendLogMessage(guild, logType, embed, supabase) {
 
 // ⭐ Team-Beitritt speichern
 async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByTag, supabase) {
-    const { error } = await supabase.from('team_join').insert({
+    await supabase.from('team_join').insert({
         guild_id: guildId,
         user_id: userId,
         role_id: roleId,
@@ -49,12 +45,6 @@ async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByT
         given_by_tag: givenByTag,
         joined_at: new Date().toISOString()
     });
-    
-    if (error) {
-        console.error('Fehler beim Speichern des Team-Beitritts:', error);
-    } else {
-        console.log(`✅ Team-Beitritt gespeichert: ${userId} -> ${roleName} von ${givenByTag}`);
-    }
 }
 
 // ⭐ Team-Beitritt für User holen
@@ -97,11 +87,10 @@ module.exports = {
                 const target = message.mentions.members.first() || message.member;
                 const user = target.user;
                 
-                // HIERARCHIE LADEN (ohne Cache)
                 const hierarchy = await loadHierarchy(message.guild.id, supabase);
                 
                 if (hierarchy.length === 0) {
-                    return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Die Team-Hierarchie wurde nicht konfiguriert!\nNutze `!teamhierarchy set @Rolle1 @Rolle2`\n\n**Wichtig:** Niedrigste Rolle ZUERST!')] });
+                    return message.reply({ embeds: [global.embed.error('Keine Hierarchie', 'Nutze `!teamhierarchy set @Rolle1 @Rolle2`\n**Niedrigste ZUERST!**')] });
                 }
                 
                 const teamRoleIds = hierarchy.map(h => h.role_id);
@@ -397,7 +386,6 @@ module.exports = {
                     .setColor(0x00FF00)
                     .setAuthor({ name: `${target.username} - Upranks`, iconURL: target.displayAvatarURL() })
                     .setThumbnail(target.displayAvatarURL())
-                    .setFooter({ text: `ID: ${target.id}` })
                     .setTimestamp();
                 
                 data.forEach(u => {
@@ -437,7 +425,6 @@ module.exports = {
                     .setColor(0xFF0000)
                     .setAuthor({ name: `${target.username} - Deranks`, iconURL: target.displayAvatarURL() })
                     .setThumbnail(target.displayAvatarURL())
-                    .setFooter({ text: `ID: ${target.id}` })
                     .setTimestamp();
                 
                 data.forEach(u => {
@@ -463,36 +450,36 @@ module.exports = {
                 const action = args[0]?.toLowerCase();
                 
                 if (action === 'set') {
-                    const roleMentions = message.content.match(/<@&(\d+)>/g);
-                    if (!roleMentions || roleMentions.length < 1) {
-                        return message.reply({ embeds: [global.embed.error('Keine Rollen', 'Erwähne mindestens 1 Rolle!\n`!teamhierarchy set @Supporter @Moderator @Admin`\n**Niedrigste ZUERST!**')] });
+                    // ⭐ ALLE ERWÄHNTEN ROLLEN EINSAMMELN
+                    const roles = message.mentions.roles;
+                    
+                    if (roles.size === 0) {
+                        return message.reply({ embeds: [global.embed.error('Keine Rollen', 'Erwähne mindestens 1 Rolle mit @!\n`!teamhierarchy set @Supporter @Moderator @Admin`')] });
                     }
                     
                     // ALT LÖSCHEN
-                    const { error: deleteError } = await supabase.from('team_hierarchy').delete().eq('guild_id', message.guild.id);
-                    if (deleteError) console.error('Delete error:', deleteError);
+                    await supabase.from('team_hierarchy').delete().eq('guild_id', message.guild.id);
                     
-                    // NEU SPEICHERN
+                    // NEU SPEICHERN (in der Reihenfolge der Erwähnung)
                     let position = 1;
                     const savedRoles = [];
                     
-                    for (const mention of roleMentions) {
-                        const roleId = mention.match(/\d+/)[0];
-                        const role = message.guild.roles.cache.get(roleId);
-                        if (role) {
-                            const { error: insertError } = await supabase.from('team_hierarchy').insert({
-                                guild_id: message.guild.id,
-                                role_id: role.id,
-                                role_name: role.name,
-                                position: position
-                            });
-                            
-                            if (insertError) {
-                                console.error('Insert error:', insertError);
-                            } else {
-                                savedRoles.push(`${position}. ${role.name}`);
-                                position++;
-                            }
+                    // Rollen in der Reihenfolge der Erwähnung durchgehen
+                    const roleArray = Array.from(roles.values());
+                    
+                    for (const role of roleArray) {
+                        const { error } = await supabase.from('team_hierarchy').insert({
+                            guild_id: message.guild.id,
+                            role_id: role.id,
+                            role_name: role.name,
+                            position: position
+                        });
+                        
+                        if (error) {
+                            console.error('Insert error:', error);
+                        } else {
+                            savedRoles.push(`${position}. ${role.name}`);
+                            position++;
                         }
                     }
                     
@@ -500,7 +487,11 @@ module.exports = {
                         return message.reply({ embeds: [global.embed.error('Fehler', 'Keine Rollen gespeichert!')] });
                     }
                     
-                    return message.reply({ embeds: [global.embed.success('Hierarchie gespeichert', `**Reihenfolge (1 = niedrigste):**\n${savedRoles.join('\n')}`)] });
+                    return message.reply({ 
+                        embeds: [global.embed.success('Hierarchie gespeichert', 
+                            `**${savedRoles.length} Rollen gespeichert!**\n\n**Reihenfolge (1 = niedrigste):**\n${savedRoles.join('\n')}`
+                        )] 
+                    });
                 }
                 
                 if (action === 'list' || !action) {

@@ -7,7 +7,7 @@ const path = require('path');
 // ⭐ ALLE IMPORTS
 const { vmCache, handleVoiceMasterButton, loadConfig } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
-const { logEvent } = require('./models/logs');
+const { logEvent } = require('./models/logs'); // ⭐ NEU: Vereinfachtes Log-System
 const { handleLevelingMessage } = require('./models/leveling');
 const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
@@ -174,9 +174,28 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ========== GUILD MEMBER UPDATE (Booster) ==========
+// ========== GUILD MEMBER UPDATE (Booster + Logs) ==========
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await handleBoosterUpdate(oldMember, newMember, supabase);
+    
+    // ⭐ Logs für Nickname-Änderungen
+    await logEvent.memberNicknameChange(oldMember, newMember);
+    
+    // ⭐ Logs für Rollen-Änderungen
+    const addedRoles = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
+    const removedRoles = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id));
+    
+    for (const role of addedRoles.values()) {
+        if (role.id !== newMember.guild.id) {
+            await logEvent.memberRoleAdd(newMember, role);
+        }
+    }
+    
+    for (const role of removedRoles.values()) {
+        if (role.id !== newMember.guild.id) {
+            await logEvent.memberRoleRemove(newMember, role);
+        }
+    }
 });
 
 // ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs + Stats) ==========
@@ -267,26 +286,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
     
-    // ⭐ VOICE LOGS
+    // ⭐ VOICE LOGS (NEU: Einfache Aufrufe!)
     if (!oldState.channelId && newState.channelId) {
-        await logEvent(newState.guild.id, 'voice_join', {
-            user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },
-            target: { id: newState.channelId, tag: newState.channel.name }
-        }, supabase, client);
+        await logEvent.voiceJoin(newState);
     }
-    
     if (oldState.channelId && !newState.channelId) {
-        await logEvent(oldState.guild.id, 'voice_leave', {
-            user: { id: oldState.member.id, tag: oldState.member.user.tag, avatar: oldState.member.user.displayAvatarURL() },
-            target: { id: oldState.channelId, tag: oldState.channel.name }
-        }, supabase, client);
+        await logEvent.voiceLeave(oldState);
     }
-    
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-        await logEvent(newState.guild.id, 'voice_move', {
-            user: { id: newState.member.id, tag: newState.member.user.tag, avatar: newState.member.user.displayAvatarURL() },
-            details: `${oldState.channel.name} → ${newState.channel.name}`
-        }, supabase, client);
+        await logEvent.voiceMove(oldState, newState);
     }
 });
 
@@ -307,9 +315,9 @@ client.on('messageReactionRemove', async (reaction, user) => {
     await handleGiveawayReaction(reaction, user, client, supabase, false);
 });
 
-// ========== LOGGING LISTENERS ==========
+// ========== LOGGING LISTENERS (NEU: VEREINFACHT!) ==========
 
-// Message Delete (Log + Snipe)
+// Message Delete (Snipe + Log)
 client.on('messageDelete', async (message) => {
     // Snipe
     if (!message.author?.bot || message.content || message.attachments.size) {
@@ -325,40 +333,28 @@ client.on('messageDelete', async (message) => {
         });
     }
     
-    // Log
-    if (message.author?.bot || !message.guild) return;
-    
-    await logEvent(message.guild.id, 'message_delete', {
-        user: { id: message.author?.id, tag: message.author?.tag, avatar: message.author?.displayAvatarURL() },
-        target: { id: message.channel.id, tag: `#${message.channel.name}` },
-        details: message.content || '*Kein Text*'
-    }, supabase, client);
+    // ⭐ NEU: Einfacher Log-Aufruf!
+    await logEvent.messageDelete(message);
 });
 
 // Message Edit
 client.on('messageUpdate', async (oldMessage, newMessage) => {
-    if (oldMessage.author?.bot || !oldMessage.guild || oldMessage.content === newMessage.content) return;
-    
-    await logEvent(oldMessage.guild.id, 'message_edit', {
-        user: { id: oldMessage.author?.id, tag: oldMessage.author?.tag, avatar: oldMessage.author?.displayAvatarURL() },
-        target: { id: oldMessage.channel.id, tag: `#${oldMessage.channel.name}` },
-        oldContent: oldMessage.content || '*Kein Text*',
-        newContent: newMessage.content || '*Kein Text*'
-    }, supabase, client);
+    await logEvent.messageEdit(oldMessage, newMessage);
+});
+
+// Message Delete Bulk
+client.on('messageDeleteBulk', async (messages, channel) => {
+    await logEvent.messageDeleteBulk(messages, channel);
 });
 
 // Member Join
 client.on('guildMemberAdd', async (member) => {
-    await logEvent(member.guild.id, 'member_join', {
-        user: { id: member.id, tag: member.user.tag, avatar: member.user.displayAvatarURL() }
-    }, supabase, client);
+    await logEvent.memberJoin(member);
 });
 
 // Member Leave
 client.on('guildMemberRemove', async (member) => {
-    await logEvent(member.guild.id, 'member_leave', {
-        user: { id: member.id, tag: member.user.tag, avatar: member.user.displayAvatarURL() }
-    }, supabase, client);
+    await logEvent.memberLeave(member);
 });
 
 // Member Ban
@@ -366,11 +362,7 @@ client.on('guildBanAdd', async (ban) => {
     const logs = await ban.guild.fetchAuditLogs({ type: 22, limit: 1 });
     const entry = logs.entries.first();
     
-    await logEvent(ban.guild.id, 'member_ban', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: ban.user.id, tag: ban.user.tag },
-        reason: entry?.reason || 'Kein Grund'
-    }, supabase, client);
+    await logEvent.memberBan(ban.guild, ban.user, entry?.executor, entry?.reason);
 });
 
 // Member Unban
@@ -378,54 +370,57 @@ client.on('guildBanRemove', async (ban) => {
     const logs = await ban.guild.fetchAuditLogs({ type: 23, limit: 1 });
     const entry = logs.entries.first();
     
-    await logEvent(ban.guild.id, 'member_unban', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: ban.user.id, tag: ban.user.tag }
-    }, supabase, client);
+    await logEvent.memberUnban(ban.guild, ban.user, entry?.executor);
 });
 
 // Channel Create
 client.on('channelCreate', async (channel) => {
-    const logs = await channel.guild.fetchAuditLogs({ type: 10, limit: 1 });
-    const entry = logs.entries.first();
-    
-    await logEvent(channel.guild.id, 'channel_create', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: channel.id, tag: channel.name }
-    }, supabase, client);
+    await logEvent.channelCreate(channel);
 });
 
 // Channel Delete
 client.on('channelDelete', async (channel) => {
-    const logs = await channel.guild.fetchAuditLogs({ type: 12, limit: 1 });
-    const entry = logs.entries.first();
-    
-    await logEvent(channel.guild.id, 'channel_delete', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: channel.id, tag: channel.name }
-    }, supabase, client);
+    await logEvent.channelDelete(channel);
+});
+
+// Channel Update
+client.on('channelUpdate', async (oldChannel, newChannel) => {
+    await logEvent.channelUpdate(oldChannel, newChannel);
 });
 
 // Role Create
 client.on('roleCreate', async (role) => {
-    const logs = await role.guild.fetchAuditLogs({ type: 30, limit: 1 });
-    const entry = logs.entries.first();
-    
-    await logEvent(role.guild.id, 'role_create', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: role.id, tag: role.name }
-    }, supabase, client);
+    await logEvent.roleCreate(role);
 });
 
 // Role Delete
 client.on('roleDelete', async (role) => {
-    const logs = await role.guild.fetchAuditLogs({ type: 32, limit: 1 });
-    const entry = logs.entries.first();
-    
-    await logEvent(role.guild.id, 'role_delete', {
-        user: { id: entry?.executor?.id, tag: entry?.executor?.tag, avatar: entry?.executor?.displayAvatarURL() },
-        target: { id: role.id, tag: role.name }
-    }, supabase, client);
+    await logEvent.roleDelete(role);
+});
+
+// Role Update
+client.on('roleUpdate', async (oldRole, newRole) => {
+    await logEvent.roleUpdate(oldRole, newRole);
+});
+
+// Emoji Create
+client.on('emojiCreate', async (emoji) => {
+    await logEvent.emojiCreate(emoji);
+});
+
+// Emoji Delete
+client.on('emojiDelete', async (emoji) => {
+    await logEvent.emojiDelete(emoji);
+});
+
+// Invite Create
+client.on('inviteCreate', async (invite) => {
+    await logEvent.inviteCreate(invite);
+});
+
+// Invite Delete
+client.on('inviteDelete', async (invite) => {
+    await logEvent.inviteDelete(invite);
 });
 
 // ========== ERROR HANDLING ==========

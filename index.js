@@ -7,7 +7,7 @@ const path = require('path');
 // ⭐ ALLE IMPORTS
 const { vmCache, handleVoiceMasterButton, loadConfig } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
-const { logEvent } = require('./models/logs'); // ⭐ NEU: Vereinfachtes Log-System
+const { logEvent } = require('./models/logs');
 const { handleLevelingMessage } = require('./models/leveling');
 const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
@@ -28,8 +28,6 @@ const client = new Client({
     ]
 });
 
-const PREFIX = '!';
-
 // Embed Helper (global verfügbar)
 global.embed = {
     success: (title, desc) => ({ color: 0x00FF00, title: `✅ ${title}`, description: desc, timestamp: new Date().toISOString() }),
@@ -41,9 +39,31 @@ global.embed = {
 // Commands Collection
 client.commands = new Collection();
 client.categories = new Collection();
+client.prefixes = new Map(); // ⭐ Prefix Cache
 
 // ========== SNIPE CACHE ==========
 client.snipes = new Map();
+
+// ⭐ Dynamischen Prefix für Server laden
+async function getPrefix(guildId) {
+    if (!guildId) return '!';
+    
+    // Aus Cache holen
+    if (client.prefixes.has(guildId)) {
+        return client.prefixes.get(guildId);
+    }
+    
+    // Aus Supabase laden
+    const { data } = await supabase
+        .from('custom_prefixes')
+        .select('prefix')
+        .eq('guild_id', guildId)
+        .single();
+    
+    const prefix = data?.prefix || '!';
+    client.prefixes.set(guildId, prefix);
+    return prefix;
+}
 
 // Dynamisch alle Dateien aus /models laden
 const loadCommands = () => {
@@ -96,10 +116,19 @@ const loadCommands = () => {
 
 loadCommands();
 
-// ========== BOT READY (VoiceMaster Configs laden) ==========
+// ========== BOT READY ==========
 client.once('ready', async () => {
     console.log(`✅ ${client.user.tag} ist online!`);
     console.log(`🌐 ${client.guilds.cache.size} Server verbunden`);
+    
+    // ⭐ Alle Prefixes aus Supabase laden
+    const { data: prefixes } = await supabase.from('custom_prefixes').select('*');
+    if (prefixes) {
+        for (const p of prefixes) {
+            client.prefixes.set(p.guild_id, p.prefix);
+        }
+        console.log(`📝 ${prefixes.length} Custom Prefixes geladen`);
+    }
     
     // ⭐ Alle VoiceMaster Configs aus Supabase laden
     const { data: configs } = await supabase.from('voicemaster_config').select('*');
@@ -138,9 +167,13 @@ client.on('messageCreate', async (message) => {
     // ⭐ LEVELING XP
     await handleLevelingMessage(message, supabase);
     
-    if (!message.content.startsWith(PREFIX)) return;
+    // ⭐ DYNAMISCHEN PREFIX LADEN!
+    const prefix = await getPrefix(message.guild?.id);
     
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    // ⭐ Prüfen ob Nachricht mit Prefix beginnt
+    if (!message.content.startsWith(prefix)) return;
+    
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
     
     const command = client.commands.get(commandName);
@@ -174,7 +207,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ========== GUILD MEMBER UPDATE (Booster + Logs) ==========
+// ========== GUILD MEMBER UPDATE ==========
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await handleBoosterUpdate(oldMember, newMember, supabase);
     
@@ -198,7 +231,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
-// ========== VOICE STATE UPDATE (Join-to-Create + Voice Logs + Stats) ==========
+// ========== VOICE STATE UPDATE ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
     // ⭐ STATS TRACKING (Voice)
     if (!oldState.channelId && newState.channelId) {
@@ -213,12 +246,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     
     // Join-to-Create Logik
     if (config) {
-        // User joint Join-to-Create Channel
         if (newState.channelId === config.jtcChannel) {
             const member = newState.member;
             
             try {
-                // Neuen Voice-Channel erstellen
                 const newChannel = await newState.guild.channels.create({
                     name: `🎤 ${member.user.username}'s Channel`,
                     type: ChannelType.GuildVoice,
@@ -244,28 +275,22 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                     ]
                 });
                 
-                // ⭐ WICHTIG: User in den neuen Channel moven
                 await member.voice.setChannel(newChannel);
                 
-                // In Supabase speichern
                 await supabase.from('voicemaster_channels').insert({
                     guild_id: newState.guild.id,
                     channel_id: newChannel.id,
                     owner_id: member.id
                 });
                 
-                // Cache updaten
                 config.voiceChannels.set(newChannel.id, member.id);
                 vmCache.set(newState.guild.id, config);
-                
-                console.log(`✅ VoiceMaster: Channel für ${member.user.tag} erstellt`);
                 
             } catch (error) {
                 console.error('Fehler beim Erstellen des Voice-Channels:', error);
             }
         }
         
-        // Leere Voice-Channel löschen
         if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
             const channel = oldState.channel;
             const cfg = vmCache.get(oldState.guild.id);
@@ -274,19 +299,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 cfg.voiceChannels.delete(channel.id);
                 vmCache.set(oldState.guild.id, cfg);
                 
-                // Aus Supabase löschen
-                await supabase.from('voicemaster_channels')
-                    .delete()
-                    .eq('channel_id', channel.id);
-                
-                // Channel löschen
-                await channel.delete().catch(err => console.error('Fehler beim Löschen:', err));
-                console.log(`🗑️ VoiceMaster: Leerer Channel gelöscht`);
+                await supabase.from('voicemaster_channels').delete().eq('channel_id', channel.id);
+                await channel.delete().catch(() => {});
             }
         }
     }
     
-    // ⭐ VOICE LOGS (NEU: Einfache Aufrufe!)
+    // ⭐ VOICE LOGS
     if (!oldState.channelId && newState.channelId) {
         await logEvent.voiceJoin(newState);
     }
@@ -315,11 +334,9 @@ client.on('messageReactionRemove', async (reaction, user) => {
     await handleGiveawayReaction(reaction, user, client, supabase, false);
 });
 
-// ========== LOGGING LISTENERS (NEU: VEREINFACHT!) ==========
+// ========== LOGGING LISTENERS ==========
 
-// Message Delete (Snipe + Log)
 client.on('messageDelete', async (message) => {
-    // Snipe
     if (!message.author?.bot || message.content || message.attachments.size) {
         const attachments = [];
         message.attachments.forEach(att => attachments.push(att.url));
@@ -333,92 +350,115 @@ client.on('messageDelete', async (message) => {
         });
     }
     
-    // ⭐ NEU: Einfacher Log-Aufruf!
     await logEvent.messageDelete(message);
 });
 
-// Message Edit
 client.on('messageUpdate', async (oldMessage, newMessage) => {
     await logEvent.messageEdit(oldMessage, newMessage);
 });
 
-// Message Delete Bulk
 client.on('messageDeleteBulk', async (messages, channel) => {
     await logEvent.messageDeleteBulk(messages, channel);
 });
 
-// Member Join
+// ========== MEMBER JOIN (mit Welcome & Auto-Role) ==========
 client.on('guildMemberAdd', async (member) => {
     await logEvent.memberJoin(member);
+    
+    // ⭐ WELCOME NACHRICHTEN
+    const { data: welcomes } = await supabase
+        .from('welcome_messages')
+        .select('channel_id, message, embed_color, image_url')
+        .eq('guild_id', member.guild.id);
+    
+    if (welcomes && welcomes.length > 0) {
+        for (const w of welcomes) {
+            const channel = member.guild.channels.cache.get(w.channel_id);
+            if (channel) {
+                const welcomeMsg = w.message
+                    .replace(/{user}/g, member.user.username)
+                    .replace(/{user.mention}/g, member.toString())
+                    .replace(/{server}/g, member.guild.name)
+                    .replace(/{membercount}/g, member.guild.memberCount);
+                
+                await channel.send({ 
+                    embeds: [{
+                        color: parseInt(w.embed_color?.replace('#', '') || '00FF00', 16),
+                        title: `👋 Willkommen ${member.user.username}!`,
+                        description: welcomeMsg,
+                        image: w.image_url ? { url: w.image_url } : null,
+                        thumbnail: { url: member.user.displayAvatarURL({ dynamic: true }) }
+                    }] 
+                }).catch(() => {});
+            }
+        }
+    }
+    
+    // ⭐ AUTO-ROLE
+    const { data: autorole } = await supabase
+        .from('autorole')
+        .select('role_id')
+        .eq('guild_id', member.guild.id)
+        .single();
+    
+    if (autorole) {
+        const role = member.guild.roles.cache.get(autorole.role_id);
+        if (role) await member.roles.add(role).catch(() => {});
+    }
 });
 
-// Member Leave
 client.on('guildMemberRemove', async (member) => {
     await logEvent.memberLeave(member);
 });
 
-// Member Ban
 client.on('guildBanAdd', async (ban) => {
     const logs = await ban.guild.fetchAuditLogs({ type: 22, limit: 1 });
     const entry = logs.entries.first();
-    
     await logEvent.memberBan(ban.guild, ban.user, entry?.executor, entry?.reason);
 });
 
-// Member Unban
 client.on('guildBanRemove', async (ban) => {
     const logs = await ban.guild.fetchAuditLogs({ type: 23, limit: 1 });
     const entry = logs.entries.first();
-    
     await logEvent.memberUnban(ban.guild, ban.user, entry?.executor);
 });
 
-// Channel Create
 client.on('channelCreate', async (channel) => {
     await logEvent.channelCreate(channel);
 });
 
-// Channel Delete
 client.on('channelDelete', async (channel) => {
     await logEvent.channelDelete(channel);
 });
 
-// Channel Update
 client.on('channelUpdate', async (oldChannel, newChannel) => {
     await logEvent.channelUpdate(oldChannel, newChannel);
 });
 
-// Role Create
 client.on('roleCreate', async (role) => {
     await logEvent.roleCreate(role);
 });
 
-// Role Delete
 client.on('roleDelete', async (role) => {
     await logEvent.roleDelete(role);
 });
 
-// Role Update
 client.on('roleUpdate', async (oldRole, newRole) => {
     await logEvent.roleUpdate(oldRole, newRole);
 });
 
-// Emoji Create
 client.on('emojiCreate', async (emoji) => {
     await logEvent.emojiCreate(emoji);
 });
 
-// Emoji Delete
 client.on('emojiDelete', async (emoji) => {
     await logEvent.emojiDelete(emoji);
 });
 
-// Invite Create
 client.on('inviteCreate', async (invite) => {
     await logEvent.inviteCreate(invite);
 });
 
-// Invite Delete
 client.on('inviteDelete', async (invite) => {
     await logEvent.inviteDelete(invite);
 });

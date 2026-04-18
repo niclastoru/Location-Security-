@@ -48,12 +48,10 @@ client.snipes = new Map();
 async function getPrefix(guildId) {
     if (!guildId) return '!';
     
-    // Aus Cache holen
     if (client.prefixes.has(guildId)) {
         return client.prefixes.get(guildId);
     }
     
-    // Aus Supabase laden
     const { data } = await supabase
         .from('custom_prefixes')
         .select('prefix')
@@ -170,7 +168,6 @@ client.on('messageCreate', async (message) => {
     // ⭐ DYNAMISCHEN PREFIX LADEN!
     const prefix = await getPrefix(message.guild?.id);
     
-    // ⭐ Prüfen ob Nachricht mit Prefix beginnt
     if (!message.content.startsWith(prefix)) return;
     
     const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -200,7 +197,6 @@ client.on('messageCreate', async (message) => {
 // ========== INTERACTION HANDLER ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
-        // ⭐ VoiceMaster Buttons (mit Supabase)
         if (interaction.customId.startsWith('vm_')) {
             return handleVoiceMasterButton(interaction, client, supabase);
         }
@@ -211,10 +207,8 @@ client.on('interactionCreate', async (interaction) => {
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await handleBoosterUpdate(oldMember, newMember, supabase);
     
-    // ⭐ Logs für Nickname-Änderungen
     await logEvent.memberNicknameChange(oldMember, newMember);
     
-    // ⭐ Logs für Rollen-Änderungen
     const addedRoles = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
     const removedRoles = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id));
     
@@ -233,7 +227,6 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
 // ========== VOICE STATE UPDATE ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    // ⭐ STATS TRACKING (Voice)
     if (!oldState.channelId && newState.channelId) {
         trackVoiceStart(newState, supabase);
     }
@@ -241,10 +234,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         await trackVoiceEnd(oldState, supabase);
     }
     
-    // ⭐ Config aus Supabase laden
     const config = await loadConfig(newState.guild.id, supabase);
     
-    // Join-to-Create Logik
     if (config) {
         if (newState.channelId === config.jtcChannel) {
             const member = newState.member;
@@ -305,7 +296,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
     
-    // ⭐ VOICE LOGS
     if (!oldState.channelId && newState.channelId) {
         await logEvent.voiceJoin(newState);
     }
@@ -361,19 +351,24 @@ client.on('messageDeleteBulk', async (messages, channel) => {
     await logEvent.messageDeleteBulk(messages, channel);
 });
 
-// ========== MEMBER JOIN (mit Welcome & Auto-Role) ==========
+// ========== MEMBER JOIN (WELCOME + AUTO-ROLE) ==========
 client.on('guildMemberAdd', async (member) => {
     await logEvent.memberJoin(member);
     
     // ⭐ WELCOME NACHRICHTEN
-    const { data: welcomes } = await supabase
+    const { data: welcomes, error } = await supabase
         .from('welcome_messages')
         .select('channel_id, message, embed_color, image_url')
         .eq('guild_id', member.guild.id);
     
+    console.log(`🎉 Member Join: ${member.user.tag}, Guild: ${member.guild.id}`);
+    console.log(`📨 Welcomes gefunden: ${welcomes?.length || 0}`);
+    if (error) console.error('Welcome Error:', error);
+    
     if (welcomes && welcomes.length > 0) {
         for (const w of welcomes) {
             const channel = member.guild.channels.cache.get(w.channel_id);
+            
             if (channel) {
                 const welcomeMsg = w.message
                     .replace(/{user}/g, member.user.username)
@@ -389,7 +384,11 @@ client.on('guildMemberAdd', async (member) => {
                         image: w.image_url ? { url: w.image_url } : null,
                         thumbnail: { url: member.user.displayAvatarURL({ dynamic: true }) }
                     }] 
-                }).catch(() => {});
+                }).then(() => {
+                    console.log(`✅ Welcome gesendet in ${channel.name}`);
+                }).catch(err => {
+                    console.error(`❌ Welcome Fehler in ${channel.name}:`, err);
+                });
             }
         }
     }

@@ -26,7 +26,6 @@ module.exports = {
                     return message.reply({ embeds: [global.embed.success('Auto-Role entfernt', 'Auto-Role wurde deaktiviert.')] });
                 }
                 
-                // Status anzeigen
                 const { data } = await supabase
                     .from('autorole')
                     .select('role_id')
@@ -90,7 +89,7 @@ module.exports = {
             permissions: 'Administrator',
             description: 'Ändert den Bot-Prefix',
             category: 'Server',
-            async execute(message, args, { supabase }) {
+            async execute(message, args, { client, supabase }) {
                 const newPrefix = args[0];
                 
                 if (!newPrefix) {
@@ -106,6 +105,9 @@ module.exports = {
                     prefix: newPrefix
                 });
                 
+                // ⭐ Cache updaten!
+                client.prefixes.set(message.guild.id, newPrefix);
+                
                 return message.reply({ embeds: [global.embed.success('Prefix geändert', `Neuer Prefix: **${newPrefix}**`)] });
             }
         },
@@ -116,8 +118,11 @@ module.exports = {
             permissions: 'Administrator',
             description: 'Setzt Prefix auf Standard zurück',
             category: 'Server',
-            async execute(message, args, { supabase }) {
+            async execute(message, args, { client, supabase }) {
                 await supabase.from('custom_prefixes').delete().eq('guild_id', message.guild.id);
+                
+                // ⭐ Cache updaten!
+                client.prefixes.set(message.guild.id, '!');
                 
                 return message.reply({ embeds: [global.embed.success('Prefix zurückgesetzt', 'Prefix wurde auf **!** zurückgesetzt.')] });
             }
@@ -128,15 +133,8 @@ module.exports = {
             aliases: ['prefix-show', 'showprefix'],
             description: 'Zeigt aktuellen Prefix',
             category: 'Server',
-            async execute(message, args, { supabase }) {
-                const { data } = await supabase
-                    .from('custom_prefixes')
-                    .select('prefix')
-                    .eq('guild_id', message.guild.id)
-                    .single();
-                
-                const prefix = data?.prefix || '!';
-                
+            async execute(message, args, { client, supabase }) {
+                const prefix = client.prefixes.get(message.guild.id) || '!';
                 return message.reply({ embeds: [global.embed.info('Aktueller Prefix', `Der Prefix für diesen Server ist: **${prefix}**`)] });
             }
         },
@@ -365,7 +363,7 @@ module.exports = {
             }
         },
         
-        // ========== WELCOME (Test/Info) ==========
+        // ========== WELCOME ==========
         welcome: {
             aliases: ['welcome-info'],
             permissions: 'Administrator',

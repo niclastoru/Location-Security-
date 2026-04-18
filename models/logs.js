@@ -1,295 +1,419 @@
+const { EmbedBuilder } = require('discord.js');
+
+// Map für Log-Channels (pro Server)
+const logChannels = new Map();
+
+// ⭐ Log-Channel für Typ holen
+function getLogChannel(guild, type) {
+    const serverLogs = logChannels.get(guild.id);
+    if (!serverLogs) return null;
+    
+    const channelId = serverLogs[type] || serverLogs['all'];
+    if (!channelId) return null;
+    
+    return guild.channels.cache.get(channelId);
+}
+
+// ⭐ Log senden
+async function sendLog(guild, type, title, description, color = 0x3498DB) {
+    const channel = getLogChannel(guild, type);
+    if (!channel) return;
+    
+    const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle(title)
+        .setDescription(description)
+        .setTimestamp();
+    
+    channel.send({ embeds: [embed] }).catch(() => {});
+}
+
 module.exports = {
     category: 'Logs',
     subCommands: {
         
-        // ========== LOGS-SETUP ==========
-        'logs-setup': {
-            aliases: ['logsetup', 'setuplogs'],
+        // ========== LOGS ==========
+        logs: {
+            aliases: ['log', 'logchannel'],
             permissions: 'Administrator',
-            description: 'Konfiguriert das Log-System',
+            description: 'Zeigt oder setzt Log-Channels',
             category: 'Logs',
-            async execute(message, args, { supabase }) {
-                const action = args[0]?.toLowerCase();
+            async execute(message, args) {
+                const type = args[0]?.toLowerCase();
                 const channel = message.mentions.channels.first();
                 
-                const logTypes = ['message', 'member', 'voice', 'moderation', 'server', 'all'];
+                const validTypes = ['all', 'message', 'member', 'voice', 'moderation', 'server'];
                 
-                if (action === 'set' && channel) {
-                    const type = args[2]?.toLowerCase() || 'all';
+                // Zeige aktuelle Einstellungen
+                if (!type || !channel) {
+                    const serverLogs = logChannels.get(message.guild.id) || {};
                     
-                    if (!logTypes.includes(type)) {
-                        return message.reply({ embeds: [global.embed.error('Ungültiger Typ', `Typen: ${logTypes.join(', ')}`)] });
-                    }
-                    
-                    const updateData = { guild_id: message.guild.id };
-                    
-                    if (type === 'all') {
-                        updateData.log_channel = channel.id;
-                        updateData.message_log = channel.id;
-                        updateData.member_log = channel.id;
-                        updateData.voice_log = channel.id;
-                        updateData.moderation_log = channel.id;
-                        updateData.server_log = channel.id;
-                    } else {
-                        updateData[`${type}_log`] = channel.id;
-                    }
-                    
-                    await supabase.from('log_settings').upsert(updateData);
-                    
-                    return message.reply({ embeds: [global.embed.success('Log-Channel gesetzt', `${channel} ist jetzt der Log-Channel für **${type}**-Events.`)] });
+                    return message.reply({ embeds: [{
+                        color: 0x3498DB,
+                        title: '📋 Log-Einstellungen',
+                        fields: [
+                            { name: '📌 Alle Logs', value: serverLogs.all ? `<#${serverLogs.all}>` : '❌ Aus', inline: true },
+                            { name: '💬 Nachrichten', value: serverLogs.message ? `<#${serverLogs.message}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
+                            { name: '👥 Mitglieder', value: serverLogs.member ? `<#${serverLogs.member}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
+                            { name: '🎤 Voice', value: serverLogs.voice ? `<#${serverLogs.voice}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
+                            { name: '🛡️ Moderation', value: serverLogs.moderation ? `<#${serverLogs.moderation}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
+                            { name: '⚙️ Server', value: serverLogs.server ? `<#${serverLogs.server}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true }
+                        ],
+                        footer: { text: '!logs <typ> #channel | !logs disable <typ> | !logs reset' }
+                    }] });
                 }
                 
-                if (action === 'disable' || action === 'off') {
-                    const type = args[1]?.toLowerCase() || 'all';
-                    
-                    if (!logTypes.includes(type)) {
-                        return message.reply({ embeds: [global.embed.error('Ungültiger Typ', `Typen: ${logTypes.join(', ')}`)] });
+                // Channel setzen
+                if (validTypes.includes(type) && channel) {
+                    if (!logChannels.has(message.guild.id)) {
+                        logChannels.set(message.guild.id, {});
                     }
                     
-                    const updateData = { guild_id: message.guild.id };
+                    const serverLogs = logChannels.get(message.guild.id);
+                    serverLogs[type] = channel.id;
+                    logChannels.set(message.guild.id, serverLogs);
                     
-                    if (type === 'all') {
-                        updateData.log_channel = null;
-                        updateData.message_log = null;
-                        updateData.member_log = null;
-                        updateData.voice_log = null;
-                        updateData.moderation_log = null;
-                        updateData.server_log = null;
-                    } else {
-                        updateData[`${type}_log`] = null;
-                    }
+                    const typeNames = {
+                        'all': 'ALLE Logs',
+                        'message': 'Nachrichten-Logs',
+                        'member': 'Mitglieder-Logs',
+                        'voice': 'Voice-Logs',
+                        'moderation': 'Moderations-Logs',
+                        'server': 'Server-Logs'
+                    };
                     
-                    await supabase.from('log_settings').upsert(updateData);
-                    
-                    return message.reply({ embeds: [global.embed.success('Logging deaktiviert', `Logging für **${type}** wurde deaktiviert.`)] });
+                    return message.reply({ embeds: [global.embed.success('Log-Channel gesetzt', `${channel} ist jetzt der Channel für **${typeNames[type]}**!`)] });
                 }
                 
-                // Aktuelle Settings anzeigen
-                const { data } = await supabase
-                    .from('log_settings')
-                    .select('*')
-                    .eq('guild_id', message.guild.id)
-                    .single();
-                
-                const messageLog = data?.message_log ? `<#${data.message_log}>` : '❌ Aus';
-                const memberLog = data?.member_log ? `<#${data.member_log}>` : '❌ Aus';
-                const voiceLog = data?.voice_log ? `<#${data.voice_log}>` : '❌ Aus';
-                const moderationLog = data?.moderation_log ? `<#${data.moderation_log}>` : '❌ Aus';
-                const serverLog = data?.server_log ? `<#${data.server_log}>` : '❌ Aus';
-                
-                return message.reply({ embeds: [{
-                    color: 0x3498DB,
-                    title: '📋 Log-Einstellungen',
-                    fields: [
-                        { name: '💬 Nachrichten', value: messageLog, inline: true },
-                        { name: '👥 Mitglieder', value: memberLog, inline: true },
-                        { name: '🎤 Voice', value: voiceLog, inline: true },
-                        { name: '🛡️ Moderation', value: moderationLog, inline: true },
-                        { name: '⚙️ Server', value: serverLog, inline: true }
-                    ],
-                    footer: { text: '!logs-setup set #channel [typ] | !logs-setup disable [typ]' }
-                }] });
+                return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!logs <all/message/member/voice/moderation/server> #channel\n!logs disable <typ>\n!logs reset')] });
             }
         },
         
-        // ========== SETUPLOG (Alias) ==========
-        setuplog: {
-            aliases: ['setlog'],
+        // ========== LOGS DISABLE ==========
+        'logs-disable': {
+            aliases: ['logsoff', 'disablelog'],
             permissions: 'Administrator',
-            description: 'Schnell-Setup für Logs',
+            description: 'Deaktiviert Logs für einen Typ',
             category: 'Logs',
-            async execute(message, args, { supabase }) {
-                const channel = message.mentions.channels.first() || message.channel;
+            async execute(message, args) {
+                const type = args[0]?.toLowerCase();
+                const validTypes = ['all', 'message', 'member', 'voice', 'moderation', 'server'];
                 
-                await supabase.from('log_settings').upsert({
-                    guild_id: message.guild.id,
-                    log_channel: channel.id,
-                    message_log: channel.id,
-                    member_log: channel.id,
-                    voice_log: channel.id,
-                    moderation_log: channel.id,
-                    server_log: channel.id
-                });
-                
-                return message.reply({ embeds: [global.embed.success('Log-System eingerichtet', `✅ Alle Logs gehen jetzt in ${channel}!`)] });
-            }
-        },
-        
-        // ========== SETUPLOGS (Alias) ==========
-        setuplogs: {
-            aliases: [],
-            permissions: 'Administrator',
-            description: 'Alias für logs-setup',
-            category: 'Logs',
-            async execute(message, args, { supabase }) {
-                return module.exports.subCommands['logs-setup'].execute(message, args, { supabase });
-            }
-        },
-        
-        // ========== SHOWLOGS ==========
-        showlogs: {
-            aliases: ['logs', 'recentlogs'],
-            permissions: 'ManageMessages',
-            description: 'Zeigt die letzten Logs',
-            category: 'Logs',
-            async execute(message, args, { supabase }) {
-                const limit = parseInt(args[0]) || 10;
-                const type = args[1]?.toLowerCase();
-                
-                if (limit > 50) return message.reply({ embeds: [global.embed.error('Zu viele', 'Maximal 50 Logs anzeigbar!')] });
-                
-                let query = supabase
-                    .from('logged_events')
-                    .select('*')
-                    .eq('guild_id', message.guild.id)
-                    .order('created_at', { ascending: false })
-                    .limit(limit);
-                
-                if (type && ['message', 'member', 'voice', 'moderation', 'server'].includes(type)) {
-                    query = query.eq('event_type', type);
+                if (!type || !validTypes.includes(type)) {
+                    return message.reply({ embeds: [global.embed.error('Ungültiger Typ', `!logs-disable <${validTypes.join('/')}>`)] });
                 }
                 
-                const { data: logs } = await query;
-                
-                if (!logs || logs.length === 0) {
-                    return message.reply({ embeds: [global.embed.info('Keine Logs', 'Keine Log-Einträge gefunden.')] });
-                }
-                
-                const logEntries = logs.map(log => {
-                    const time = new Date(log.created_at).toLocaleTimeString('de-DE');
-                    const emoji = getEventEmoji(log.event_type);
+                if (logChannels.has(message.guild.id)) {
+                    const serverLogs = logChannels.get(message.guild.id);
+                    delete serverLogs[type];
                     
-                    if (log.target_tag) {
-                        return `${emoji} \`${time}\` **${log.user_tag}** → **${log.target_tag}** ${log.reason ? `| ${log.reason}` : ''}`;
-                    } else {
-                        return `${emoji} \`${time}\` **${log.user_tag}** ${log.details || ''}`;
+                    if (Object.keys(serverLogs).length === 0) {
+                        logChannels.delete(message.guild.id);
                     }
-                }).join('\n');
+                }
                 
-                return message.reply({ embeds: [{
-                    color: 0x3498DB,
-                    title: `📋 Letzte ${type ? type + '-' : ''}Logs`,
-                    description: logEntries.slice(0, 4096),
-                    footer: { text: `${logs.length} Einträge` }
-                }] });
+                return message.reply({ embeds: [global.embed.success('Logging deaktiviert', `Logging für **${type}** wurde deaktiviert.`)] });
+            }
+        },
+        
+        // ========== LOGS RESET ==========
+        'logs-reset': {
+            aliases: ['logreset', 'resetlogs'],
+            permissions: 'Administrator',
+            description: 'Setzt ALLE Log-Einstellungen zurück',
+            category: 'Logs',
+            async execute(message) {
+                logChannels.delete(message.guild.id);
+                return message.reply({ embeds: [global.embed.success('Logs zurückgesetzt', 'Alle Log-Einstellungen wurden gelöscht.')] });
             }
         }
     }
 };
 
-// ========== HELPER: Event Emoji ==========
-function getEventEmoji(type) {
-    const emojis = {
-        'message_delete': '🗑️',
-        'message_edit': '✏️',
-        'member_join': '📥',
-        'member_leave': '📤',
-        'member_ban': '🔨',
-        'member_unban': '🔓',
-        'member_kick': '👢',
-        'member_timeout': '⏰',
-        'voice_join': '🎤',
-        'voice_leave': '🔇',
-        'voice_move': '🔄',
-        'channel_create': '📁',
-        'channel_delete': '🗑️',
-        'role_create': '🆕',
-        'role_delete': '❌',
-        'role_update': '✏️'
-    };
-    return emojis[type] || '📌';
-}
-
-// ========== LOGGING FUNCTIONS (von index.js aufgerufen) ==========
-async function logEvent(guildId, type, data, supabase, client) {
-    const { data: settings } = await supabase
-        .from('log_settings')
-        .select('*')
-        .eq('guild_id', guildId)
-        .single();
+// ⭐ LOGGING FUNCTIONS
+module.exports.logEvent = {
     
-    if (!settings) return;
+    // 💬 MESSAGE LOGS
+    messageDelete: async (message) => {
+        if (message.author?.bot || !message.guild) return;
+        
+        await sendLog(
+            message.guild,
+            'message',
+            '🗑️ Nachricht gelöscht',
+            `**${message.author.tag}** in ${message.channel}\n\n${message.content || '*Kein Text*'}`,
+            0xFF0000
+        );
+    },
     
-    let logChannelId = null;
+    messageEdit: async (oldMessage, newMessage) => {
+        if (oldMessage.author?.bot || !oldMessage.guild) return;
+        if (oldMessage.content === newMessage.content) return;
+        
+        await sendLog(
+            oldMessage.guild,
+            'message',
+            '✏️ Nachricht bearbeitet',
+            `**${oldMessage.author.tag}** in ${oldMessage.channel}\n\n**Vorher:** ${oldMessage.content.slice(0, 500) || '*Kein Text*'}\n**Nachher:** ${newMessage.content.slice(0, 500) || '*Kein Text*'}`,
+            0xFFA500
+        );
+    },
     
-    if (type.startsWith('message')) logChannelId = settings.message_log;
-    else if (type.startsWith('member')) logChannelId = settings.member_log;
-    else if (type.startsWith('voice')) logChannelId = settings.voice_log;
-    else if (type.startsWith('channel') || type.startsWith('role')) logChannelId = settings.server_log;
-    else logChannelId = settings.moderation_log;
+    messageDeleteBulk: async (messages, channel) => {
+        await sendLog(
+            channel.guild,
+            'message',
+            '🗑️ Bulk-Nachrichten gelöscht',
+            `**${messages.size}** Nachrichten in ${channel} wurden gelöscht.`,
+            0xFF0000
+        );
+    },
     
-    if (!logChannelId) return;
+    // 👥 MEMBER LOGS
+    memberJoin: async (member) => {
+        await sendLog(
+            member.guild,
+            'member',
+            '📥 Mitglied beigetreten',
+            `**${member.user.tag}** (${member.user.id})\n\n📅 Account erstellt: <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>\n👥 Server-Mitglieder: **${member.guild.memberCount}**`,
+            0x00FF00
+        );
+    },
     
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) return;
+    memberLeave: async (member) => {
+        const roles = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => r.name).join(', ') || 'Keine';
+        
+        await sendLog(
+            member.guild,
+            'member',
+            '📤 Mitglied verlassen',
+            `**${member.user.tag}** (${member.user.id})\n\n🎭 Rollen: ${roles.slice(0, 500)}\n👥 Server-Mitglieder: **${member.guild.memberCount}**`,
+            0xFFA500
+        );
+    },
     
-    const channel = guild.channels.cache.get(logChannelId);
-    if (!channel) return;
+    memberNicknameChange: async (oldMember, newMember) => {
+        if (oldMember.nickname === newMember.nickname) return;
+        
+        await sendLog(
+            newMember.guild,
+            'member',
+            '📝 Nickname geändert',
+            `**${newMember.user.tag}**\n\n**Vorher:** ${oldMember.nickname || '*Kein Nickname*'}\n**Nachher:** ${newMember.nickname || '*Kein Nickname*'}`,
+            0x3498DB
+        );
+    },
     
-    // In DB speichern
-    await supabase.from('logged_events').insert({
-        guild_id: guildId,
-        event_type: type,
-        user_id: data.user?.id,
-        user_tag: data.user?.tag,
-        target_id: data.target?.id,
-        target_tag: data.target?.tag,
-        reason: data.reason,
-        details: data.details
-    });
+    memberRoleAdd: async (member, role) => {
+        await sendLog(
+            member.guild,
+            'member',
+            '➕ Rolle hinzugefügt',
+            `**${member.user.tag}** hat die Rolle **${role.name}** erhalten.`,
+            0x00FF00
+        );
+    },
     
-    // Embed senden
-    const embed = {
-        color: getLogColor(type),
-        author: { name: data.user?.tag || 'System', icon_url: data.user?.avatar },
-        title: getLogTitle(type),
-        fields: [],
-        timestamp: new Date().toISOString()
-    };
+    memberRoleRemove: async (member, role) => {
+        await sendLog(
+            member.guild,
+            'member',
+            '➖ Rolle entfernt',
+            `**${member.user.tag}** wurde die Rolle **${role.name}** entfernt.`,
+            0xFFA500
+        );
+    },
     
-    if (data.target) {
-        embed.fields.push({ name: 'Betroffener User', value: `${data.target.tag} (${data.target.id})`, inline: true });
+    // 🎤 VOICE LOGS
+    voiceJoin: async (state) => {
+        await sendLog(
+            state.guild,
+            'voice',
+            '🎤 Voice beigetreten',
+            `**${state.member.user.tag}** → **${state.channel.name}**\n👥 User im Channel: ${state.channel.members.size}`,
+            0x00FF00
+        );
+    },
+    
+    voiceLeave: async (state) => {
+        const memberCount = state.channel?.members?.size || 0;
+        
+        await sendLog(
+            state.guild,
+            'voice',
+            '🔇 Voice verlassen',
+            `**${state.member.user.tag}** ← **${state.channel.name}**\n👥 User im Channel: ${memberCount}`,
+            0xFFA500
+        );
+    },
+    
+    voiceMove: async (oldState, newState) => {
+        await sendLog(
+            newState.guild,
+            'voice',
+            '🔄 Voice gewechselt',
+            `**${newState.member.user.tag}**\n**${oldState.channel.name}** → **${newState.channel.name}**`,
+            0x3498DB
+        );
+    },
+    
+    // 🛡️ MODERATION LOGS
+    memberBan: async (guild, user, moderator, reason) => {
+        await sendLog(
+            guild,
+            'moderation',
+            '🔨 Mitglied gebannt',
+            `**${user.tag}** (${user.id})\n\n👮 Moderator: ${moderator?.tag || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
+            0xFF0000
+        );
+    },
+    
+    memberUnban: async (guild, user, moderator) => {
+        await sendLog(
+            guild,
+            'moderation',
+            '🔓 Mitglied entbannt',
+            `**${user.tag}** (${user.id})\n\n👮 Moderator: ${moderator?.tag || 'Unbekannt'}`,
+            0x00FF00
+        );
+    },
+    
+    memberKick: async (guild, user, moderator, reason) => {
+        await sendLog(
+            guild,
+            'moderation',
+            '👢 Mitglied gekickt',
+            `**${user.tag}** (${user.id})\n\n👮 Moderator: ${moderator?.tag || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
+            0xFFA500
+        );
+    },
+    
+    memberTimeout: async (guild, user, moderator, duration, reason) => {
+        await sendLog(
+            guild,
+            'moderation',
+            '⏰ Timeout vergeben',
+            `**${user.tag}** (${user.id})\n\n👮 Moderator: ${moderator?.tag || 'Unbekannt'}\n⏱️ Dauer: ${duration} Minuten\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
+            0xFFA500
+        );
+    },
+    
+    memberWarn: async (guild, user, moderator, reason) => {
+        await sendLog(
+            guild,
+            'moderation',
+            '⚠️ Verwarnung',
+            `**${user.tag}** (${user.id})\n\n👮 Moderator: ${moderator?.tag || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
+            0xFFA500
+        );
+    },
+    
+    // ⚙️ SERVER LOGS
+    channelCreate: async (channel) => {
+        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Kategorie';
+        
+        await sendLog(
+            channel.guild,
+            'server',
+            '📁 Channel erstellt',
+            `**#${channel.name}**\n📋 Typ: ${type}${channel.parent ? `\n📂 Kategorie: ${channel.parent.name}` : ''}`,
+            0x00FF00
+        );
+    },
+    
+    channelDelete: async (channel) => {
+        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Kategorie';
+        
+        await sendLog(
+            channel.guild,
+            'server',
+            '🗑️ Channel gelöscht',
+            `**#${channel.name}**\n📋 Typ: ${type}`,
+            0xFF0000
+        );
+    },
+    
+    channelUpdate: async (oldChannel, newChannel) => {
+        if (oldChannel.name !== newChannel.name) {
+            await sendLog(
+                newChannel.guild,
+                'server',
+                '✏️ Channel umbenannt',
+                `**${oldChannel.name}** → **${newChannel.name}**`,
+                0x3498DB
+            );
+        }
+    },
+    
+    roleCreate: async (role) => {
+        await sendLog(
+            role.guild,
+            'server',
+            '🆕 Rolle erstellt',
+            `**${role.name}**\n🎨 Farbe: ${role.hexColor}\n🔒 Berechtigungen: ${role.permissions.bitfield}`,
+            0x00FF00
+        );
+    },
+    
+    roleDelete: async (role) => {
+        await sendLog(
+            role.guild,
+            'server',
+            '❌ Rolle gelöscht',
+            `**${role.name}**`,
+            0xFF0000
+        );
+    },
+    
+    roleUpdate: async (oldRole, newRole) => {
+        if (oldRole.name !== newRole.name) {
+            await sendLog(
+                newRole.guild,
+                'server',
+                '✏️ Rolle umbenannt',
+                `**${oldRole.name}** → **${newRole.name}**`,
+                0x3498DB
+            );
+        }
+    },
+    
+    emojiCreate: async (emoji) => {
+        await sendLog(
+            emoji.guild,
+            'server',
+            '😀 Emoji erstellt',
+            `**${emoji.name}** ${emoji.animated ? '(Animiert)' : ''}`,
+            0x00FF00
+        );
+    },
+    
+    emojiDelete: async (emoji) => {
+        await sendLog(
+            emoji.guild,
+            'server',
+            '🗑️ Emoji gelöscht',
+            `**${emoji.name}**`,
+            0xFF0000
+        );
+    },
+    
+    inviteCreate: async (invite) => {
+        await sendLog(
+            invite.guild,
+            'server',
+            '🔗 Einladung erstellt',
+            `**${invite.inviter?.tag}** hat eine Einladung für **#${invite.channel?.name}** erstellt.\nCode: \`${invite.code}\`\nMax. Nutzungen: ${invite.maxUses || 'Unbegrenzt'}\nLäuft ab: ${invite.expiresAt ? `<t:${Math.floor(invite.expiresAt.getTime() / 1000)}:R>` : 'Nie'}`,
+            0x00FF00
+        );
+    },
+    
+    inviteDelete: async (invite) => {
+        await sendLog(
+            invite.guild,
+            'server',
+            '🗑️ Einladung gelöscht',
+            `Einladung \`${invite.code}\` für **#${invite.channel?.name}** wurde gelöscht.`,
+            0xFF0000
+        );
     }
-    if (data.reason) {
-        embed.fields.push({ name: 'Grund', value: data.reason, inline: true });
-    }
-    if (data.details) {
-        embed.description = data.details;
-    }
-    if (data.oldContent && data.newContent) {
-        embed.fields.push({ name: 'Vorher', value: data.oldContent.slice(0, 1024) || 'Kein Text', inline: false });
-        embed.fields.push({ name: 'Nachher', value: data.newContent.slice(0, 1024) || 'Kein Text', inline: false });
-    }
-    
-    channel.send({ embeds: [embed] }).catch(() => {});
-}
-
-function getLogColor(type) {
-    if (type.includes('delete') || type.includes('ban') || type.includes('kick')) return 0xFF0000;
-    if (type.includes('create') || type.includes('join')) return 0x00FF00;
-    if (type.includes('edit') || type.includes('update')) return 0xFFA500;
-    return 0x3498DB;
-}
-
-function getLogTitle(type) {
-    const titles = {
-        'message_delete': '🗑️ Nachricht gelöscht',
-        'message_edit': '✏️ Nachricht bearbeitet',
-        'member_join': '📥 Mitglied beigetreten',
-        'member_leave': '📤 Mitglied verlassen',
-        'member_ban': '🔨 Mitglied gebannt',
-        'member_unban': '🔓 Mitglied entbannt',
-        'member_kick': '👢 Mitglied gekickt',
-        'member_timeout': '⏰ Timeout vergeben',
-        'voice_join': '🎤 Voice beigetreten',
-        'voice_leave': '🔇 Voice verlassen',
-        'voice_move': '🔄 Voice gewechselt',
-        'channel_create': '📁 Channel erstellt',
-        'channel_delete': '🗑️ Channel gelöscht',
-        'role_create': '🆕 Rolle erstellt',
-        'role_delete': '❌ Rolle gelöscht'
-    };
-    return titles[type] || '📋 Log-Eintrag';
-}
-
-module.exports.logEvent = logEvent;
+};

@@ -4,6 +4,11 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
+// ⭐ LANGUAGE SYSTEM
+const de = require('./languages/de.js');
+const en = require('./languages/en.js');
+const languages = { de, en };
+
 // ⭐ ALLE IMPORTS
 const { vmCache, handleVoiceMasterButton, loadConfig } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
@@ -40,9 +45,61 @@ global.embed = {
 client.commands = new Collection();
 client.categories = new Collection();
 client.prefixes = new Map(); // ⭐ Prefix Cache
+client.languages = new Map(); // ⭐ Language Cache
 
 // ========== SNIPE CACHE ==========
 client.snipes = new Map();
+
+// ⭐ Sprache für Server laden
+async function getLanguage(guildId) {
+    if (!guildId) return 'de';
+    
+    if (client.languages.has(guildId)) {
+        return client.languages.get(guildId);
+    }
+    
+    const { data } = await supabase
+        .from('server_languages')
+        .select('language')
+        .eq('guild_id', guildId)
+        .single();
+    
+    const lang = data?.language || 'de';
+    client.languages.set(guildId, lang);
+    return lang;
+}
+
+// ⭐ Übersetzungs-Funktion (global verfügbar)
+global.t = async (guildId, key, replacements = {}) => {
+    const lang = await getLanguage(guildId);
+    let text = languages[lang]?.[key] || languages.de[key] || key;
+    
+    for (const [k, v] of Object.entries(replacements)) {
+        text = text.replace(new RegExp(`{${k}}`, 'g'), v);
+    }
+    
+    return text;
+};
+
+// ⭐ Embed Helper mit Übersetzung (global verfügbar)
+global.tEmbed = async (guildId, type, titleKey, descKey, replacements = {}) => {
+    const title = await global.t(guildId, titleKey, replacements);
+    const description = await global.t(guildId, descKey, replacements);
+    
+    const colors = {
+        success: 0x00FF00,
+        error: 0xFF0000,
+        info: 0x0099FF,
+        warn: 0xFFA500
+    };
+    
+    return {
+        color: colors[type] || 0x0099FF,
+        title: type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`,
+        description: description,
+        timestamp: new Date().toISOString()
+    };
+};
 
 // ⭐ Dynamischen Prefix für Server laden
 async function getPrefix(guildId) {
@@ -119,6 +176,15 @@ client.once('ready', async () => {
     console.log(`✅ ${client.user.tag} ist online!`);
     console.log(`🌐 ${client.guilds.cache.size} Server verbunden`);
     
+    // ⭐ Alle Sprachen aus Supabase laden
+    const { data: languages } = await supabase.from('server_languages').select('*');
+    if (languages) {
+        for (const l of languages) {
+            client.languages.set(l.guild_id, l.language);
+        }
+        console.log(`🌍 ${languages.length} Sprachen geladen`);
+    }
+    
     // ⭐ Alle Prefixes aus Supabase laden
     const { data: prefixes } = await supabase.from('custom_prefixes').select('*');
     if (prefixes) {
@@ -178,8 +244,9 @@ client.on('messageCreate', async (message) => {
     
     if (command.permissions) {
         if (!message.member.permissions.has(command.permissions)) {
+            const title = await global.t(message.guild.id, 'no_permission');
             return message.reply({ 
-                embeds: [global.embed.error('Keine Rechte', 'Du hast nicht die benötigten Berechtigungen!')] 
+                embeds: [global.embed.error(title, await global.t(message.guild.id, 'error_user_missing_perms', { permissions: command.permissions }))] 
             });
         }
     }
@@ -189,7 +256,7 @@ client.on('messageCreate', async (message) => {
     } catch (error) {
         console.error(`Fehler bei ${commandName}:`, error);
         message.reply({ 
-            embeds: [global.embed.error('Fehler', 'Beim Ausführen des Befehls ist ein Fehler aufgetreten.')] 
+            embeds: [global.embed.error(await global.t(message.guild.id, 'error'), await global.t(message.guild.id, 'command_error'))] 
         });
     }
 });
@@ -332,7 +399,7 @@ client.on('messageDelete', async (message) => {
         message.attachments.forEach(att => attachments.push(att.url));
         
         client.snipes.set(message.channel.id, {
-            author: message.author?.tag || 'Unbekannt',
+            author: message.author?.tag || await global.t(message.guild?.id, 'unknown'),
             avatar: message.author?.displayAvatarURL() || null,
             content: message.content || null,
             attachments: attachments.length > 0 ? attachments : null,
@@ -376,10 +443,12 @@ client.on('guildMemberAdd', async (member) => {
                     .replace(/{server}/g, member.guild.name)
                     .replace(/{membercount}/g, member.guild.memberCount);
                 
+                const title = await global.t(member.guild.id, 'membercount_title', { server: member.guild.name });
+                
                 await channel.send({ 
                     embeds: [{
                         color: parseInt(w.embed_color?.replace('#', '') || '00FF00', 16),
-                        title: `👋 Willkommen ${member.user.username}!`,
+                        title: `👋 ${await global.t(member.guild.id, 'welcome_view', { channel: channel.name })} ${member.user.username}!`,
                         description: welcomeMsg,
                         image: w.image_url ? { url: w.image_url } : null,
                         thumbnail: { url: member.user.displayAvatarURL({ dynamic: true }) }

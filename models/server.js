@@ -120,7 +120,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             autorole_set: (role) => `${role} will be automatically given to new members.`,
             autorole_removed: 'Auto-Role has been disabled.',
             autorole_current: (role) => `Current Auto-Role: <@&${role}>\n\n**Usage:**\n!autorole set @Role\n!autorole remove`,
-            autorole_none: 'No Auto-Role set.\n\n**Usage:**\n!autorole set @Role`,
+            autorole_none: 'No Auto-Role set.\n\n**Usage:**\n!autorole set @Role',
             whitelist_added: (id) => `Server ${id} has been added to the whitelist.`,
             whitelist_removed: (id) => `Server ${id} has been removed from the whitelist.`,
             whitelist_empty: 'No servers on the whitelist.',
@@ -422,7 +422,7 @@ module.exports = {
                     });
                 }
                 
-                if (action === '13' || !action) {
+                if (action === 'info' || !action) {
                     const { data } = await supabase
                         .from('ticket_panels')
                         .select('*')
@@ -520,11 +520,30 @@ module.exports = {
                     });
                 }
                 
-                await supabase.from('welcome_messages').insert({
-                    guild_id: message.guild.id,
-                    channel_id: channel.id,
-                    message: welcomeMessage
-                });
+                // Prüfen ob bereits eine Nachricht für diesen Channel existiert
+                const { data: existing } = await supabase
+                    .from('welcome_messages')
+                    .select('id')
+                    .eq('guild_id', message.guild.id)
+                    .eq('channel_id', channel.id)
+                    .single();
+                
+                if (existing) {
+                    await supabase
+                        .from('welcome_messages')
+                        .update({ message: welcomeMessage })
+                        .eq('guild_id', message.guild.id)
+                        .eq('channel_id', channel.id);
+                } else {
+                    await supabase
+                        .from('welcome_messages')
+                        .insert({
+                            guild_id: message.guild.id,
+                            channel_id: channel.id,
+                            message: welcomeMessage,
+                            embed_color: '#00FF00'
+                        });
+                }
                 
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
@@ -575,10 +594,13 @@ module.exports = {
             async execute(message, args, { client, supabase }) {
                 const lang = client.languages?.get(message.guild.id) || 'de';
                 
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('welcome_messages')
-                    .select('channel_id, message')
+                    .select('*')
                     .eq('guild_id', message.guild.id);
+                
+                console.log('Welcome Data:', data);
+                if (error) console.error('Welcome Error:', error);
                 
                 if (!data || data.length === 0) {
                     return message.reply({ 
@@ -593,7 +615,7 @@ module.exports = {
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                     .setTitle(lang === 'de' ? '👋 Welcome Nachrichten' : '👋 Welcome Messages')
                     .setDescription(list.slice(0, 4096))
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `${data.length} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -616,12 +638,15 @@ module.exports = {
                     });
                 }
                 
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('welcome_messages')
-                    .select('message, embed_color, image_url')
+                    .select('*')
                     .eq('guild_id', message.guild.id)
                     .eq('channel_id', channel.id)
                     .single();
+                
+                console.log('Welcome View Data:', data);
+                if (error) console.error('Welcome View Error:', error);
                 
                 if (!data) {
                     return message.reply({ 

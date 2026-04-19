@@ -40,30 +40,39 @@ module.exports = {
                     });
                 }
                 
-                // ⭐ WICHTIG: In Supabase speichern
-                const { error } = await supabase.from('server_languages').upsert({
-                    guild_id: message.guild.id,
-                    language: newLang
-                });
+                // ⭐ DEBUG: Prüfe Supabase Verbindung
+                console.log(`🔍 Versuche Sprache zu speichern: Guild=${message.guild.id}, Lang=${newLang}`);
+                
+                // ⭐ In Supabase speichern - MIT ERROR HANDLING!
+                const { data, error } = await supabase
+                    .from('server_languages')
+                    .upsert({
+                        guild_id: message.guild.id,
+                        language: newLang
+                    })
+                    .select();
                 
                 if (error) {
-                    console.error('Supabase Error:', error);
+                    console.error('❌ Supabase Fehler:', error);
+                    
+                    // ⭐ FALLBACK: Trotzdem Cache setzen!
+                    client.languages.set(message.guild.id, newLang);
+                    
                     return message.reply({ 
                         embeds: [{
-                            color: 0xFF0000,
-                            title: '❌ Fehler / Error',
-                            description: 'Sprache konnte nicht gespeichert werden! / Could not save language!',
+                            color: 0xFFA500,
+                            title: '⚠️ Teilweise gespeichert',
+                            description: `Sprache wurde auf **${newLang === 'de' ? 'Deutsch' : 'English'}** gesetzt, aber nicht in der Datenbank gespeichert!\n\nFehler: ${error.message}`,
+                            timestamp: new Date().toISOString()
                         }] 
                     });
                 }
                 
-                // ⭐ Cache UPDATEN (nicht nur setzen, überschreiben!)
+                // ⭐ Erfolg: Cache updaten
                 client.languages.set(message.guild.id, newLang);
+                console.log(`✅ Sprache gespeichert: ${newLang}, Data:`, data);
                 
-                // Debug
-                console.log(`✅ Sprache für ${message.guild.id} auf ${newLang} geändert`);
-                
-                // Erfolgsmeldung - DIREKT mit der neuen Sprache!
+                // Erfolgsmeldung
                 const successTitle = newLang === 'de' ? '✅ Sprache geändert' : '✅ Language Changed';
                 const successMsg = newLang === 'de' 
                     ? 'Bot-Sprache wurde auf **Deutsch** 🇩🇪 geändert!'

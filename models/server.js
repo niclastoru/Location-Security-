@@ -181,7 +181,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     embed.setDescription(description);
     
     if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
+        const user = client.users.cache.get(userId) || await client.users.fetch(userId).catch(() => null);
         if (user) {
             embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
         }
@@ -325,12 +325,24 @@ module.exports = {
                     });
                 }
                 
-                await supabase.from('custom_prefixes').upsert({
-                    guild_id: message.guild.id,
-                    prefix: newPrefix
-                });
+                console.log(`📝 Speichere Prefix: ${newPrefix} für Guild: ${message.guild.id}`);
+                
+                const { error } = await supabase
+                    .from('custom_prefixes')
+                    .upsert({
+                        guild_id: message.guild.id,
+                        prefix: newPrefix
+                    }, { onConflict: 'guild_id' });
+                
+                if (error) {
+                    console.error('❌ Prefix Save Error:', error);
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'prefix_no_prefix')] 
+                    });
+                }
                 
                 client.prefixes.set(message.guild.id, newPrefix);
+                console.log(`✅ Prefix gespeichert: ${newPrefix}`);
                 
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
@@ -520,22 +532,26 @@ module.exports = {
                     });
                 }
                 
-                // Prüfen ob bereits eine Nachricht für diesen Channel existiert
+                console.log(`📝 Welcome Add: Channel=${channel.id} (${channel.name}), Message=${welcomeMessage}`);
+                
                 const { data: existing } = await supabase
                     .from('welcome_messages')
                     .select('id')
                     .eq('guild_id', message.guild.id)
                     .eq('channel_id', channel.id)
-                    .single();
+                    .maybeSingle();
                 
+                let result;
                 if (existing) {
-                    await supabase
+                    console.log('📝 Update existing welcome');
+                    result = await supabase
                         .from('welcome_messages')
                         .update({ message: welcomeMessage })
                         .eq('guild_id', message.guild.id)
                         .eq('channel_id', channel.id);
                 } else {
-                    await supabase
+                    console.log('📝 Insert new welcome');
+                    result = await supabase
                         .from('welcome_messages')
                         .insert({
                             guild_id: message.guild.id,
@@ -544,6 +560,15 @@ module.exports = {
                             embed_color: '#00FF00'
                         });
                 }
+                
+                if (result.error) {
+                    console.error('❌ Welcome Save Error:', result.error);
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                    });
+                }
+                
+                console.log('✅ Welcome gespeichert!');
                 
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 

@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
-async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+// ⭐ HELPER: Create embed (ENGLISH ONLY)
+function createEmbed(message, type, title, description, fields = []) {
+    const client = message.client;
     
     const colors = {
         success: 0x57F287,
@@ -13,202 +13,15 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         marriage: 0xFF69B4
     };
     
-    const titles = {
-        de: {
-            no_user: 'Kein User',
-            self_action: 'Echt jetzt?',
-            bodycount: 'Bodycount',
-            cry: 'Weinen',
-            fortune: 'Glückskeks',
-            game_running: 'Spiel läuft',
-            no_game: 'Kein Spiel',
-            game_started: 'Imposter gestartet',
-            game_ended: 'Spiel beendet',
-            caught: 'Erwischt!',
-            innocent: 'Unschuldig',
-            not_married: 'Nicht verheiratet',
-            already_married: 'Bereits verheiratet',
-            request_exists: 'Anfrage existiert',
-            proposal: 'Heiratsantrag!',
-            married: 'Verheiratet!',
-            proposal_rejected: 'Antrag abgelehnt',
-            proposal_timeout: 'Antrag abgelaufen',
-            relationship_status: 'Beziehungsstatus',
-            pp: 'PP',
-            ship: 'Ship',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info'
-        },
-        en: {
-            no_user: 'No User',
-            self_action: 'Really?',
-            bodycount: 'Bodycount',
-            cry: 'Cry',
-            fortune: 'Fortune Cookie',
-            game_running: 'Game Running',
-            no_game: 'No Game',
-            game_started: 'Imposter Started',
-            game_ended: 'Game Ended',
-            caught: 'Caught!',
-            innocent: 'Innocent',
-            not_married: 'Not Married',
-            already_married: 'Already Married',
-            request_exists: 'Request Exists',
-            proposal: 'Marriage Proposal!',
-            married: 'Married!',
-            proposal_rejected: 'Proposal Rejected',
-            proposal_timeout: 'Proposal Expired',
-            relationship_status: 'Relationship Status',
-            pp: 'PP',
-            ship: 'Ship',
-            error: 'Error',
-            success: 'Success',
-            info: 'Info'
-        }
-    };
-    
-    const descriptions = {
-        de: {
-            blowjob_usage: '!blowjob @User',
-            blowjob: (user, target) => `😮 **${user}** gibt **${target}** einen Blowjob!`,
-            bodycount: (user, count) => `🔪 **${user}** hat einen Bodycount von **${count}**!`,
-            cheat: (user, target) => `💔 **${user}** geht **${target}** fremd! Skandal!`,
-            cry: (user, emoji) => `${emoji} **${user}** weint...`,
-            cuddle: (user, target) => `🤗 **${user}** kuschelt mit **${target}**! So süß!`,
-            divorce_success: (user, partner) => `💔 **${user}** hat sich von **${partner}** scheiden lassen!`,
-            divorce_not_married: 'Du bist nicht verheiratet!',
-            fortune: (fortune) => fortune,
-            handhold: (user, target) => `🤝 **${user}** hält Händchen mit **${target}**!`,
-            highfive: (user, target) => `✋ **${user}** gibt **${target}** einen Highfive!`,
-            hug: (user, target) => `🫂 **${user}** umarmt **${target}**!`,
-            imposter_started: (user) => `🎮 **${user}** hat ein Imposter-Spiel gestartet!\nNutze \`!imposter-join\` zum Mitmachen!\n\`!imposter-vote @User\` zum Voten!`,
-            imposter_running: 'In diesem Channel läuft bereits ein Imposter-Spiel!',
-            imposter_not_running: 'In diesem Channel läuft kein Imposter-Spiel!',
-            imposter_ended: 'Imposter-Spiel wurde beendet!',
-            imposter_caught: (user) => `🔪 **${user}** war der Imposter! Gut gemacht!`,
-            imposter_innocent: (user) => `😇 **${user}** war kein Imposter...`,
-            kiss: (user, target) => `💋 **${user}** küsst **${target}**! Wie romantisch!`,
-            kiss_self: 'Dich selbst küssen? Wirklich?',
-            lick: (user, target) => `👅 **${user}** leckt **${target}**! Ewww!`,
-            marry_usage: '!marry @User',
-            marry_self: 'Du kannst dich nicht selbst heiraten!',
-            marry_bot: 'Du kannst keinen Bot heiraten!',
-            marry_already: (partner) => `Du bist bereits mit **${partner}** verheiratet!\nNutze \`!divorce\` für Scheidung.`,
-            marry_target_already: (user) => `**${user}** ist bereits verheiratet!`,
-            marry_request_exists: (user) => `Du hast **${user}** bereits einen Antrag gemacht!`,
-            proposal_text: (user, target) => `**${user}** möchte **${target}** heiraten!\n\n${target}, willst du?`,
-            proposal_footer: 'Antwort mit den Buttons unten!',
-            married_success: (user, target) => `🎉 **${user}** und **${target}** sind jetzt verheiratet!\nAlles Gute für die Zukunft! 💕`,
-            proposal_rejected: (user, target) => `**${target}** hat den Antrag von **${user}** abgelehnt... 😢`,
-            proposal_timeout: (user) => `**${user}** hat nicht rechtzeitig geantwortet...`,
-            status_single: '❤️ Single',
-            status_married: '💍 Verheiratet',
-            status_pending_from: (user) => `\n💌 Hat einen Antrag von **${user}** erhalten!`,
-            status_pending_to: (user) => `\n💌 Hat **${user}** einen Antrag gemacht!`,
-            partner: '💑 Partner',
-            married_since: '📅 Verheiratet seit',
-            pp_size: (user, size, bar) => `**${size}cm**\n\`${bar}\``,
-            ship_self: 'Du kannst dich nicht selbst shippen!',
-            ship_perfect: 'PERFEKTES PAAR!',
-            ship_good: 'Gute Kombi!',
-            ship_okay: 'Könnte klappen!',
-            ship_bad: 'Schwierig...',
-            ship_terrible: 'Keine Chance...',
-            ship_result: (name, percentage, rating) => `**${name}**\n\n**${percentage}%** - ${rating}`,
-            slap: (user, target) => `👋 **${user}** schlägt **${target}**! Autsch!`,
-            slap_self: 'Du schlägst dich selbst? Das tut weh!',
-            wink: (user, target) => `😉 **${user}** zwinkert **${target}** zu!`,
-            unknown: 'Unbekannt',
-            congratulations: 'Glückwunsch'
-        },
-        en: {
-            blowjob_usage: '!blowjob @User',
-            blowjob: (user, target) => `😮 **${user}** gives **${target}** a blowjob!`,
-            bodycount: (user, count) => `🔪 **${user}** has a bodycount of **${count}**!`,
-            cheat: (user, target) => `💔 **${user}** is cheating on **${target}**! Scandal!`,
-            cry: (user, emoji) => `${emoji} **${user}** is crying...`,
-            cuddle: (user, target) => `🤗 **${user}** cuddles with **${target}**! So cute!`,
-            divorce_success: (user, partner) => `💔 **${user}** divorced **${partner}**!`,
-            divorce_not_married: 'You are not married!',
-            fortune: (fortune) => fortune,
-            handhold: (user, target) => `🤝 **${user}** holds hands with **${target}**!`,
-            highfive: (user, target) => `✋ **${user}** high-fives **${target}**!`,
-            hug: (user, target) => `🫂 **${user}** hugs **${target}**!`,
-            imposter_started: (user) => `🎮 **${user}** started an Imposter game!\nUse \`!imposter-join\` to join!\n\`!imposter-vote @User\` to vote!`,
-            imposter_running: 'There is already an Imposter game in this channel!',
-            imposter_not_running: 'There is no Imposter game in this channel!',
-            imposter_ended: 'Imposter game ended!',
-            imposter_caught: (user) => `🔪 **${user}** was the Imposter! Well done!`,
-            imposter_innocent: (user) => `😇 **${user}** was not the Imposter...`,
-            kiss: (user, target) => `💋 **${user}** kisses **${target}**! How romantic!`,
-            kiss_self: 'Kiss yourself? Really?',
-            lick: (user, target) => `👅 **${user}** licks **${target}**! Ewww!`,
-            marry_usage: '!marry @User',
-            marry_self: 'You cannot marry yourself!',
-            marry_bot: 'You cannot marry a bot!',
-            marry_already: (partner) => `You are already married to **${partner}**!\nUse \`!divorce\` to divorce.`,
-            marry_target_already: (user) => `**${user}** is already married!`,
-            marry_request_exists: (user) => `You already proposed to **${user}**!`,
-            proposal_text: (user, target) => `**${user}** wants to marry **${target}**!\n\n${target}, do you accept?`,
-            proposal_footer: 'Answer with the buttons below!',
-            married_success: (user, target) => `🎉 **${user}** and **${target}** are now married!\nBest wishes for the future! 💕`,
-            proposal_rejected: (user, target) => `**${target}** rejected **${user}**'s proposal... 😢`,
-            proposal_timeout: (user) => `**${user}** didn't respond in time...`,
-            status_single: '❤️ Single',
-            status_married: '💍 Married',
-            status_pending_from: (user) => `\n💌 Received a proposal from **${user}**!`,
-            status_pending_to: (user) => `\n💌 Proposed to **${user}**!`,
-            partner: '💑 Partner',
-            married_since: '📅 Married since',
-            pp_size: (user, size, bar) => `**${size}cm**\n\`${bar}\``,
-            ship_self: 'You cannot ship yourself!',
-            ship_perfect: 'PERFECT MATCH!',
-            ship_good: 'Good combo!',
-            ship_okay: 'Could work!',
-            ship_bad: 'Difficult...',
-            ship_terrible: 'No chance...',
-            ship_result: (name, percentage, rating) => `**${name}**\n\n**${percentage}%** - ${rating}`,
-            slap: (user, target) => `👋 **${user}** slaps **${target}**! Ouch!`,
-            slap_self: 'Slapping yourself? That hurts!',
-            wink: (user, target) => `😉 **${user}** winks at **${target}**!`,
-            unknown: 'Unknown',
-            congratulations: 'Congratulations'
-        }
-    };
-    
-    const title = titles[lang]?.[titleKey] || titleKey;
-    let description = descriptions[lang]?.[descKey] || descKey;
-    
-    if (typeof description === 'function') {
-        if (Array.isArray(fields)) {
-            description = description(...fields);
-        } else {
-            description = description(fields);
-        }
-    } else {
-        for (const [key, value] of Object.entries(replacements)) {
-            description = description.replace(new RegExp(`{${key}}`, 'g'), value);
-        }
-    }
-    
     const embed = new EmbedBuilder()
         .setColor(type === 'fun' || type === 'marriage' ? 0xFF69B4 : (colors[type] || 0x5865F2))
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(type === 'marriage' ? `💍 ${title}` : (type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`))
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
     
-    const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : type === 'fun' ? '🎮' : 'ℹ️';
-    embed.setTitle(type === 'marriage' ? `💍 ${title}` : `${emoji} ${title}`);
-    embed.setDescription(description);
-    
-    if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
-        }
-    }
-    embed.setTimestamp();
-    
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
+    if (fields.length > 0) {
         embed.addFields(fields);
     }
     
@@ -222,26 +35,25 @@ module.exports = {
         // ========== BLOWJOB ==========
         blowjob: {
             aliases: ['bj'],
-            description: 'Gibt jemandem einen Blowjob / Gives someone a blowjob',
+            description: 'Give someone a blowjob',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!blowjob @User')] 
                     });
                 }
                 
                 if (target.id === message.author.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot do this to yourself!')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'blowjob', 'blowjob', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Blowjob', `😮 **${message.author.username}** gives **${target.username}** a blowjob!`)] 
                 });
             }
         },
@@ -249,80 +61,77 @@ module.exports = {
         // ========== BODYCOUNT ==========
         bodycount: {
             aliases: ['bc'],
-            description: 'Zeigt deinen Bodycount / Shows your bodycount',
+            description: 'Show your bodycount',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 const count = Math.floor(Math.random() * 50);
-                
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'bodycount', 'bodycount', [message.author.username, count])] 
+                    embeds: [createEmbed(message, 'info', 'Bodycount', `🔪 **${message.author.username}** has a bodycount of **${count}**!`)] 
                 });
             }
         },
         
         // ========== CHEAT ==========
         cheat: {
-            aliases: ['fremdgehen'],
-            description: 'Geht jemandem fremd / Cheats on someone',
+            aliases: ['cheating'],
+            description: 'Cheat on someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!cheat @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'cheat', 'cheat', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Cheat', `💔 **${message.author.username}** is cheating on **${target.username}**! Scandal!`)] 
                 });
             }
         },
         
         // ========== CRY ==========
         cry: {
-            aliases: ['weinen'],
-            description: 'Weint / Cries',
+            aliases: ['weep'],
+            description: 'Cry',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 const cries = ['😭', '😢', '🥺', '😿', '💧'];
                 const emoji = cries[Math.floor(Math.random() * cries.length)];
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'cry', 'cry', [message.author.username, emoji])] 
+                    embeds: [createEmbed(message, 'fun', 'Cry', `${emoji} **${message.author.username}** is crying...`)] 
                 });
             }
         },
         
         // ========== CUDDLE ==========
         cuddle: {
-            aliases: ['kuscheln'],
-            description: 'Kuschelt mit jemandem / Cuddles with someone',
+            aliases: ['snuggle'],
+            description: 'Cuddle with someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!cuddle @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'cuddle', 'cuddle', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Cuddle', `🤗 **${message.author.username}** cuddles with **${target.username}**! So cute!`)] 
                 });
             }
         },
         
         // ========== DIVORCE ==========
         divorce: {
-            aliases: ['scheidung'],
-            description: 'Lässt sich scheiden / Gets divorced',
+            aliases: ['div'],
+            description: 'Divorce your partner',
             category: 'Fun',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data: marriage } = await supabase
                     .from('marriages')
                     .select('partner_id')
@@ -332,41 +141,29 @@ module.exports = {
                 
                 if (!marriage) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'not_married', 'divorce_not_married')] 
+                        embeds: [createEmbed(message, 'error', 'Not Married', 'You are not married!')] 
                     });
                 }
                 
                 await supabase.from('marriages').delete().eq('guild_id', message.guild.id).eq('user_id', message.author.id);
                 await supabase.from('marriages').delete().eq('guild_id', message.guild.id).eq('user_id', marriage.partner_id);
                 
-                const partner = await client.users.fetch(marriage.partner_id).catch(() => null);
-                const partnerName = partner?.username || (lang === 'de' ? 'Unbekannt' : 'Unknown');
+                const partner = await message.client.users.fetch(marriage.partner_id).catch(() => null);
+                const partnerName = partner?.username || 'Unknown';
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'divorce', 'divorce_success', [message.author.username, partnerName])] 
+                    embeds: [createEmbed(message, 'fun', 'Divorced', `💔 **${message.author.username}** divorced **${partnerName}**!`)] 
                 });
             }
         },
         
         // ========== FORTUNE ==========
         fortune: {
-            aliases: ['cookie', 'glückskeks'],
-            description: 'Öffnet einen Glückskeks / Opens a fortune cookie',
+            aliases: ['cookie'],
+            description: 'Open a fortune cookie',
             category: 'Fun',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
-                const fortunesDe = [
-                    '🍀 Dir steht eine große Überraschung bevor!',
-                    '🌟 Deine Zukunft sieht hell aus!',
-                    '💰 Geld kommt bald zu dir!',
-                    '❤️ Die Liebe klopft an deine Tür!',
-                    '🎉 Ein Fest erwartet dich!',
-                    '😴 Du solltest mehr schlafen...',
-                    '🍕 Pizza ist die Antwort auf alles!'
-                ];
-                
-                const fortunesEn = [
+            async execute(message) {
+                const fortunes = [
                     '🍀 A big surprise is waiting for you!',
                     '🌟 Your future looks bright!',
                     '💰 Money is coming your way!',
@@ -376,31 +173,30 @@ module.exports = {
                     '🍕 Pizza is the answer to everything!'
                 ];
                 
-                const fortunes = lang === 'de' ? fortunesDe : fortunesEn;
                 const fortune = fortunes[Math.floor(Math.random() * fortunes.length)];
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'fortune', 'fortune', [fortune])] 
+                    embeds: [createEmbed(message, 'info', 'Fortune Cookie', fortune)] 
                 });
             }
         },
         
         // ========== HANDHOLD ==========
         handhold: {
-            aliases: ['händchenhalten'],
-            description: 'Hält Händchen / Holds hands',
+            aliases: ['holdhands'],
+            description: 'Hold hands with someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!handhold @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'handhold', 'handhold', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Handhold', `🤝 **${message.author.username}** holds hands with **${target.username}**!`)] 
                 });
             }
         },
@@ -408,203 +204,112 @@ module.exports = {
         // ========== HIGHFIVE ==========
         highfive: {
             aliases: ['hf'],
-            description: 'Gibt einen Highfive / Gives a highfive',
+            description: 'Give a highfive',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!highfive @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'highfive', 'highfive', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Highfive', `✋ **${message.author.username}** high-fives **${target.username}**!`)] 
                 });
             }
         },
         
         // ========== HUG ==========
         hug: {
-            aliases: ['umarmen'],
-            description: 'Umarmt jemanden / Hugs someone',
+            aliases: ['embrace'],
+            description: 'Hug someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!hug @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'hug', 'hug', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Hug', `🫂 **${message.author.username}** hugs **${target.username}**!`)] 
                 });
-            }
-        },
-        
-        // ========== IMPOSTER-START ==========
-        'imposter-start': {
-            aliases: ['amongus-start', 'imposter'],
-            description: 'Startet eine Imposter-Runde / Starts an Imposter game',
-            category: 'Fun',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
-                message.client.imposterGame = message.client.imposterGame || new Map();
-                
-                if (message.client.imposterGame.has(message.channel.id)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'game_running', 'imposter_running')] 
-                    });
-                }
-                
-                message.client.imposterGame.set(message.channel.id, {
-                    players: new Set([message.author.id]),
-                    imposters: new Set(),
-                    started: false,
-                    host: message.author.id
-                });
-                
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'game_started', 'imposter_started', [message.author.username])] 
-                });
-            }
-        },
-        
-        // ========== IMPOSTER-STOP ==========
-        'imposter-stop': {
-            aliases: ['amongus-stop'],
-            description: 'Beendet Imposter-Runde / Ends Imposter game',
-            category: 'Fun',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
-                message.client.imposterGame = message.client.imposterGame || new Map();
-                
-                if (!message.client.imposterGame.has(message.channel.id)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_game', 'imposter_not_running')] 
-                    });
-                }
-                
-                message.client.imposterGame.delete(message.channel.id);
-                
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'game_ended', 'imposter_ended')] 
-                });
-            }
-        },
-        
-        // ========== IMPOSTER-VOTE ==========
-        'imposter-vote': {
-            aliases: ['amongus-vote', 'vote'],
-            description: 'Votet einen Spieler raus / Votes a player out',
-            category: 'Fun',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                const game = message.client.imposterGame?.get(message.channel.id);
-                
-                if (!game) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_game', 'imposter_not_running')] 
-                    });
-                }
-                
-                const target = message.mentions.users.first();
-                if (!target) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
-                    });
-                }
-                
-                const isImposter = Math.random() < 0.3;
-                
-                if (isImposter) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'caught', 'imposter_caught', [target.username])] 
-                    });
-                } else {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'innocent', 'imposter_innocent', [target.username])] 
-                    });
-                }
             }
         },
         
         // ========== KISS ==========
         kiss: {
-            aliases: ['küssen'],
-            description: 'Küsst jemanden / Kisses someone',
+            aliases: ['smooch'],
+            description: 'Kiss someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!kiss @User')] 
                     });
                 }
                 
                 if (target.id === message.author.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'kiss_self')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot kiss yourself!')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'kiss', 'kiss', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Kiss', `💋 **${message.author.username}** kisses **${target.username}**! How romantic!`)] 
                 });
             }
         },
         
         // ========== LICK ==========
         lick: {
-            aliases: ['lecken'],
-            description: 'Leckt jemanden / Licks someone',
+            aliases: ['slurp'],
+            description: 'Lick someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!lick @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'lick', 'lick', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Lick', `👅 **${message.author.username}** licks **${target.username}**! Ewww!`)] 
                 });
             }
         },
         
         // ========== MARRY ==========
         marry: {
-            aliases: ['heiraten'],
-            description: 'Macht einen Heiratsantrag / Proposes marriage',
+            aliases: ['propose'],
+            description: 'Propose to someone',
             category: 'Fun',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.users.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'marry_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!marry @User')] 
                     });
                 }
                 
                 if (target.id === message.author.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'marry_self')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot marry yourself!')] 
                     });
                 }
                 
                 if (target.bot) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'marry_bot')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot marry a bot!')] 
                     });
                 }
                 
@@ -618,7 +323,7 @@ module.exports = {
                 if (authorMarried) {
                     const partner = await client.users.fetch(authorMarried.partner_id).catch(() => null);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'already_married', 'marry_already', [partner?.username || (lang === 'de' ? 'jemandem' : 'someone')])] 
+                        embeds: [createEmbed(message, 'error', 'Already Married', `You are already married to **${partner?.username || 'someone'}**!\nUse \`!divorce\` to divorce.`)] 
                     });
                 }
                 
@@ -631,7 +336,7 @@ module.exports = {
                 
                 if (targetMarried) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'already_married', 'marry_target_already', [target.username])] 
+                        embeds: [createEmbed(message, 'error', 'Already Married', `**${target.username}** is already married!`)] 
                     });
                 }
                 
@@ -645,7 +350,7 @@ module.exports = {
                 
                 if (existingRequest) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'request_exists', 'marry_request_exists', [target.username])] 
+                        embeds: [createEmbed(message, 'error', 'Request Exists', `You already proposed to **${target.username}**!`)] 
                     });
                 }
                 
@@ -659,12 +364,12 @@ module.exports = {
                     .addComponents(
                         new ButtonBuilder()
                             .setCustomId(`marry_accept_${message.author.id}`)
-                            .setLabel(lang === 'de' ? '✅ Ja, ich will!' : '✅ Yes, I do!')
+                            .setLabel('✅ Yes, I do!')
                             .setStyle(ButtonStyle.Success)
                             .setEmoji('💍'),
                         new ButtonBuilder()
                             .setCustomId(`marry_reject_${message.author.id}`)
-                            .setLabel(lang === 'de' ? '❌ Nein' : '❌ No')
+                            .setLabel('❌ No')
                             .setStyle(ButtonStyle.Danger)
                             .setEmoji('💔')
                     );
@@ -672,11 +377,9 @@ module.exports = {
                 const proposalEmbed = new EmbedBuilder()
                     .setColor(0xFF69B4)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '💍 Heiratsantrag!' : '💍 Marriage Proposal!')
-                    .setDescription(lang === 'de' 
-                        ? `**${message.author.username}** möchte **${target.username}** heiraten!\n\n${target}, willst du?`
-                        : `**${message.author.username}** wants to marry **${target.username}**!\n\n${target}, do you accept?`)
-                    .setFooter({ text: lang === 'de' ? 'Antwort mit den Buttons unten!' : 'Answer with the buttons below!' })
+                    .setTitle('💍 Marriage Proposal!')
+                    .setDescription(`**${message.author.username}** wants to marry **${target.username}**!\n\n${target}, do you accept?`)
+                    .setFooter({ text: 'Answer with the buttons below!' })
                     .setTimestamp();
                 
                 await message.reply({ 
@@ -706,27 +409,19 @@ module.exports = {
                         const successEmbed = new EmbedBuilder()
                             .setColor(0xFF69B4)
                             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                            .setTitle(lang === 'de' ? '💒 Verheiratet!' : '💒 Married!')
-                            .setDescription(lang === 'de' 
-                                ? `🎉 **${message.author.username}** und **${target.username}** sind jetzt verheiratet!\nAlles Gute für die Zukunft! 💕`
-                                : `🎉 **${message.author.username}** and **${target.username}** are now married!\nBest wishes for the future! 💕`)
+                            .setTitle('💒 Married!')
+                            .setDescription(`🎉 **${message.author.username}** and **${target.username}** are now married!\nBest wishes for the future! 💕`)
                             .setTimestamp();
                         
                         await interaction.update({ embeds: [successEmbed], components: [] });
-                        await message.channel.send({ 
-                            content: lang === 'de' 
-                                ? `🎊 Glückwunsch ${message.author} & ${target}! 🎊`
-                                : `🎊 Congratulations ${message.author} & ${target}! 🎊`
-                        });
+                        await message.channel.send({ content: `🎊 Congratulations ${message.author} & ${target}! 🎊` });
                         
                     } else {
                         const rejectEmbed = new EmbedBuilder()
                             .setColor(0xFF0000)
                             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                            .setTitle(lang === 'de' ? '💔 Antrag abgelehnt' : '💔 Proposal Rejected')
-                            .setDescription(lang === 'de' 
-                                ? `**${target.username}** hat den Antrag von **${message.author.username}** abgelehnt... 😢`
-                                : `**${target.username}** rejected **${message.author.username}**'s proposal... 😢`)
+                            .setTitle('💔 Proposal Rejected')
+                            .setDescription(`**${target.username}** rejected **${message.author.username}**'s proposal... 😢`)
                             .setTimestamp();
                         
                         await interaction.update({ embeds: [rejectEmbed], components: [] });
@@ -744,10 +439,8 @@ module.exports = {
                         const timeoutEmbed = new EmbedBuilder()
                             .setColor(0x808080)
                             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                            .setTitle(lang === 'de' ? '⏰ Antrag abgelaufen' : '⏰ Proposal Expired')
-                            .setDescription(lang === 'de' 
-                                ? `**${target.username}** hat nicht rechtzeitig geantwortet...`
-                                : `**${target.username}** didn't respond in time...`)
+                            .setTitle('⏰ Proposal Expired')
+                            .setDescription(`**${target.username}** didn't respond in time...`)
                             .setTimestamp();
                         
                         await message.edit({ embeds: [timeoutEmbed], components: [] }).catch(() => {});
@@ -758,12 +451,11 @@ module.exports = {
         
         // ========== MARRYSTATUS ==========
         marrystatus: {
-            aliases: ['beziehungsstatus', 'status', 'relationship'],
-            description: 'Zeigt deinen Beziehungsstatus / Shows your relationship status',
+            aliases: ['relationship', 'status'],
+            description: 'Show relationship status',
             category: 'Fun',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.users.first() || message.author;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 const { data: marriage } = await supabase
                     .from('marriages')
@@ -772,12 +464,12 @@ module.exports = {
                     .eq('user_id', target.id)
                     .single();
                 
-                let status = lang === 'de' ? '❤️ Single' : '❤️ Single';
+                let status = '❤️ Single';
                 let partner = null;
                 let marriedAt = null;
                 
                 if (marriage) {
-                    status = lang === 'de' ? '💍 Verheiratet' : '💍 Married';
+                    status = '💍 Married';
                     partner = await client.users.fetch(marriage.partner_id).catch(() => null);
                     marriedAt = marriage.married_at;
                 }
@@ -799,20 +491,16 @@ module.exports = {
                 let pendingText = '';
                 if (pendingFrom) {
                     const fromUser = await client.users.fetch(pendingFrom.from_user).catch(() => null);
-                    pendingText = lang === 'de' 
-                        ? `\n💌 Hat einen Antrag von **${fromUser?.username || 'Unbekannt'}** erhalten!`
-                        : `\n💌 Received a proposal from **${fromUser?.username || 'Unknown'}**!`;
+                    pendingText = `\n💌 Received a proposal from **${fromUser?.username || 'Unknown'}**!`;
                 } else if (pendingTo) {
                     const toUser = await client.users.fetch(pendingTo.to_user).catch(() => null);
-                    pendingText = lang === 'de'
-                        ? `\n💌 Hat **${toUser?.username || 'Unbekannt'}** einen Antrag gemacht!`
-                        : `\n💌 Proposed to **${toUser?.username || 'Unknown'}**!`;
+                    pendingText = `\n💌 Proposed to **${toUser?.username || 'Unknown'}**!`;
                 }
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFF69B4)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? `💕 Beziehungsstatus von ${target.username}` : `💕 Relationship Status of ${target.username}`)
+                    .setTitle(`💕 Relationship Status of ${target.username}`)
                     .setDescription(`**${status}**${pendingText}`)
                     .setThumbnail(target.displayAvatarURL({ dynamic: true }))
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
@@ -820,8 +508,8 @@ module.exports = {
                 
                 if (partner) {
                     embed.addFields([
-                        { name: lang === 'de' ? '💑 Partner' : '💑 Partner', value: `${partner.username}`, inline: true },
-                        { name: lang === 'de' ? '📅 Verheiratet seit' : '📅 Married since', value: `<t:${Math.floor(new Date(marriedAt).getTime() / 1000)}:D>`, inline: true }
+                        { name: '💑 Partner', value: partner.username, inline: true },
+                        { name: '📅 Married since', value: `<t:${Math.floor(new Date(marriedAt).getTime() / 1000)}:D>`, inline: true }
                     ]);
                     embed.setThumbnail(partner.displayAvatarURL({ dynamic: true }));
                 }
@@ -833,17 +521,17 @@ module.exports = {
         // ========== PP ==========
         pp: {
             aliases: ['penis'],
-            description: 'Misst die PP-Größe / Measures PP size',
+            description: 'Measure PP size',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first() || message.author;
                 const size = Math.floor(Math.random() * 20) + 1;
                 const bar = '='.repeat(size) + '>' + ' '.repeat(20 - size);
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFFA500)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(`🍆 PP von ${target.username}`)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle(`🍆 PP of ${target.username}`)
                     .setDescription(`**${size}cm**\n\`${bar}\``)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -854,17 +542,16 @@ module.exports = {
         
         // ========== SHIP ==========
         ship: {
-            aliases: ['shippen'],
-            description: 'Shippt zwei User / Ships two users',
+            aliases: ['ship'],
+            description: 'Ship two users',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const user1 = message.mentions.users.first() || message.author;
                 const user2 = message.mentions.users.last() || message.author;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (user1.id === user2.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'ship_self')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot ship someone with themselves!')] 
                     });
                 }
                 
@@ -872,29 +559,18 @@ module.exports = {
                 let rating = '';
                 let emoji = '';
                 
-                if (percentage < 20) { 
-                    rating = lang === 'de' ? 'Keine Chance...' : 'No chance...'; 
-                    emoji = '💔'; 
-                } else if (percentage < 40) { 
-                    rating = lang === 'de' ? 'Schwierig...' : 'Difficult...'; 
-                    emoji = '😕'; 
-                } else if (percentage < 60) { 
-                    rating = lang === 'de' ? 'Könnte klappen!' : 'Could work!'; 
-                    emoji = '🤔'; 
-                } else if (percentage < 80) { 
-                    rating = lang === 'de' ? 'Gute Kombi!' : 'Good combo!'; 
-                    emoji = '💕'; 
-                } else { 
-                    rating = lang === 'de' ? 'PERFEKTES PAAR!' : 'PERFECT MATCH!'; 
-                    emoji = '💘'; 
-                }
+                if (percentage < 20) { rating = 'No chance...'; emoji = '💔'; } 
+                else if (percentage < 40) { rating = 'Difficult...'; emoji = '😕'; } 
+                else if (percentage < 60) { rating = 'Could work!'; emoji = '🤔'; } 
+                else if (percentage < 80) { rating = 'Good combo!'; emoji = '💕'; } 
+                else { rating = 'PERFECT MATCH!'; emoji = '💘'; }
                 
                 const combinedName = user1.username.slice(0, Math.floor(user1.username.length / 2)) + 
                                     user2.username.slice(Math.floor(user2.username.length / 2));
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFF69B4)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
                     .setTitle(`${emoji} Ship: ${user1.username} ❤️ ${user2.username}`)
                     .setDescription(`**${combinedName}**\n\n**${percentage}%** - ${rating}`)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
@@ -906,47 +582,46 @@ module.exports = {
         
         // ========== SLAP ==========
         slap: {
-            aliases: ['ohrfeige', 'schlagen'],
-            description: 'Schlägt jemanden / Slaps someone',
+            aliases: ['hit'],
+            description: 'Slap someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!slap @User')] 
                     });
                 }
                 
                 if (target.id === message.author.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_action', 'slap_self')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot slap yourself!')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'slap', 'slap', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Slap', `👋 **${message.author.username}** slaps **${target.username}**! Ouch!`)] 
                 });
             }
         },
         
         // ========== WINK ==========
         wink: {
-            aliases: ['zwinkern'],
-            description: 'Zwinkert jemandem zu / Winks at someone',
+            aliases: ['wink'],
+            description: 'Wink at someone',
             category: 'Fun',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'blowjob_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!wink @User')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'fun', 'wink', 'wink', [message.author.username, target.username])] 
+                    embeds: [createEmbed(message, 'fun', 'Wink', `😉 **${message.author.username}** winks at **${target.username}**!`)] 
                 });
             }
         }

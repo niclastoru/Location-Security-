@@ -1,8 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
-async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+// ⭐ HELPER: Create embed (ENGLISH ONLY)
+function createEmbed(message, type, title, description, fields = []) {
+    const client = message.client;
     
     const colors = {
         success: 0x57F287,
@@ -12,150 +12,15 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         booster: 0xFF73FA
     };
     
-    const titles = {
-        de: {
-            booster_system: 'Booster Rollen System',
-            deactivated: 'Deaktiviert',
-            no_role: 'Keine Rolle',
-            base_role_set: 'Base-Rolle gesetzt',
-            color_changed: 'Farbe geändert',
-            invalid_color: 'Ungültige Farbe',
-            no_booster: 'Kein Booster',
-            role_created: 'Rolle erstellt',
-            already_created: 'Bereits erstellt',
-            icon_set: 'Icon gesetzt',
-            icon_error: 'Fehler',
-            no_icon: 'Kein Icon',
-            role_deleted: 'Rolle gelöscht',
-            role_deleted_admin: 'Rolle gelöscht',
-            renamed: 'Umbenannt',
-            share: 'Rolle geteilt',
-            already_shared: 'Bereits geteilt',
-            unshare: 'Share entfernt',
-            shares: 'Geteilte Booster-Rolle',
-            no_shares: 'Keine Shares',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info'
-        },
-        en: {
-            booster_system: 'Booster Role System',
-            deactivated: 'Deactivated',
-            no_role: 'No Role',
-            base_role_set: 'Base Role Set',
-            color_changed: 'Color Changed',
-            invalid_color: 'Invalid Color',
-            no_booster: 'Not a Booster',
-            role_created: 'Role Created',
-            already_created: 'Already Created',
-            icon_set: 'Icon Set',
-            icon_error: 'Error',
-            no_icon: 'No Icon',
-            role_deleted: 'Role Deleted',
-            role_deleted_admin: 'Role Deleted',
-            renamed: 'Renamed',
-            share: 'Role Shared',
-            already_shared: 'Already Shared',
-            unshare: 'Share Removed',
-            shares: 'Shared Booster Role',
-            no_shares: 'No Shares',
-            error: 'Error',
-            success: 'Success',
-            info: 'Info'
-        }
-    };
-    
-    const descriptions = {
-        de: {
-            booster_disabled: 'Booster-Rollen wurden deaktiviert.',
-            no_role_mention: '!br-base @Rolle',
-            base_role_set: (role) => `${role} ist jetzt die Booster-Base-Rolle.`,
-            no_booster: 'Nur Server-Booster können diesen Befehl nutzen!',
-            invalid_color: '!br-color <Hex>\nBeispiel: !br-color FF73FA',
-            color_changed: (color) => `Deine Booster-Rolle hat jetzt die Farbe #${color}`,
-            already_created: 'Du hast bereits eine Booster-Rolle!',
-            role_created: (role) => `${role} wurde erstellt und dir zugewiesen!`,
-            no_role_create: 'Erstelle erst eine Rolle mit `!br-create`!',
-            no_icon: '!br-icon <Emoji> oder Bild anhängen',
-            icon_error: 'Icon konnte nicht gesetzt werden! (Server benötigt Boost Level 2)',
-            icon_set: 'Deine Booster-Rolle hat jetzt ein Icon!',
-            role_deleted: 'Deine Booster-Rolle wurde gelöscht.',
-            role_deleted_admin: (user) => `Booster-Rolle von ${user} wurde gelöscht.`,
-            no_role_user: 'Du hast keine Booster-Rolle!',
-            no_role_target: (user) => `${user} hat keine Booster-Rolle!`,
-            no_name: '!br-rename <Neuer Name>',
-            renamed: (name) => `Deine Rolle heißt jetzt **${name}**`,
-            no_user: '!br-share @User',
-            self_share: 'Du kannst die Rolle nicht mit dir selbst teilen!',
-            already_shared: (user) => `Du teilst die Rolle bereits mit ${user}!`,
-            shared: (user) => `${user} hat jetzt deine Booster-Rolle!`,
-            no_shares: 'Du teilst deine Rolle mit niemandem.',
-            unshared: (user) => `${user} hat deine Rolle nicht mehr.`,
-            booster_status: (status, baseRole, count) => `Status: ${status}\nBase-Rolle: ${baseRole}\nErstellte Rollen: ${count}`,
-            help_footer: '!help booster für alle Befehle'
-        },
-        en: {
-            booster_disabled: 'Booster roles have been disabled.',
-            no_role_mention: '!br-base @Role',
-            base_role_set: (role) => `${role} is now the booster base role.`,
-            no_booster: 'Only server boosters can use this command!',
-            invalid_color: '!br-color <Hex>\nExample: !br-color FF73FA',
-            color_changed: (color) => `Your booster role now has the color #${color}`,
-            already_created: 'You already have a booster role!',
-            role_created: (role) => `${role} has been created and assigned to you!`,
-            no_role_create: 'Create a role first with `!br-create`!',
-            no_icon: '!br-icon <Emoji> or attach image',
-            icon_error: 'Could not set icon! (Server needs Boost Level 2)',
-            icon_set: 'Your booster role now has an icon!',
-            role_deleted: 'Your booster role has been deleted.',
-            role_deleted_admin: (user) => `${user}'s booster role has been deleted.`,
-            no_role_user: 'You don\'t have a booster role!',
-            no_role_target: (user) => `${user} doesn't have a booster role!`,
-            no_name: '!br-rename <New Name>',
-            renamed: (name) => `Your role is now called **${name}**`,
-            no_user: '!br-share @User',
-            self_share: 'You cannot share the role with yourself!',
-            already_shared: (user) => `You are already sharing the role with ${user}!`,
-            shared: (user) => `${user} now has your booster role!`,
-            no_shares: 'You are not sharing your role with anyone.',
-            unshared: (user) => `${user} no longer has your role.`,
-            booster_status: (status, baseRole, count) => `Status: ${status}\nBase Role: ${baseRole}\nCreated Roles: ${count}`,
-            help_footer: '!help booster for all commands'
-        }
-    };
-    
-    const title = titles[lang]?.[titleKey] || titleKey;
-    let description = descriptions[lang]?.[descKey] || descKey;
-    
-    if (typeof description === 'function') {
-        if (Array.isArray(fields)) {
-            description = description(...fields);
-        } else {
-            description = description(fields);
-        }
-    } else {
-        for (const [key, value] of Object.entries(replacements)) {
-            description = description.replace(new RegExp(`{${key}}`, 'g'), value);
-        }
-    }
-    
     const embed = new EmbedBuilder()
         .setColor(type === 'booster' ? 0xFF73FA : (colors[type] || 0x5865F2))
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`)
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
     
-    const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : 'ℹ️';
-    embed.setTitle(`${emoji} ${title}`);
-    embed.setDescription(description);
-    
-    if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
-        }
-    }
-    embed.setTimestamp();
-    
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
+    if (fields.length > 0) {
         embed.addFields(fields);
     }
     
@@ -166,14 +31,12 @@ module.exports = {
     category: 'Booster',
     subCommands: {
         
-        // ========== BR (Übersicht) ==========
+        // ========== BR (Overview) ==========
         br: {
             aliases: ['boosterrole'],
-            description: 'Booster-Role Übersicht / Booster role overview',
+            description: 'Booster role overview',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data: settings } = await supabase
                     .from('booster_settings')
                     .select('*')
@@ -185,40 +48,40 @@ module.exports = {
                     .select('*')
                     .eq('guild_id', message.guild.id);
                 
-                const status = settings?.enabled ? (lang === 'de' ? '🟢 Aktiviert' : '🟢 Enabled') : (lang === 'de' ? '🔴 Deaktiviert' : '🔴 Disabled');
-                const baseRole = settings?.base_role_id ? `<@&${settings.base_role_id}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
+                const status = settings?.enabled ? '🟢 Enabled' : '🔴 Disabled';
+                const baseRole = settings?.base_role_id ? `<@&${settings.base_role_id}>` : '❌ Not set';
                 const roleCount = roles?.length || 0;
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFF73FA)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🚀 Booster Rollen System' : '🚀 Booster Role System')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('🚀 Booster Role System')
                     .addFields([
-                        { name: lang === 'de' ? 'Status' : 'Status', value: status, inline: true },
-                        { name: lang === 'de' ? 'Base-Rolle' : 'Base Role', value: baseRole, inline: true },
-                        { name: lang === 'de' ? 'Erstellte Rollen' : 'Created Roles', value: `${roleCount}`, inline: true }
+                        { name: 'Status', value: status, inline: true },
+                        { name: 'Base Role', value: baseRole, inline: true },
+                        { name: 'Created Roles', value: `${roleCount}`, inline: true }
                     ])
-                    .setFooter({ text: lang === 'de' ? '!help booster für alle Befehle' : '!help booster for all commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!help booster for all commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
             }
         },
         
-        // ========== _BOOSTERS_DISABLED ==========
+        // ========== BOOSTERS DISABLED ==========
         _boosters_disabled: {
             aliases: ['br-disable', 'br-off'],
             permissions: 'Administrator',
-            description: 'Deaktiviert Booster-Rollen / Disables booster roles',
+            description: 'Disable booster roles',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 await supabase.from('booster_settings').upsert({
                     guild_id: message.guild.id,
                     enabled: false
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'deactivated', 'booster_disabled')] 
+                    embeds: [createEmbed(message, 'success', 'Deactivated', 'Booster roles have been disabled.')] 
                 });
             }
         },
@@ -227,14 +90,14 @@ module.exports = {
         'br-base': {
             aliases: ['br-setbase'],
             permissions: 'Administrator',
-            description: 'Setzt Base-Rolle für Booster / Sets base role for boosters',
+            description: 'Set base role for boosters',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const role = message.mentions.roles.first();
                 
                 if (!role) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_mention')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', '!br-base @Role')] 
                     });
                 }
                 
@@ -257,7 +120,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'base_role_set', 'base_role_set', [role.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Base Role Set', `${role} is now the booster base role.`)] 
                 });
             }
         },
@@ -265,21 +128,19 @@ module.exports = {
         // ========== BR-COLOR ==========
         'br-color': {
             aliases: ['br-setcolor'],
-            description: 'Ändert Farbe deiner Booster-Rolle / Changes your booster role color',
+            description: 'Change your booster role color',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 if (!message.member.premiumSince && !message.member.roles.cache.some(r => r.name.includes('Booster'))) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_booster', 'no_booster')] 
+                        embeds: [createEmbed(message, 'error', 'Not a Booster', 'Only server boosters can use this command!')] 
                     });
                 }
                 
                 const color = args[0]?.replace('#', '').toUpperCase();
                 if (!color || !/^[0-9A-F]{6}$/i.test(color)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_color', 'invalid_color')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Color', '!br-color <Hex>\nExample: !br-color FF73FA')] 
                     });
                 }
                 
@@ -302,7 +163,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'color_changed', 'color_changed', [color])] 
+                    embeds: [createEmbed(message, 'success', 'Color Changed', `Your booster role now has the color #${color}`)] 
                 });
             }
         },
@@ -310,14 +171,12 @@ module.exports = {
         // ========== BR-CREATE ==========
         'br-create': {
             aliases: ['br-make'],
-            description: 'Erstellt deine Booster-Rolle / Creates your booster role',
+            description: 'Create your booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 if (!message.member.premiumSince && !message.member.roles.cache.some(r => r.tags?.premiumSubscriberRole)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_booster', 'no_booster')] 
+                        embeds: [createEmbed(message, 'error', 'Not a Booster', 'Only server boosters can use this command!')] 
                     });
                 }
                 
@@ -330,17 +189,17 @@ module.exports = {
                 
                 if (existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'already_created', 'already_created')] 
+                        embeds: [createEmbed(message, 'error', 'Already Created', 'You already have a booster role!')] 
                     });
                 }
                 
-                const roleName = args.join(' ') || (lang === 'de' ? `${message.author.username}'s Rolle` : `${message.author.username}'s Role`);
+                const roleName = args.join(' ') || `${message.author.username}'s Role`;
                 
                 const role = await message.guild.roles.create({
                     name: roleName,
                     color: 0xFF73FA,
                     position: message.guild.members.me.roles.highest.position - 1,
-                    reason: `Booster-Rolle für ${message.author.tag}`
+                    reason: `Booster role for ${message.author.tag}`
                 });
                 
                 await message.member.roles.add(role);
@@ -365,7 +224,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'role_created', 'role_created', [role.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Role Created', `${role} has been created and assigned to you!`)] 
                 });
             }
         },
@@ -373,11 +232,9 @@ module.exports = {
         // ========== BR-ICON ==========
         'br-icon': {
             aliases: ['br-seticon'],
-            description: 'Setzt Icon für deine Booster-Rolle / Sets icon for your booster role',
+            description: 'Set icon for your booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data: existing } = await supabase
                     .from('booster_roles')
                     .select('role_id')
@@ -387,7 +244,7 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_create')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', 'Create a role first with `!br-create`!')] 
                     });
                 }
                 
@@ -406,7 +263,7 @@ module.exports = {
                 
                 if (!icon) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_icon', 'no_icon')] 
+                        embeds: [createEmbed(message, 'error', 'No Icon', '!br-icon <Emoji> or attach image')] 
                     });
                 }
                 
@@ -416,7 +273,7 @@ module.exports = {
                         await role.setIcon(icon);
                     } catch {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'icon_error', 'icon_error')] 
+                            embeds: [createEmbed(message, 'error', 'Error', 'Could not set icon! (Server needs Boost Level 2)')] 
                         });
                     }
                 }
@@ -426,7 +283,7 @@ module.exports = {
                 }).eq('guild_id', message.guild.id).eq('user_id', message.author.id);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'icon_set', 'icon_set')] 
+                    embeds: [createEmbed(message, 'success', 'Icon Set', 'Your booster role now has an icon!')] 
                 });
             }
         },
@@ -434,9 +291,9 @@ module.exports = {
         // ========== BR-LEAVE ==========
         'br-leave': {
             aliases: ['br-delete', 'br-remove-self'],
-            description: 'Löscht deine Booster-Rolle / Deletes your booster role',
+            description: 'Delete your booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data: existing } = await supabase
                     .from('booster_roles')
                     .select('role_id')
@@ -446,7 +303,7 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_user')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', 'You don\'t have a booster role!')] 
                     });
                 }
                 
@@ -464,7 +321,7 @@ module.exports = {
                     .eq('owner_id', message.author.id);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'role_deleted', 'role_deleted')] 
+                    embeds: [createEmbed(message, 'success', 'Role Deleted', 'Your booster role has been deleted.')] 
                 });
             }
         },
@@ -473,14 +330,14 @@ module.exports = {
         'br-remove': {
             aliases: ['br-deleteadmin'],
             permissions: 'ManageRoles',
-            description: 'Löscht Booster-Rolle eines Users / Deletes a user\'s booster role',
+            description: 'Delete a user\'s booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_user')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!br-remove @User')] 
                     });
                 }
                 
@@ -493,7 +350,7 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_target', [target.toString()])] 
+                        embeds: [createEmbed(message, 'error', 'No Role', `${target} doesn't have a booster role!`)] 
                     });
                 }
                 
@@ -506,7 +363,7 @@ module.exports = {
                     .eq('user_id', target.id);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'role_deleted_admin', 'role_deleted_admin', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Role Deleted', `${target}'s booster role has been deleted.`)] 
                 });
             }
         },
@@ -514,9 +371,9 @@ module.exports = {
         // ========== BR-RENAME ==========
         'br-rename': {
             aliases: ['br-name'],
-            description: 'Benennt deine Booster-Rolle um / Renames your booster role',
+            description: 'Rename your booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data: existing } = await supabase
                     .from('booster_roles')
                     .select('role_id')
@@ -526,14 +383,14 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_user')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', 'You don\'t have a booster role!')] 
                     });
                 }
                 
                 const newName = args.join(' ');
                 if (!newName) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_name')] 
+                        embeds: [createEmbed(message, 'error', 'No Name', '!br-rename <New Name>')] 
                     });
                 }
                 
@@ -545,7 +402,7 @@ module.exports = {
                 }).eq('guild_id', message.guild.id).eq('user_id', message.author.id);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'renamed', 'renamed', [newName])] 
+                    embeds: [createEmbed(message, 'success', 'Renamed', `Your role is now called **${newName}**`)] 
                 });
             }
         },
@@ -553,9 +410,9 @@ module.exports = {
         // ========== BR-SHARE ==========
         'br-share': {
             aliases: ['br-give'],
-            description: 'Teilt deine Booster-Rolle / Shares your booster role',
+            description: 'Share your booster role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data: existing } = await supabase
                     .from('booster_roles')
                     .select('role_id')
@@ -565,20 +422,20 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_user')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', 'You don\'t have a booster role!')] 
                     });
                 }
                 
                 const target = message.mentions.users.first();
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_user')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!br-share @User')] 
                     });
                 }
                 
                 if (target.id === message.author.id) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'share', 'self_share')] 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot share the role with yourself!')] 
                     });
                 }
                 
@@ -592,7 +449,7 @@ module.exports = {
                 
                 if (shared) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'already_shared', 'already_shared', [target.toString()])] 
+                        embeds: [createEmbed(message, 'error', 'Already Shared', `You are already sharing the role with ${target}!`)] 
                     });
                 }
                 
@@ -609,7 +466,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'share', 'shared', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Role Shared', `${target} now has your booster role!`)] 
                 });
             }
         },
@@ -617,11 +474,9 @@ module.exports = {
         // ========== BR-SHARES ==========
         'br-shares': {
             aliases: ['br-shared'],
-            description: 'Zeigt mit wem du deine Rolle teilst / Shows who you share your role with',
+            description: 'Show who you share your role with',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data: shares } = await supabase
                     .from('booster_shares')
                     .select('shared_with')
@@ -630,7 +485,7 @@ module.exports = {
                 
                 if (!shares || shares.length === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'no_shares', 'no_shares')] 
+                        embeds: [createEmbed(message, 'info', 'No Shares', 'You are not sharing your role with anyone.')] 
                     });
                 }
                 
@@ -638,10 +493,10 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFF73FA)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🤝 Geteilte Booster-Rolle' : '🤝 Shared Booster Role')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('🤝 Shared Booster Role')
                     .setDescription(sharedList)
-                    .setFooter({ text: `${shares.length} ${lang === 'de' ? 'User' : 'Users'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `${shares.length} Users`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -651,9 +506,9 @@ module.exports = {
         // ========== BR-UNSHARE ==========
         'br-unshare': {
             aliases: ['br-remove-share'],
-            description: 'Entfernt geteilte Rolle / Removes shared role',
+            description: 'Remove shared role',
             category: 'Booster',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data: existing } = await supabase
                     .from('booster_roles')
                     .select('role_id')
@@ -663,14 +518,14 @@ module.exports = {
                 
                 if (!existing) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_role_user')] 
+                        embeds: [createEmbed(message, 'error', 'No Role', 'You don\'t have a booster role!')] 
                     });
                 }
                 
                 const target = message.mentions.users.first();
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_role', 'no_user')] 
+                        embeds: [createEmbed(message, 'error', 'No User', '!br-unshare @User')] 
                     });
                 }
                 
@@ -687,7 +542,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'unshare', 'unshared', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Share Removed', `${target} no longer has your role.`)] 
                 });
             }
         }
@@ -696,7 +551,7 @@ module.exports = {
 
 // ========== BOOSTER EVENT HANDLER ==========
 async function handleBoosterUpdate(oldMember, newMember, supabase) {
-    // Booster hinzugefügt
+    // Booster added
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const { data: settings } = await supabase
             .from('booster_settings')
@@ -712,7 +567,7 @@ async function handleBoosterUpdate(oldMember, newMember, supabase) {
         }
     }
     
-    // Booster entfernt
+    // Booster removed
     if (oldMember.premiumSince && !newMember.premiumSince) {
         const { data: boosterRole } = await supabase
             .from('booster_roles')

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
@@ -44,8 +44,8 @@ global.embed = {
 // Commands Collection
 client.commands = new Collection();
 client.categories = new Collection();
-client.prefixes = new Map(); // ⭐ Prefix Cache
-client.languages = new Map(); // ⭐ Language Cache
+client.prefixes = new Map();
+client.languages = new Map();
 
 // ========== SNIPE CACHE ==========
 client.snipes = new Map();
@@ -69,7 +69,7 @@ async function getLanguage(guildId) {
     return lang;
 }
 
-// ⭐ Übersetzungs-Funktion (global verfügbar)
+// ⭐ Übersetzungs-Funktion
 global.t = async (guildId, key, replacements = {}) => {
     const lang = await getLanguage(guildId);
     let text = languages[lang]?.[key] || languages.de[key] || key;
@@ -81,7 +81,7 @@ global.t = async (guildId, key, replacements = {}) => {
     return text;
 };
 
-// ⭐ Embed Helper mit Übersetzung (global verfügbar)
+// ⭐ Embed Helper mit Übersetzung
 global.tEmbed = async (guildId, type, titleKey, descKey, replacements = {}) => {
     const title = await global.t(guildId, titleKey, replacements);
     const description = await global.t(guildId, descKey, replacements);
@@ -222,16 +222,10 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
-    // ⭐ STATS TRACKING (Messages)
     await trackMessage(message, supabase);
-    
-    // ⭐ AFK CHECK
     await handleAfkReturn(message, supabase);
-    
-    // ⭐ LEVELING XP
     await handleLevelingMessage(message, supabase);
     
-    // ⭐ DYNAMISCHEN PREFIX LADEN!
     const prefix = await getPrefix(message.guild?.id);
     
     if (!message.content.startsWith(prefix)) return;
@@ -273,7 +267,6 @@ client.on('interactionCreate', async (interaction) => {
 // ========== GUILD MEMBER UPDATE ==========
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await handleBoosterUpdate(oldMember, newMember, supabase);
-    
     await logEvent.memberNicknameChange(oldMember, newMember);
     
     const addedRoles = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
@@ -363,15 +356,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
     
-    if (!oldState.channelId && newState.channelId) {
-        await logEvent.voiceJoin(newState);
-    }
-    if (oldState.channelId && !newState.channelId) {
-        await logEvent.voiceLeave(oldState);
-    }
-    if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-        await logEvent.voiceMove(oldState, newState);
-    }
+    if (!oldState.channelId && newState.channelId) await logEvent.voiceJoin(newState);
+    if (oldState.channelId && !newState.channelId) await logEvent.voiceLeave(oldState);
+    if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) await logEvent.voiceMove(oldState, newState);
 });
 
 // ========== GIVEAWAY REACTION HANDLER ==========
@@ -392,7 +379,6 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 // ========== LOGGING LISTENERS ==========
-
 client.on('messageDelete', async (message) => {
     if (!message.author?.bot || message.content || message.attachments.size) {
         const attachments = [];
@@ -422,15 +408,15 @@ client.on('messageDeleteBulk', async (messages, channel) => {
 client.on('guildMemberAdd', async (member) => {
     await logEvent.memberJoin(member);
     
-    // ⭐ WELCOME NACHRICHTEN
+    console.log(`🎉 Member Join: ${member.user.tag}, Guild: ${member.guild.id}`);
+    
     const { data: welcomes, error } = await supabase
         .from('welcome_messages')
         .select('channel_id, message, embed_color, image_url')
         .eq('guild_id', member.guild.id);
     
-    console.log(`🎉 Member Join: ${member.user.tag}, Guild: ${member.guild.id}`);
     console.log(`📨 Welcomes gefunden: ${welcomes?.length || 0}`);
-    if (error) console.error('Welcome Error:', error);
+    if (error) console.error('❌ Welcome Error:', error);
     
     if (welcomes && welcomes.length > 0) {
         for (const w of welcomes) {
@@ -443,26 +429,25 @@ client.on('guildMemberAdd', async (member) => {
                     .replace(/{server}/g, member.guild.name)
                     .replace(/{membercount}/g, member.guild.memberCount);
                 
-                const title = await global.t(member.guild.id, 'membercount_title', { server: member.guild.name });
+                const embed = new EmbedBuilder()
+                    .setColor(parseInt(w.embed_color?.replace('#', '') || '00FF00', 16))
+                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                    .setTitle(`👋 Willkommen ${member.user.username}!`)
+                    .setDescription(welcomeMsg)
+                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp();
                 
-                await channel.send({ 
-                    embeds: [{
-                        color: parseInt(w.embed_color?.replace('#', '') || '00FF00', 16),
-                        title: `👋 ${await global.t(member.guild.id, 'welcome_view', { channel: channel.name })} ${member.user.username}!`,
-                        description: welcomeMsg,
-                        image: w.image_url ? { url: w.image_url } : null,
-                        thumbnail: { url: member.user.displayAvatarURL({ dynamic: true }) }
-                    }] 
-                }).then(() => {
-                    console.log(`✅ Welcome gesendet in ${channel.name}`);
-                }).catch(err => {
-                    console.error(`❌ Welcome Fehler in ${channel.name}:`, err);
-                });
+                if (w.image_url) embed.setImage(w.image_url);
+                
+                await channel.send({ embeds: [embed] })
+                    .then(() => console.log(`✅ Welcome gesendet in ${channel.name}`))
+                    .catch(err => console.error(`❌ Welcome Fehler in ${channel.name}:`, err));
+            } else {
+                console.log(`⚠️ Channel nicht gefunden: ${w.channel_id}`);
             }
         }
     }
     
-    // ⭐ AUTO-ROLE
     const { data: autorole } = await supabase
         .from('autorole')
         .select('role_id')
@@ -471,7 +456,10 @@ client.on('guildMemberAdd', async (member) => {
     
     if (autorole) {
         const role = member.guild.roles.cache.get(autorole.role_id);
-        if (role) await member.roles.add(role).catch(() => {});
+        if (role) {
+            await member.roles.add(role).catch(err => console.error('❌ Auto-Role Fehler:', err));
+            console.log(`✅ Auto-Role ${role.name} an ${member.user.tag} vergeben`);
+        }
     }
 });
 

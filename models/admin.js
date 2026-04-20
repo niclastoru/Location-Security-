@@ -1,8 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
-async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+// ⭐ HELPER: Create embed (ENGLISH ONLY)
+function createEmbed(message, type, title, description, fields = []) {
+    const client = message.client;
     
     const colors = {
         success: 0x57F287,
@@ -11,262 +11,15 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         warn: 0xFEE75C
     };
     
-    const titles = {
-        de: {
-            no_vc: 'Kein VC',
-            no_activity: 'Keine Aktivität',
-            error: 'Fehler',
-            activity_started: 'Aktivität',
-            invalid_usage: 'Falsche Nutzung',
-            no_image: 'Kein Bild',
-            avatar_changed: 'Avatar geändert',
-            banner_changed: 'Banner geändert',
-            bio: 'Bio',
-            customize: 'Customize',
-            no_command: 'Kein Befehl',
-            not_found: 'Nicht gefunden',
-            deactivated: 'Deaktiviert',
-            activated: 'Aktiviert',
-            warning: 'Warnung',
-            nuke: 'Nuke',
-            cancelled: 'Abgebrochen',
-            reaction_setup: 'Reaction Setup',
-            reaction_roles: 'Reaction Roles',
-            server_rules: 'Server Regeln',
-            settings: 'Bot Einstellungen',
-            status_changed: 'Status geändert',
-            sticky_set: 'Sticky gesetzt',
-            staff_removed: 'Staff entfernt',
-            no_staff_roles: 'Keine Staff-Rollen',
-            all_unbanned: 'Alle entbannt',
-            all_released: 'Alle entlassen',
-            vanity_url: 'Vanity URL',
-            reminder_set: 'Erinnerung gesetzt',
-            invalid_time: 'Ungültige Zeit',
-            antinuke: 'Antinuke',
-            antiraid: 'Antiraid',
-            auto_responder: 'Auto-Responder',
-            permissions: 'Permissions',
-            available_permissions: 'Verfügbare Permissions',
-            confirm: 'Bestätigung',
-            yes: 'Ja',
-            no: 'Nein'
-        },
-        en: {
-            no_vc: 'No VC',
-            no_activity: 'No Activity',
-            error: 'Error',
-            activity_started: 'Activity',
-            invalid_usage: 'Invalid Usage',
-            no_image: 'No Image',
-            avatar_changed: 'Avatar Changed',
-            banner_changed: 'Banner Changed',
-            bio: 'Bio',
-            customize: 'Customize',
-            no_command: 'No Command',
-            not_found: 'Not Found',
-            deactivated: 'Deactivated',
-            activated: 'Activated',
-            warning: 'Warning',
-            nuke: 'Nuke',
-            cancelled: 'Cancelled',
-            reaction_setup: 'Reaction Setup',
-            reaction_roles: 'Reaction Roles',
-            server_rules: 'Server Rules',
-            settings: 'Bot Settings',
-            status_changed: 'Status Changed',
-            sticky_set: 'Sticky Set',
-            staff_removed: 'Staff Removed',
-            no_staff_roles: 'No Staff Roles',
-            all_unbanned: 'All Unbanned',
-            all_released: 'All Released',
-            vanity_url: 'Vanity URL',
-            reminder_set: 'Reminder Set',
-            invalid_time: 'Invalid Time',
-            antinuke: 'Antinuke',
-            antiraid: 'Antiraid',
-            auto_responder: 'Auto-Responder',
-            permissions: 'Permissions',
-            available_permissions: 'Available Permissions',
-            confirm: 'Confirmation',
-            yes: 'Yes',
-            no: 'No'
-        }
-    };
-    
-    const descriptions = {
-        de: {
-            no_vc: 'Du musst in einem Voice-Channel sein!',
-            no_activity: (list) => `Verfügbar: ${list}`,
-            error_activity: 'Konnte Aktivität nicht starten!',
-            activity_started: (activity, link) => `[Klick hier für ${activity}](https://discord.gg/${link})`,
-            announce_usage: '!announce #channel <Text>',
-            announce_sent: (channel) => `Ankündigung in ${channel} gesendet!`,
-            antinuke_enabled: (punishment) => `✅ Antinuke ist jetzt AKTIV!\nBestrafung: **${punishment}**`,
-            antinuke_disabled: '❌ Antinuke wurde deaktiviert!',
-            antinuke_status: (status, punishment) => `Status: ${status}\nBestrafung: **${punishment}**\n\n**Nutze:**\n!antinuke on [ban/kick/timeout]\n!antinuke off`,
-            antiraid_enabled: (limit, window) => `🛡️ Antiraid ist AKTIV!\nLimit: **${limit}** Joins in **${window}s**`,
-            antiraid_disabled: '🔓 Antiraid wurde deaktiviert!',
-            antiraid_status: (status, limit, window) => `Status: ${status}\nLimit: **${limit}** Joins in **${window}s**\n\n**Nutze:**\n!antiraid on [limit] [sekunden]\n!antiraid off`,
-            autoresponder_add: '!autoresponder add <Trigger> <Antwort>',
-            autoresponder_remove: '!autoresponder remove <Trigger>',
-            autoresponder_added: (trigger, response) => `✅ Trigger **"${trigger}"** → **"${response}"**`,
-            autoresponder_removed: (trigger) => `Trigger **"${trigger}"** entfernt.`,
-            autoresponder_not_found: 'Trigger nicht gefunden!',
-            autoresponder_empty: 'Keine Einträge vorhanden.',
-            no_image_avatar: '!customize avatar <URL> oder Bild anhängen',
-            no_image_banner: '!customize banner <URL>',
-            avatar_changed: 'Bot-Avatar wurde aktualisiert!',
-            banner_changed: 'Bot-Banner wurde aktualisiert!',
-            bio_manual: 'Bio kann nur manuell geändert werden.',
-            customize_info: '`!customize avatar <URL>`\n`!customize banner <URL>`\n`!customize bio <Text>`',
-            disable_usage: '!disablecommand <Befehl>',
-            enable_usage: '!enablecommand <Befehl>',
-            command_not_found: (cmd) => `Befehl "${cmd}" existiert nicht!`,
-            command_deactivated: (cmd) => `Befehl \`${cmd}\` wurde deaktiviert.`,
-            command_activated: (cmd) => `Befehl \`${cmd}\` wurde aktiviert.`,
-            massdm_warning: '⚠️ Mass-DM ist gefährlich und kann zum Bot-Bann führen!',
-            nuke_confirm: '⚠️ Bist du sicher? Schreibe `!confirm` innerhalb von 10 Sekunden.',
-            nuke_cancelled: 'Nuke wurde abgebrochen.',
-            nuke_success: '💥 Channel wurde genuked!',
-            nuke_error: 'Konnte Channel nicht nuken!',
-            reaction_usage_add: '!reactionroles add <Nachrichten-ID> <Emoji> @Rolle',
-            reaction_usage_remove: '!reactionroles remove <Nachrichten-ID> <Emoji>',
-            reaction_added: (emoji, role) => `${emoji} → ${role}`,
-            reaction_removed: (emoji) => `${emoji} wurde entfernt.`,
-            reaction_empty: 'Keine Einträge vorhanden.',
-            server_rules_empty: 'Aktuelle Regeln wurden nicht gesetzt. Nutze `!serverrules <Regeln>`',
-            server_rules_set: (user) => `Gesetzt von ${user}`,
-            settings_saved: (setting, value) => `${setting} = ${value}`,
-            settings_no_channel: 'Erwähne einen Channel!',
-            settings_footer: '!settings <option> <wert> zum Ändern',
-            status_invalid_type: 'playing, streaming, listening, watching, competing',
-            status_no_text: '!status <Typ> <Text>',
-            status_changed: (type, text) => `${type}: ${text}`,
-            sticky_no_text: '!stickymessage [#channel] <Text>',
-            sticky_set: (channel) => `Nachricht in ${channel} wird angepinnt bleiben.`,
-            stripstaff_usage: '!stripstaff @User\n!stripstaff add @Rolle\n!stripstaff remove @Rolle\n!stripstaff list',
-            stripstaff_added: (role) => `${role} wird als Staff-Rolle gespeichert.`,
-            stripstaff_removed: (role) => `${role} ist keine Staff-Rolle mehr.`,
-            stripstaff_empty: 'Keine Staff-Rollen gespeichert.',
-            stripstaff_no_roles: (user) => `${user} hat keine Staff-Rollen.`,
-            stripstaff_removed_count: (count, user) => `${count} Staff-Rollen von ${user} entfernt.`,
-            unbanall_confirm: '⚠️ Bist du sicher? Schreibe `!confirm`',
-            unbanall_success: (count) => `${count} User wurden entbannt.`,
-            unjailall_no_role: 'Es existiert keine Jail-Rolle!',
-            unjailall_success: (count) => `${count} User aus dem Jail entlassen.`,
-            vanity_success: (code, uses) => `**${code}**\nNutzt: ${uses} mal`,
-            vanity_error: 'Dieser Server hat keine Vanity-URL! (Benötigt Boost Level 3)',
-            remind_usage: '!remind <Zeit> <Nachricht>\nBeispiel: !remind 10m Pizza holen',
-            remind_invalid: 'Nutze: 10s, 5m, 2h, 1d',
-            remind_set: (time, reminder) => `Ich erinnere dich in ${time} an: **${reminder}**`,
-            remind_triggered: (reminder, channel) => `**${reminder}**\nVon: ${channel}`
-        },
-        en: {
-            no_vc: 'You must be in a voice channel!',
-            no_activity: (list) => `Available: ${list}`,
-            error_activity: 'Could not start activity!',
-            activity_started: (activity, link) => `[Click here for ${activity}](https://discord.gg/${link})`,
-            announce_usage: '!announce #channel <Text>',
-            announce_sent: (channel) => `Announcement sent in ${channel}!`,
-            antinuke_enabled: (punishment) => `✅ Antinuke is now ACTIVE!\nPunishment: **${punishment}**`,
-            antinuke_disabled: '❌ Antinuke has been disabled!',
-            antinuke_status: (status, punishment) => `Status: ${status}\nPunishment: **${punishment}**\n\n**Usage:**\n!antinuke on [ban/kick/timeout]\n!antinuke off`,
-            antiraid_enabled: (limit, window) => `🛡️ Antiraid is ACTIVE!\nLimit: **${limit}** joins in **${window}s**`,
-            antiraid_disabled: '🔓 Antiraid has been disabled!',
-            antiraid_status: (status, limit, window) => `Status: ${status}\nLimit: **${limit}** joins in **${window}s**\n\n**Usage:**\n!antiraid on [limit] [seconds]\n!antiraid off`,
-            autoresponder_add: '!autoresponder add <Trigger> <Response>',
-            autoresponder_remove: '!autoresponder remove <Trigger>',
-            autoresponder_added: (trigger, response) => `✅ Trigger **"${trigger}"** → **"${response}"**`,
-            autoresponder_removed: (trigger) => `Trigger **"${trigger}"** removed.`,
-            autoresponder_not_found: 'Trigger not found!',
-            autoresponder_empty: 'No entries found.',
-            no_image_avatar: '!customize avatar <URL> or attach image',
-            no_image_banner: '!customize banner <URL>',
-            avatar_changed: 'Bot avatar updated!',
-            banner_changed: 'Bot banner updated!',
-            bio_manual: 'Bio can only be changed manually.',
-            customize_info: '`!customize avatar <URL>`\n`!customize banner <URL>`\n`!customize bio <Text>`',
-            disable_usage: '!disablecommand <Command>',
-            enable_usage: '!enablecommand <Command>',
-            command_not_found: (cmd) => `Command "${cmd}" does not exist!`,
-            command_deactivated: (cmd) => `Command \`${cmd}\` has been deactivated.`,
-            command_activated: (cmd) => `Command \`${cmd}\` has been activated.`,
-            massdm_warning: '⚠️ Mass-DM is dangerous and can lead to a bot ban!',
-            nuke_confirm: '⚠️ Are you sure? Type `!confirm` within 10 seconds.',
-            nuke_cancelled: 'Nuke cancelled.',
-            nuke_success: '💥 Channel has been nuked!',
-            nuke_error: 'Could not nuke channel!',
-            reaction_usage_add: '!reactionroles add <Message-ID> <Emoji> @Role',
-            reaction_usage_remove: '!reactionroles remove <Message-ID> <Emoji>',
-            reaction_added: (emoji, role) => `${emoji} → ${role}`,
-            reaction_removed: (emoji) => `${emoji} has been removed.`,
-            reaction_empty: 'No entries found.',
-            server_rules_empty: 'No rules set. Use `!serverrules <Rules>`',
-            server_rules_set: (user) => `Set by ${user}`,
-            settings_saved: (setting, value) => `${setting} = ${value}`,
-            settings_no_channel: 'Mention a channel!',
-            settings_footer: '!settings <option> <value> to change',
-            status_invalid_type: 'playing, streaming, listening, watching, competing',
-            status_no_text: '!status <Type> <Text>',
-            status_changed: (type, text) => `${type}: ${text}`,
-            sticky_no_text: '!stickymessage [#channel] <Text>',
-            sticky_set: (channel) => `Message in ${channel} will stay pinned.`,
-            stripstaff_usage: '!stripstaff @User\n!stripstaff add @Role\n!stripstaff remove @Role\n!stripstaff list',
-            stripstaff_added: (role) => `${role} saved as staff role.`,
-            stripstaff_removed: (role) => `${role} is no longer a staff role.`,
-            stripstaff_empty: 'No staff roles saved.',
-            stripstaff_no_roles: (user) => `${user} has no staff roles.`,
-            stripstaff_removed_count: (count, user) => `${count} staff roles removed from ${user}.`,
-            unbanall_confirm: '⚠️ Are you sure? Type `!confirm`',
-            unbanall_success: (count) => `${count} users have been unbanned.`,
-            unjailall_no_role: 'No jail role exists!',
-            unjailall_success: (count) => `${count} users released from jail.`,
-            vanity_success: (code, uses) => `**${code}**\nUses: ${uses} times`,
-            vanity_error: 'This server has no vanity URL! (Requires Boost Level 3)',
-            remind_usage: '!remind <Time> <Message>\nExample: !remind 10m Get pizza',
-            remind_invalid: 'Use: 10s, 5m, 2h, 1d',
-            remind_set: (time, reminder) => `I will remind you in ${time} about: **${reminder}**`,
-            remind_triggered: (reminder, channel) => `**${reminder}**\nFrom: ${channel}`
-        }
-    };
-    
-    const title = titles[lang]?.[titleKey] || titleKey;
-    let description = descriptions[lang]?.[descKey] || descKey;
-    
-    // Funktionen in descriptions ausführen
-    if (typeof description === 'function') {
-        if (Array.isArray(fields)) {
-            description = description(...fields);
-        } else {
-            description = description(fields);
-        }
-    } else {
-        // Ersetzungen vornehmen
-        for (const [key, value] of Object.entries(replacements)) {
-            description = description.replace(new RegExp(`{${key}}`, 'g'), value);
-        }
-    }
-    
     const embed = new EmbedBuilder()
         .setColor(colors[type] || 0x5865F2)
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`)
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
     
-    const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : 'ℹ️';
-    embed.setTitle(`${emoji} ${title}`);
-    embed.setDescription(description);
-    
-    // Footer mit User
-    if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
-        }
-    }
-    embed.setTimestamp();
-    
-    // Zusätzliche Fields
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
+    if (fields.length > 0) {
         embed.addFields(fields);
     }
     
@@ -281,15 +34,14 @@ module.exports = {
         activity: {
             aliases: ['act'],
             permissions: 'Administrator',
-            description: 'Startet eine Aktivität im VC / Starts an activity in VC',
+            description: 'Start an activity in VC',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
+                        embeds: [createEmbed(message, 'error', 'No VC', 'You must be in a voice channel!')] 
                     });
                 }
                 
@@ -308,7 +60,7 @@ module.exports = {
                 if (!activities[activity]) {
                     const list = Object.keys(activities).join(', ');
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_activity', 'no_activity', [list])] 
+                        embeds: [createEmbed(message, 'error', 'No Activity', `Available: ${list}`)] 
                     });
                 }
                 
@@ -320,11 +72,11 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'activity_started', 'activity_started', [activity, invite.code])] 
+                        embeds: [createEmbed(message, 'success', 'Activity Started', `[Click here for ${activity}](https://discord.gg/${invite.code})`)] 
                     });
                 } catch {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'error_activity')] 
+                        embeds: [createEmbed(message, 'error', 'Error', 'Could not start activity!')] 
                     });
                 }
             }
@@ -332,32 +84,31 @@ module.exports = {
         
         // ========== ANNOUNCE ==========
         announce: {
-            aliases: ['ankündigung', 'say'],
+            aliases: ['say'],
             permissions: 'Administrator',
-            description: 'Sendet eine Ankündigung / Sends an announcement',
+            description: 'Send an announcement',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const channel = message.mentions.channels.first();
                 const text = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel || !text) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'announce_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!announce #channel <Text>')] 
                     });
                 }
                 
                 const announceEmbed = new EmbedBuilder()
                     .setColor(0xFFA500)
-                    .setTitle(lang === 'de' ? '📢 Ankündigung' : '📢 Announcement')
+                    .setTitle('📢 Announcement')
                     .setDescription(text)
-                    .setFooter({ text: `${lang === 'de' ? 'Von' : 'By'} ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
+                    .setFooter({ text: `By ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
                     .setTimestamp();
                 
                 await channel.send({ embeds: [announceEmbed] });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'announce_sent', 'announce_sent', [channel.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Announcement Sent', `Announcement sent in ${channel}!`)] 
                 });
             }
         },
@@ -366,12 +117,11 @@ module.exports = {
         antinuke: {
             aliases: ['an'],
             permissions: 'Administrator',
-            description: 'Anti-Nuke Einstellungen / Anti-Nuke settings',
+            description: 'Anti-Nuke settings',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
                 const punish = args[1]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'on' || action === 'enable') {
                     const punishment = ['ban', 'kick', 'timeout'].includes(punish) ? punish : 'ban';
@@ -383,7 +133,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'antinuke', 'antinuke_enabled', [punishment])] 
+                        embeds: [createEmbed(message, 'success', 'Antinuke Enabled', `✅ Antinuke is now ACTIVE!\nPunishment: **${punishment}**`)] 
                     });
                 }
                 
@@ -394,7 +144,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'antinuke', 'antinuke_disabled')] 
+                        embeds: [createEmbed(message, 'success', 'Antinuke Disabled', '❌ Antinuke has been disabled!')] 
                     });
                 }
                 
@@ -404,11 +154,11 @@ module.exports = {
                     .eq('guild_id', message.guild.id)
                     .single();
                 
-                const status = data?.enabled ? (lang === 'de' ? '🟢 AKTIV' : '🟢 ACTIVE') : (lang === 'de' ? '🔴 INAKTIV' : '🔴 INACTIVE');
+                const status = data?.enabled ? '🟢 ACTIVE' : '🔴 INACTIVE';
                 const punishment = data?.punish_action || 'ban';
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'antinuke', 'antinuke_status', [status, punishment])] 
+                    embeds: [createEmbed(message, 'info', 'Antinuke Status', `Status: ${status}\nPunishment: **${punishment}**\n\n**Usage:**\n!antinuke on [ban/kick/timeout]\n!antinuke off`)] 
                 });
             }
         },
@@ -417,11 +167,10 @@ module.exports = {
         antiraid: {
             aliases: ['ar'],
             permissions: 'Administrator',
-            description: 'Anti-Raid Einstellungen / Anti-Raid settings',
+            description: 'Anti-Raid settings',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'on' || action === 'enable') {
                     const limit = parseInt(args[1]) || 5;
@@ -435,7 +184,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'antiraid', 'antiraid_enabled', [limit, window])] 
+                        embeds: [createEmbed(message, 'success', 'Antiraid Enabled', `🛡️ Antiraid is ACTIVE!\nLimit: **${limit}** joins in **${window}s**`)] 
                     });
                 }
                 
@@ -446,7 +195,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'antiraid', 'antiraid_disabled')] 
+                        embeds: [createEmbed(message, 'success', 'Antiraid Disabled', '🔓 Antiraid has been disabled!')] 
                     });
                 }
                 
@@ -456,12 +205,12 @@ module.exports = {
                     .eq('guild_id', message.guild.id)
                     .single();
                 
-                const status = data?.enabled ? (lang === 'de' ? '🟢 AKTIV' : '🟢 ACTIVE') : (lang === 'de' ? '🔴 INAKTIV' : '🔴 INACTIVE');
+                const status = data?.enabled ? '🟢 ACTIVE' : '🔴 INACTIVE';
                 const limit = data?.join_limit || 5;
                 const window = data?.time_window || 10;
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'antiraid', 'antiraid_status', [status, limit, window])] 
+                    embeds: [createEmbed(message, 'info', 'Antiraid Status', `Status: ${status}\nLimit: **${limit}** joins in **${window}s**\n\n**Usage:**\n!antiraid on [limit] [seconds]\n!antiraid off`)] 
                 });
             }
         },
@@ -470,18 +219,17 @@ module.exports = {
         autoresponder: {
             aliases: ['arsp', 'autoreply'],
             permissions: 'Administrator',
-            description: 'Auto-Responder verwalten / Manage auto-responder',
+            description: 'Manage auto-responder',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
                 const trigger = args[1]?.toLowerCase();
                 const response = args.slice(2).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
-                if (action === 'add') {
+                if (action === '12') {
                     if (!trigger || !response) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'autoresponder_add')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!autoresponder add <Trigger> <Response>')] 
                         });
                     }
                     
@@ -492,14 +240,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'auto_responder', 'autoresponder_added', [trigger, response])] 
+                        embeds: [createEmbed(message, 'success', 'Added', `✅ Trigger **"${trigger}"** → **"${response}"**`)] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     if (!trigger) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'autoresponder_remove')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!autoresponder remove <Trigger>')] 
                         });
                     }
                     
@@ -511,12 +259,12 @@ module.exports = {
                     
                     if (error) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'autoresponder_not_found')] 
+                            embeds: [createEmbed(message, 'error', 'Error', 'Trigger not found!')] 
                         });
                     }
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'auto_responder', 'autoresponder_removed', [trigger])] 
+                        embeds: [createEmbed(message, 'success', 'Removed', `Trigger **"${trigger}"** removed.`)] 
                     });
                 }
                 
@@ -528,7 +276,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'auto_responder', 'autoresponder_empty')] 
+                            embeds: [createEmbed(message, 'info', 'Auto-Responder', 'No entries found.')] 
                         });
                     }
                     
@@ -536,8 +284,8 @@ module.exports = {
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
-                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '🤖 Auto-Responder' : '🤖 Auto-Responder')
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle('🤖 Auto-Responder')
                         .setDescription(list.slice(0, 4096))
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -546,7 +294,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'autoresponder_add')] 
+                    embeds: [createEmbed(message, 'error', 'Invalid Usage', '!autoresponder add/remove/list')] 
                 });
             }
         },
@@ -555,26 +303,25 @@ module.exports = {
         'customize avatar': {
             aliases: ['setavatar', 'botavatar'],
             permissions: 'Administrator',
-            description: 'Ändert Bot-Avatar / Changes bot avatar',
+            description: 'Change bot avatar',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const url = args[0] || message.attachments.first()?.url;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!url) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_image', 'no_image_avatar')] 
+                        embeds: [createEmbed(message, 'error', 'No Image', '!customize avatar <URL> or attach image')] 
                     });
                 }
                 
                 try {
                     await message.client.user.setAvatar(url);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'avatar_changed', 'avatar_changed')] 
+                        embeds: [createEmbed(message, 'success', 'Avatar Changed', 'Bot avatar updated!')] 
                     });
                 } catch {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'error_activity')] 
+                        embeds: [createEmbed(message, 'error', 'Error', 'Could not change avatar!')] 
                     });
                 }
             }
@@ -584,26 +331,25 @@ module.exports = {
         'customize banner': {
             aliases: ['setbanner', 'botbanner'],
             permissions: 'Administrator',
-            description: 'Ändert Bot-Banner / Changes bot banner',
+            description: 'Change bot banner',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const url = args[0] || message.attachments.first()?.url;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!url) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_image', 'no_image_banner')] 
+                        embeds: [createEmbed(message, 'error', 'No Image', '!customize banner <URL>')] 
                     });
                 }
                 
                 try {
                     await message.client.user.setBanner(url);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'banner_changed', 'banner_changed')] 
+                        embeds: [createEmbed(message, 'success', 'Banner Changed', 'Bot banner updated!')] 
                     });
                 } catch {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'error_activity')] 
+                        embeds: [createEmbed(message, 'error', 'Error', 'Could not change banner!')] 
                     });
                 }
             }
@@ -613,11 +359,11 @@ module.exports = {
         'customize bio': {
             aliases: ['setbio', 'botbio'],
             permissions: 'Administrator',
-            description: 'Ändert Bot-Bio / Changes bot bio',
+            description: 'Change bot bio',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'bio', 'bio_manual')] 
+                    embeds: [createEmbed(message, 'info', 'Bio', 'Bio can only be changed manually.')] 
                 });
             }
         },
@@ -626,11 +372,11 @@ module.exports = {
         customize: {
             aliases: ['custom'],
             permissions: 'Administrator',
-            description: 'Bot-Customization / Bot customization',
+            description: 'Bot customization',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'customize', 'customize_info')] 
+                    embeds: [createEmbed(message, 'info', 'Customize', '`!customize avatar <URL>`\n`!customize banner <URL>`\n`!customize bio <Text>`')] 
                 });
             }
         },
@@ -639,21 +385,20 @@ module.exports = {
         disablecommand: {
             aliases: ['disable', 'cmdoff'],
             permissions: 'Administrator',
-            description: 'Deaktiviert einen Befehl / Disables a command',
+            description: 'Disable a command',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const cmd = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!cmd) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_command', 'disable_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No Command', '!disablecommand <Command>')] 
                     });
                 }
                 
                 if (!message.client.commands.has(cmd)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'not_found', 'command_not_found', [cmd])] 
+                        embeds: [createEmbed(message, 'error', 'Not Found', `Command "${cmd}" does not exist!`)] 
                     });
                 }
                 
@@ -661,7 +406,7 @@ module.exports = {
                 message.client.disabledCommands.add(cmd);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'deactivated', 'command_deactivated', [cmd])] 
+                    embeds: [createEmbed(message, 'success', 'Deactivated', `Command \`${cmd}\` has been deactivated.`)] 
                 });
             }
         },
@@ -670,15 +415,14 @@ module.exports = {
         enablecommand: {
             aliases: ['enable', 'cmdon'],
             permissions: 'Administrator',
-            description: 'Aktiviert einen Befehl / Enables a command',
+            description: 'Enable a command',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const cmd = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!cmd) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_command', 'enable_usage')] 
+                        embeds: [createEmbed(message, 'error', 'No Command', '!enablecommand <Command>')] 
                     });
                 }
                 
@@ -686,7 +430,7 @@ module.exports = {
                 message.client.disabledCommands.delete(cmd);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'activated', 'command_activated', [cmd])] 
+                    embeds: [createEmbed(message, 'success', 'Activated', `Command \`${cmd}\` has been activated.`)] 
                 });
             }
         },
@@ -695,11 +439,11 @@ module.exports = {
         dmall: {
             aliases: ['massdm'],
             permissions: 'Administrator',
-            description: 'Sendet DM an alle Mitglieder / Sends DM to all members',
+            description: 'Send DM to all members',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'warn', 'warning', 'massdm_warning')] 
+                    embeds: [createEmbed(message, 'warn', 'Warning', '⚠️ Mass-DM is dangerous and can lead to a bot ban!')] 
                 });
             }
         },
@@ -708,19 +452,18 @@ module.exports = {
         fakepermissions: {
             aliases: ['fakeperm'],
             permissions: 'Administrator',
-            description: 'Zeigt Fake-Permissions / Shows fake permissions',
+            description: 'Show fake permissions',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const target = message.mentions.members.first() || message.member;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 const perms = target.permissions.toArray().map(p => p.replace(/_/g, ' ')).join('\n');
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? `🔧 Permissions von ${target.user.username}` : `🔧 Permissions of ${target.user.username}`)
-                    .setDescription(perms.slice(0, 4096) || (lang === 'de' ? 'Keine' : 'None'))
-                    .setFooter({ text: lang === 'de' ? 'Simulation - Echte Perms können abweichen' : 'Simulation - Real perms may differ', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle(`🔧 Permissions of ${target.user.username}`)
+                    .setDescription(perms.slice(0, 4096) || 'None')
+                    .setFooter({ text: 'Simulation - Real permissions may differ', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -731,10 +474,9 @@ module.exports = {
         listpermissions: {
             aliases: ['listperm', 'perms'],
             permissions: 'Administrator',
-            description: 'Listet alle Permissions / Lists all permissions',
+            description: 'List all permissions',
             category: 'Admin',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+            async execute(message) {
                 const perms = [
                     'Administrator', 'BanMembers', 'KickMembers', 'ManageChannels',
                     'ManageMessages', 'ManageRoles', 'ManageNicknames', 'ManageWebhooks',
@@ -743,8 +485,8 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '📋 Verfügbare Permissions' : '📋 Available Permissions')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('📋 Available Permissions')
                     .setDescription(perms.join('\n'))
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -757,14 +499,13 @@ module.exports = {
         nuke: {
             aliases: ['nukechannel', 'reset'],
             permissions: 'Administrator',
-            description: 'Nuked einen Channel / Nukes a channel',
+            description: 'Nuke a channel',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 const channel = message.mentions.channels.first() || message.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 const confirmMsg = await message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'warn', 'nuke', 'nuke_confirm')] 
+                    embeds: [createEmbed(message, 'warn', 'Nuke', '⚠️ Are you sure? Type `!confirm` within 10 seconds.')] 
                 });
                 
                 const filter = m => m.author.id === message.author.id && m.content === '!confirm';
@@ -777,9 +518,9 @@ module.exports = {
                         
                         const successEmbed = new EmbedBuilder()
                             .setColor(0x57F287)
-                            .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                            .setTitle(lang === 'de' ? '✅ Nuke' : '✅ Nuke')
-                            .setDescription(lang === 'de' ? '💥 Channel wurde genuked!' : '💥 Channel has been nuked!')
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('✅ Nuke')
+                            .setDescription('💥 Channel has been nuked!')
                             .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                             .setTimestamp();
                         
@@ -787,7 +528,7 @@ module.exports = {
                         await confirmMsg.delete().catch(() => {});
                     } catch {
                         await message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'nuke_error')] 
+                            embeds: [createEmbed(message, 'error', 'Error', 'Could not nuke channel!')] 
                         });
                     }
                 });
@@ -795,7 +536,7 @@ module.exports = {
                 collector.on('end', async (collected) => {
                     if (collected.size === 0) {
                         await confirmMsg.edit({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'cancelled', 'nuke_cancelled')] 
+                            embeds: [createEmbed(message, 'error', 'Cancelled', 'Nuke cancelled.')] 
                         });
                     }
                 });
@@ -806,11 +547,11 @@ module.exports = {
         'reaction-setup': {
             aliases: ['reactsetup'],
             permissions: 'Administrator',
-            description: 'Reaction-Role Setup / Reaction-Role setup',
+            description: 'Reaction-Role setup',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'reaction_setup', 'reaction_usage_add')] 
+                    embeds: [createEmbed(message, 'info', 'Reaction Setup', 'Use `!reactionroles add <Message-ID> <Emoji> @Role`')] 
                 });
             }
         },
@@ -819,20 +560,19 @@ module.exports = {
         reactionroles: {
             aliases: ['rr', 'reactrole'],
             permissions: 'Administrator',
-            description: 'Reaction-Roles verwalten / Manage reaction-roles',
+            description: 'Manage reaction roles',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
-                if (action === 'add') {
+                if (action === '13') {
                     const msgId = args[1];
                     const emoji = args[2];
                     const role = message.mentions.roles.first();
                     
                     if (!msgId || !emoji || !role) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'reaction_usage_add')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!reactionroles add <Message-ID> <Emoji> @Role')] 
                         });
                     }
                     
@@ -845,7 +585,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'reaction_roles', 'reaction_added', [emoji, role.toString()])] 
+                        embeds: [createEmbed(message, 'success', 'Reaction Role Added', `${emoji} → ${role}`)] 
                     });
                 }
                 
@@ -855,7 +595,7 @@ module.exports = {
                     
                     if (!msgId || !emoji) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'reaction_usage_remove')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!reactionroles remove <Message-ID> <Emoji>')] 
                         });
                     }
                     
@@ -866,7 +606,7 @@ module.exports = {
                         .eq('emoji', emoji);
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'reaction_roles', 'reaction_removed', [emoji])] 
+                        embeds: [createEmbed(message, 'success', 'Reaction Role Removed', `${emoji} has been removed.`)] 
                     });
                 }
                 
@@ -878,7 +618,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'reaction_roles', 'reaction_empty')] 
+                            embeds: [createEmbed(message, 'info', 'Reaction Roles', 'No entries found.')] 
                         });
                     }
                     
@@ -886,8 +626,8 @@ module.exports = {
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
-                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '🎭 Reaction Roles' : '🎭 Reaction Roles')
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle('🎭 Reaction Roles')
                         .setDescription(list.slice(0, 4096))
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -896,32 +636,31 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'reaction_usage_add')] 
+                    embeds: [createEmbed(message, 'error', 'Invalid Usage', '!reactionroles add/remove/list')] 
                 });
             }
         },
         
         // ========== SERVERRULES ==========
         serverrules: {
-            aliases: ['rules', 'regeln'],
+            aliases: ['rules'],
             permissions: 'Administrator',
-            description: 'Server-Regeln / Server rules',
+            description: 'Set server rules',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const rules = args.join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!rules) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'server_rules', 'server_rules_empty')] 
+                        embeds: [createEmbed(message, 'info', 'Server Rules', 'No rules set. Use `!serverrules <Rules>`')] 
                     });
                 }
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFFA500)
-                    .setTitle(lang === 'de' ? '📜 Server Regeln' : '📜 Server Rules')
+                    .setTitle('📜 Server Rules')
                     .setDescription(rules)
-                    .setFooter({ text: `${lang === 'de' ? 'Gesetzt von' : 'Set by'} ${message.author.tag}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `Set by ${message.author.tag}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -930,14 +669,13 @@ module.exports = {
         
         // ========== SETTINGS ==========
         settings: {
-            aliases: ['config', 'einstellungen'],
+            aliases: ['config'],
             permissions: 'Administrator',
-            description: 'Bot-Einstellungen / Bot settings',
+            description: 'Bot settings',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const setting = args[0]?.toLowerCase();
                 const value = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 const validSettings = ['prefix', 'log_channel', 'welcome_channel', 'welcome_message', 'leave_channel', 'leave_message'];
                 
@@ -949,7 +687,7 @@ module.exports = {
                         const channel = message.mentions.channels.first();
                         if (!channel) {
                             return message.reply({ 
-                                embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'settings_no_channel')] 
+                                embeds: [createEmbed(message, 'error', 'Invalid Usage', 'Mention a channel!')] 
                             });
                         }
                         updateData[setting] = channel.id;
@@ -960,7 +698,7 @@ module.exports = {
                     await supabase.from('bot_settings').upsert(updateData);
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'settings', 'settings_saved', [setting, value || `<#${updateData[setting]}>`])] 
+                        embeds: [createEmbed(message, 'success', 'Settings Saved', `${setting} = ${value || `<#${updateData[setting]}>`}`)] 
                     });
                 }
                 
@@ -971,26 +709,26 @@ module.exports = {
                     .single();
                 
                 const prefix = data?.prefix || '!';
-                const log = data?.log_channel ? `<#${data.log_channel}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
-                const welcome = data?.welcome_channel ? `<#${data.welcome_channel}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
-                const leave = data?.leave_channel ? `<#${data.leave_channel}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
+                const log = data?.log_channel ? `<#${data.log_channel}>` : '❌ Not set';
+                const welcome = data?.welcome_channel ? `<#${data.welcome_channel}>` : '❌ Not set';
+                const leave = data?.leave_channel ? `<#${data.leave_channel}>` : '❌ Not set';
                 
                 const { data: an } = await supabase.from('antinuke').select('enabled').eq('guild_id', message.guild.id).single();
                 const { data: ar } = await supabase.from('antiraid').select('enabled').eq('guild_id', message.guild.id).single();
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '⚙️ Bot Einstellungen' : '⚙️ Bot Settings')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('⚙️ Bot Settings')
                     .addFields([
-                        { name: lang === 'de' ? 'Prefix' : 'Prefix', value: prefix, inline: true },
-                        { name: lang === 'de' ? 'Log Channel' : 'Log Channel', value: log, inline: true },
-                        { name: lang === 'de' ? 'Welcome Channel' : 'Welcome Channel', value: welcome, inline: true },
-                        { name: lang === 'de' ? 'Leave Channel' : 'Leave Channel', value: leave, inline: true },
-                        { name: '🛡️ Antinuke', value: an?.enabled ? (lang === 'de' ? '🟢 An' : '🟢 On') : (lang === 'de' ? '🔴 Aus' : '🔴 Off'), inline: true },
-                        { name: '🛡️ Antiraid', value: ar?.enabled ? (lang === 'de' ? '🟢 An' : '🟢 On') : (lang === 'de' ? '🔴 Aus' : '🔴 Off'), inline: true }
+                        { name: 'Prefix', value: prefix, inline: true },
+                        { name: 'Log Channel', value: log, inline: true },
+                        { name: 'Welcome Channel', value: welcome, inline: true },
+                        { name: 'Leave Channel', value: leave, inline: true },
+                        { name: '🛡️ Antinuke', value: an?.enabled ? '🟢 On' : '🔴 Off', inline: true },
+                        { name: '🛡️ Antiraid', value: ar?.enabled ? '🟢 On' : '🔴 Off', inline: true }
                     ])
-                    .setFooter({ text: lang === 'de' ? '!settings <option> <wert> zum Ändern' : '!settings <option> <value> to change', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!settings <option> <value> to change', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -1001,12 +739,11 @@ module.exports = {
         status: {
             aliases: ['setstatus', 'botstatus'],
             permissions: 'Administrator',
-            description: 'Ändert Bot-Status / Changes bot status',
+            description: 'Change bot status',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const type = args[0]?.toLowerCase();
                 const text = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 const types = {
                     playing: 0, play: 0, game: 0,
@@ -1018,43 +755,42 @@ module.exports = {
                 
                 if (!types[type] && types[type] !== 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'status_invalid_type')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Type', 'playing, streaming, listening, watching, competing')] 
                     });
                 }
                 
                 if (!text) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'status_no_text')] 
+                        embeds: [createEmbed(message, 'error', 'No Text', '!status <Type> <Text>')] 
                     });
                 }
                 
                 message.client.user.setActivity(text, { type: types[type] });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'status_changed', 'status_changed', [type, text])] 
+                    embeds: [createEmbed(message, 'success', 'Status Changed', `${type}: ${text}`)] 
                 });
             }
         },
         
         // ========== STICKYMESSAGE ==========
         stickymessage: {
-            aliases: ['sticky', 'pinmsg'],
+            aliases: ['sticky'],
             permissions: 'Administrator',
-            description: 'Setzt Sticky-Nachricht / Sets sticky message',
+            description: 'Set sticky message',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const channel = message.mentions.channels.first() || message.channel;
                 const text = args.slice(1).join(' ') || args.join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!text) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'sticky_no_text')] 
+                        embeds: [createEmbed(message, 'error', 'No Text', '!stickymessage [#channel] <Text>')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'sticky_set', 'sticky_set', [channel.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Sticky Set', `Message in ${channel} will stay pinned.`)] 
                 });
             }
         },
@@ -1063,17 +799,16 @@ module.exports = {
         stripstaff: {
             aliases: ['removestaff'],
             permissions: 'Administrator',
-            description: 'Entfernt Staff-Rollen / Removes staff roles',
+            description: 'Remove staff roles',
             category: 'Admin',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'add') {
                     const role = message.mentions.roles.first();
                     if (!role) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'stripstaff_usage')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!stripstaff add @Role')] 
                         });
                     }
                     
@@ -1084,7 +819,7 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'staff_removed', 'stripstaff_added', [role.toString()])] 
+                        embeds: [createEmbed(message, 'success', 'Staff Role Added', `${role} saved as staff role.`)] 
                     });
                 }
                 
@@ -1092,7 +827,7 @@ module.exports = {
                     const role = message.mentions.roles.first();
                     if (!role) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'stripstaff_usage')] 
+                            embeds: [createEmbed(message, 'error', 'Invalid Usage', '!stripstaff remove @Role')] 
                         });
                     }
                     
@@ -1102,7 +837,7 @@ module.exports = {
                         .eq('role_id', role.id);
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'staff_removed', 'stripstaff_removed', [role.toString()])] 
+                        embeds: [createEmbed(message, 'success', 'Staff Role Removed', `${role} is no longer a staff role.`)] 
                     });
                 }
                 
@@ -1114,7 +849,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'no_staff_roles', 'stripstaff_empty')] 
+                            embeds: [createEmbed(message, 'info', 'Staff Roles', 'No staff roles saved.')] 
                         });
                     }
                     
@@ -1122,8 +857,8 @@ module.exports = {
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
-                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '👮 Staff-Rollen' : '👮 Staff Roles')
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle('👮 Staff Roles')
                         .setDescription(list)
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -1134,7 +869,7 @@ module.exports = {
                 const target = message.mentions.members.first();
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'stripstaff_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!stripstaff @User\n!stripstaff add @Role\n!stripstaff remove @Role\n!stripstaff list')] 
                     });
                 }
                 
@@ -1158,14 +893,14 @@ module.exports = {
                 
                 if (staffRoles.size === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'no_staff_roles', 'stripstaff_no_roles', [target.toString()])] 
+                        embeds: [createEmbed(message, 'info', 'No Staff Roles', `${target} has no staff roles.`)] 
                     });
                 }
                 
                 await target.roles.remove(staffRoles);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'staff_removed', 'stripstaff_removed_count', [staffRoles.size, target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Staff Removed', `${staffRoles.size} staff roles removed from ${target}.`)] 
                 });
             }
         },
@@ -1174,13 +909,11 @@ module.exports = {
         unbanall: {
             aliases: ['unbannall'],
             permissions: 'Administrator',
-            description: 'Entbannt alle User / Unbans all users',
+            description: 'Unban all users',
             category: 'Admin',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message) {
                 const confirmMsg = await message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'warn', 'confirm', 'unbanall_confirm')] 
+                    embeds: [createEmbed(message, 'warn', 'Confirm', '⚠️ Are you sure? Type `!confirm`')] 
                 });
                 
                 const filter = m => m.author.id === message.author.id && m.content === '!confirm';
@@ -1196,14 +929,14 @@ module.exports = {
                     }
                     
                     await confirmMsg.edit({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'all_unbanned', 'unbanall_success', [count])] 
+                        embeds: [createEmbed(message, 'success', 'All Unbanned', `${count} users have been unbanned.`)] 
                     });
                 });
                 
                 collector.on('end', async (collected) => {
                     if (collected.size === 0) {
                         await confirmMsg.edit({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'cancelled', 'nuke_cancelled')] 
+                            embeds: [createEmbed(message, 'error', 'Cancelled', 'Unban cancelled.')] 
                         });
                     }
                 });
@@ -1214,15 +947,14 @@ module.exports = {
         unjailall: {
             aliases: ['unjailall'],
             permissions: 'Administrator',
-            description: 'Entlässt alle aus Jail / Releases all from jail',
+            description: 'Release all from jail',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message) {
                 const jailRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'jail');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!jailRole) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'unjailall_no_role')] 
+                        embeds: [createEmbed(message, 'error', 'Error', 'No jail role exists!')] 
                     });
                 }
                 
@@ -1233,7 +965,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'all_released', 'unjailall_success', [count])] 
+                    embeds: [createEmbed(message, 'success', 'All Released', `${count} users released from jail.`)] 
                 });
             }
         },
@@ -1242,37 +974,34 @@ module.exports = {
         'vanity-url': {
             aliases: ['vanity', 'vurl'],
             permissions: 'Administrator',
-            description: 'Zeigt Vanity-URL / Shows vanity URL',
+            description: 'Show vanity URL',
             category: 'Admin',
-            async execute(message, args, { client }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message) {
                 try {
                     const invite = await message.guild.fetchVanityData();
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_url', 'vanity_success', [invite.code, invite.uses])] 
+                        embeds: [createEmbed(message, 'info', 'Vanity URL', `**${invite.code}**\nUses: ${invite.uses} times`)] 
                     });
                 } catch {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'vanity_url', 'vanity_error')] 
+                        embeds: [createEmbed(message, 'error', 'No Vanity URL', 'This server has no vanity URL! (Requires Boost Level 3)')] 
                     });
                 }
             }
         },
         
-        // ========== VERWARNUNG (REMIND) ==========
-        verwarnung: {
-            aliases: ['remind', 'reminder', 'erinnerung', 'rw'],
-            description: 'Setzt eine Erinnerung / Sets a reminder',
+        // ========== REMIND ==========
+        remind: {
+            aliases: ['reminder', 'rw'],
+            description: 'Set a reminder',
             category: 'Admin',
-            async execute(message, args, { client }) {
+            async execute(message, args) {
                 const time = args[0];
                 const reminder = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!time || !reminder) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'remind_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!remind <Time> <Message>\nExample: !remind 10m Get pizza')] 
                     });
                 }
                 
@@ -1285,20 +1014,20 @@ module.exports = {
                 
                 if (isNaN(ms) || ms <= 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_time', 'remind_invalid')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Time', 'Use: 10s, 5m, 2h, 1d')] 
                     });
                 }
                 
                 await message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'reminder_set', 'remind_set', [time, reminder])] 
+                    embeds: [createEmbed(message, 'success', 'Reminder Set', `I will remind you in ${time} about: **${reminder}**`)] 
                 });
                 
                 setTimeout(() => {
                     const triggerEmbed = new EmbedBuilder()
                         .setColor(0x5865F2)
-                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '⏰ Erinnerung' : '⏰ Reminder')
-                        .setDescription(lang === 'de' ? `**${reminder}**\nVon: ${message.channel}` : `**${reminder}**\nFrom: ${message.channel}`)
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle('⏰ Reminder')
+                        .setDescription(`**${reminder}**\nFrom: ${message.channel}`)
                         .setTimestamp();
                     
                     message.author.send({ embeds: [triggerEmbed] }).catch(() => {

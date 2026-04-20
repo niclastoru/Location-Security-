@@ -1,5 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
+// Aktive Giveaway-Timer speichern
+const activeGiveaways = new Map();
+
 // ⭐ HELPER: Schöne Embeds mit Sprache bauen
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
     const lang = client.languages?.get(guildId) || 'de';
@@ -9,8 +12,9 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         error: 0xED4245,
         info: 0x5865F2,
         warn: 0xFEE75C,
-        giveaway: 0x9B59B6,
-        ended: 0xFF0000
+        giveaway: 0x2F3136,  // ⭐ GRAU für Start
+        ended: 0x57F287,      // ⭐ GRÜN für Gewinner
+        reroll: 0x57F287      // ⭐ GRÜN für Reroll
     };
     
     const titles = {
@@ -56,8 +60,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             gstart_usage: '!gstart <Zeit> <Gewinner> <Preis>\nBeispiel: !gstart 10m 1 Nitro\n\nZeit: 30s, 10m, 2h, 1d',
             invalid_time: 'Nutze: 30s, 10m, 2h, 1d',
             invalid_winners: 'Gewinner muss zwischen 1 und 10 sein!',
-            giveaway_embed_title: (prize) => `🎉 GIVEAWAY: ${prize}`,
-            giveaway_embed_desc: (endTime, winners, host) => `Reagiere mit 🎉 um teilzunehmen!\n\n**Endet:** <t:${Math.floor(endTime.getTime() / 1000)}:R>\n**Gewinner:** ${winners}\n**Host:** ${host}`,
             giveaway_started: (channel) => `Giveaway wurde in ${channel} erstellt!`,
             gend_usage: '!gend <Nachrichten-ID>',
             giveaway_not_found: 'Giveaway nicht gefunden oder bereits beendet!',
@@ -70,25 +72,20 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             reroll_winners: (winners, prize) => `🎉 **REROLL:** ${winners}\nHerzlichen Glückwunsch! Du hast **${prize}** gewonnen!`,
             reroll_success: 'Neue Gewinner wurden gezogen!',
             no_active_giveaways: 'Es laufen aktuell keine Giveaways!',
-            giveaway_list_item: (prize, channel, entries, winners, endTime, id) => 
-                `🎁 **${prize}**\n📌 Channel: ${channel || 'Unbekannt'}\n👥 Teilnehmer: ${entries}\n🏆 Gewinner: ${winners}\n⏰ Endet: <t:${Math.floor(new Date(endTime).getTime() / 1000)}:R>\n🆔 ID: \`${id}\``,
             giveaway_count: (count) => `${count} Giveaways`,
-            ended_embed_title: (prize) => `🎉 GIVEAWAY BEENDET: ${prize}`,
-            ended_embed_desc: (winners, host, entries) => `**Gewinner:** ${winners}\n**Host:** ${host}\n**Teilnehmer:** ${entries}`,
-            no_winners: 'Keine Teilnehmer',
             winners_announce: (winners, prize, host) => `🎉 **GEWINNER:** ${winners}\nHerzlichen Glückwunsch! Du hast **${prize}** gewonnen!\nHost: ${host}`,
             no_winners_error: (prize) => `Niemand hat am Giveaway für **${prize}** teilgenommen!`,
-            footer_ends: 'Endet am',
-            footer_ended: 'Giveaway beendet',
-            unknown: 'Unbekannt'
+            unknown: 'Unbekannt',
+            ends_at: 'Endet',
+            winners_label: 'Gewinner',
+            entries_label: 'Teilnehmer',
+            hosted_by: 'Host'
         },
         en: {
             your_id: (id) => `\`${id}\``,
             gstart_usage: '!gstart <Time> <Winners> <Prize>\nExample: !gstart 10m 1 Nitro\n\nTime: 30s, 10m, 2h, 1d',
             invalid_time: 'Use: 30s, 10m, 2h, 1d',
             invalid_winners: 'Winners must be between 1 and 10!',
-            giveaway_embed_title: (prize) => `🎉 GIVEAWAY: ${prize}`,
-            giveaway_embed_desc: (endTime, winners, host) => `React with 🎉 to enter!\n\n**Ends:** <t:${Math.floor(endTime.getTime() / 1000)}:R>\n**Winners:** ${winners}\n**Host:** ${host}`,
             giveaway_started: (channel) => `Giveaway created in ${channel}!`,
             gend_usage: '!gend <Message-ID>',
             giveaway_not_found: 'Giveaway not found or already ended!',
@@ -101,17 +98,14 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             reroll_winners: (winners, prize) => `🎉 **REROLL:** ${winners}\nCongratulations! You won **${prize}**!`,
             reroll_success: 'New winners have been drawn!',
             no_active_giveaways: 'There are currently no active giveaways!',
-            giveaway_list_item: (prize, channel, entries, winners, endTime, id) => 
-                `🎁 **${prize}**\n📌 Channel: ${channel || 'Unknown'}\n👥 Entries: ${entries}\n🏆 Winners: ${winners}\n⏰ Ends: <t:${Math.floor(new Date(endTime).getTime() / 1000)}:R>\n🆔 ID: \`${id}\``,
             giveaway_count: (count) => `${count} Giveaways`,
-            ended_embed_title: (prize) => `🎉 GIVEAWAY ENDED: ${prize}`,
-            ended_embed_desc: (winners, host, entries) => `**Winners:** ${winners}\n**Host:** ${host}\n**Entries:** ${entries}`,
-            no_winners: 'No entries',
             winners_announce: (winners, prize, host) => `🎉 **WINNERS:** ${winners}\nCongratulations! You won **${prize}**!\nHost: ${host}`,
             no_winners_error: (prize) => `No one entered the giveaway for **${prize}**!`,
-            footer_ends: 'Ends at',
-            footer_ended: 'Giveaway ended',
-            unknown: 'Unknown'
+            unknown: 'Unknown',
+            ends_at: 'Ends',
+            winners_label: 'Winners',
+            entries_label: 'Entries',
+            hosted_by: 'Hosted by'
         }
     };
     
@@ -124,56 +118,72 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         } else {
             description = description(fields);
         }
-    } else {
-        for (const [key, value] of Object.entries(replacements)) {
-            description = description.replace(new RegExp(`{${key}}`, 'g'), value);
-        }
     }
     
     const embed = new EmbedBuilder()
-        .setColor(type === 'giveaway' ? 0x9B59B6 : type === 'ended' ? 0xFF0000 : (colors[type] || 0x5865F2))
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setColor(colors[type] || 0x5865F2)
+        .setAuthor({ name: client?.user?.username || 'Bot', iconURL: client?.user?.displayAvatarURL() });
     
     const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '🎉';
     embed.setTitle(`${emoji} ${title}`);
     embed.setDescription(description);
     
     if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
+        const user = client?.users?.cache.get(userId) || await client?.users?.fetch(userId).catch(() => null);
         if (user) {
             embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
         }
     }
     embed.setTimestamp();
     
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
-        embed.addFields(fields);
-    }
-    
     return embed;
 }
 
-// ========== HELPER: Giveaway beenden ==========
+// ⭐ HELPER: Giveaway beenden (KOMPLETT ÜBERARBEITET)
 async function endGiveaway(messageId, client, supabase, lang = 'de', force = false) {
-    const { data: giveaway } = await supabase
+    console.log(`🔄 Versuche Giveaway zu beenden: ${messageId}`);
+    
+    const { data: giveaway, error } = await supabase
         .from('giveaways')
         .select('*')
         .eq('message_id', messageId)
         .single();
     
-    if (!giveaway || giveaway.ended) return;
+    if (error) {
+        console.error('❌ Fehler beim Laden des Giveaways:', error);
+        return;
+    }
+    
+    if (!giveaway) {
+        console.log('❌ Giveaway nicht gefunden:', messageId);
+        return;
+    }
+    
+    if (giveaway.ended) {
+        console.log('⚠️ Giveaway bereits beendet:', messageId);
+        return;
+    }
+    
+    console.log(`✅ Giveaway geladen: ${giveaway.prize}, Teilnehmer: ${giveaway.entries?.length || 0}`);
     
     const guild = client.guilds.cache.get(giveaway.guild_id);
-    if (!guild) return;
+    if (!guild) {
+        console.log('❌ Guild nicht gefunden:', giveaway.guild_id);
+        return;
+    }
     
     const channel = guild.channels.cache.get(giveaway.channel_id);
-    if (!channel) return;
+    if (!channel) {
+        console.log('❌ Channel nicht gefunden:', giveaway.channel_id);
+        return;
+    }
     
     let giveawayMsg;
     try {
         giveawayMsg = await channel.messages.fetch(messageId);
-    } catch {
-        // Nachricht gelöscht
+        console.log('✅ Nachricht gefunden');
+    } catch (e) {
+        console.log('⚠️ Nachricht wurde gelöscht');
     }
     
     const entries = giveaway.entries || [];
@@ -181,36 +191,58 @@ async function endGiveaway(messageId, client, supabase, lang = 'de', force = fal
     
     if (entries.length > 0) {
         const entriesCopy = [...entries];
-        for (let i = 0; i < Math.min(giveaway.winners, entries.length); i++) {
+        const winnerCount = Math.min(giveaway.winners, entries.length);
+        console.log(`🎲 Ziehe ${winnerCount} Gewinner aus ${entries.length} Teilnehmern`);
+        
+        for (let i = 0; i < winnerCount; i++) {
             const randomIndex = Math.floor(Math.random() * entriesCopy.length);
             winners.push(entriesCopy[randomIndex]);
             entriesCopy.splice(randomIndex, 1);
         }
     }
     
-    // Als beendet markieren
-    await supabase.from('giveaways')
+    // ⭐ ALS BEENDET MARKIEREN
+    const { error: updateError } = await supabase
+        .from('giveaways')
         .update({ ended: true })
         .eq('message_id', messageId);
     
-    // Embed aktualisieren
+    if (updateError) {
+        console.error('❌ Fehler beim Update:', updateError);
+    } else {
+        console.log('✅ Giveaway als beendet markiert');
+    }
+    
+    // Timer aus Cache entfernen
+    if (activeGiveaways.has(messageId)) {
+        clearTimeout(activeGiveaways.get(messageId));
+        activeGiveaways.delete(messageId);
+        console.log('✅ Timer aus Cache entfernt');
+    }
+    
+    // ⭐ EMBED AKTUALISIEREN (GRÜN)
     if (giveawayMsg) {
-        const winnerText = winners.length > 0 ? winners.map(id => `<@${id}>`).join(', ') : (lang === 'de' ? 'Keine Teilnehmer' : 'No entries');
+        const winnerText = winners.length > 0 
+            ? winners.map(id => `<@${id}>`).join(', ') 
+            : (lang === 'de' ? 'Keine Teilnehmer' : 'No entries');
         
         const endedEmbed = new EmbedBuilder()
-            .setColor(0xFF0000)
+            .setColor(0x57F287) // ⭐ GRÜN
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
             .setTitle(lang === 'de' ? `🎉 GIVEAWAY BEENDET: ${giveaway.prize}` : `🎉 GIVEAWAY ENDED: ${giveaway.prize}`)
-            .setDescription(lang === 'de' 
-                ? `**Gewinner:** ${winnerText}\n**Host:** <@${giveaway.host_id}>\n**Teilnehmer:** ${entries.length}`
-                : `**Winners:** ${winnerText}\n**Host:** <@${giveaway.host_id}>\n**Entries:** ${entries.length}`)
+            .setDescription(
+                `**${lang === 'de' ? 'Gewinner' : 'Winners'}:** ${winnerText}\n` +
+                `**${lang === 'de' ? 'Host' : 'Host'}:** <@${giveaway.host_id}>\n` +
+                `**${lang === 'de' ? 'Teilnehmer' : 'Entries'}:** ${entries.length}`
+            )
             .setFooter({ text: lang === 'de' ? 'Giveaway beendet' : 'Giveaway ended' })
             .setTimestamp();
         
-        await giveawayMsg.edit({ embeds: [endedEmbed] }).catch(() => {});
+        await giveawayMsg.edit({ embeds: [endedEmbed] }).catch(e => console.log('❌ Fehler beim Editieren:', e));
+        console.log('✅ Embed aktualisiert (GRÜN)');
     }
     
-    // Gewinner verkünden
+    // ⭐ GEWINNER VERKÜNDEN
     if (winners.length > 0) {
         const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
         await channel.send({ 
@@ -218,15 +250,17 @@ async function endGiveaway(messageId, client, supabase, lang = 'de', force = fal
                 ? `🎉 **GEWINNER:** ${winnerMentions}\nHerzlichen Glückwunsch! Du hast **${giveaway.prize}** gewonnen!\nHost: <@${giveaway.host_id}>`
                 : `🎉 **WINNERS:** ${winnerMentions}\nCongratulations! You won **${giveaway.prize}**!\nHost: <@${giveaway.host_id}>`
         });
+        console.log(`✅ Gewinner verkündet: ${winners.length}`);
     } else {
-        const embed = new EmbedBuilder()
+        const noWinnerEmbed = new EmbedBuilder()
             .setColor(0xED4245)
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
             .setTitle(lang === 'de' ? '❌ Keine Gewinner' : '❌ No Winners')
             .setDescription(lang === 'de' ? `Niemand hat am Giveaway für **${giveaway.prize}** teilgenommen!` : `No one entered the giveaway for **${giveaway.prize}**!`)
             .setTimestamp();
         
-        await channel.send({ embeds: [embed] });
+        await channel.send({ embeds: [noWinnerEmbed] });
+        console.log('⚠️ Keine Teilnehmer');
     }
 }
 
@@ -312,20 +346,26 @@ module.exports = {
                 }
                 
                 const endTime = new Date(Date.now() + ms);
+                const endTimestamp = Math.floor(endTime.getTime() / 1000);
                 
+                // ⭐ GRAUES EMBED
                 const giveawayEmbed = new EmbedBuilder()
-                    .setColor(0x9B59B6)
+                    .setColor(0x2F3136) // ⭐ GRAU
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? `🎉 GIVEAWAY: ${prize}` : `🎉 GIVEAWAY: ${prize}`)
-                    .setDescription(lang === 'de'
-                        ? `Reagiere mit 🎉 um teilzunehmen!\n\n**Endet:** <t:${Math.floor(endTime.getTime() / 1000)}:R>\n**Gewinner:** ${winners}\n**Host:** ${message.author}`
-                        : `React with 🎉 to enter!\n\n**Ends:** <t:${Math.floor(endTime.getTime() / 1000)}:R>\n**Winners:** ${winners}\n**Host:** ${message.author}`)
+                    .setTitle(`🎉 ${prize}`)
+                    .setDescription(
+                        `**${lang === 'de' ? 'Reagiere mit 🎉 um teilzunehmen!' : 'React with 🎉 to enter!'}**\n\n` +
+                        `**${lang === 'de' ? 'Endet' : 'Ends'}:** <t:${endTimestamp}:R>\n` +
+                        `**${lang === 'de' ? 'Gewinner' : 'Winners'}:** ${winners}\n` +
+                        `**${lang === 'de' ? 'Host' : 'Host'}:** ${message.author}`
+                    )
                     .setFooter({ text: lang === 'de' ? 'Endet am' : 'Ends at' })
                     .setTimestamp(endTime);
                 
                 const giveawayMsg = await channel.send({ embeds: [giveawayEmbed] });
                 await giveawayMsg.react('🎉');
                 
+                // In Supabase speichern
                 await supabase.from('giveaways').insert({
                     guild_id: message.guild.id,
                     channel_id: channel.id,
@@ -341,7 +381,15 @@ module.exports = {
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'giveaway_started', 'giveaway_started', [channel.toString()])] 
                 });
                 
-                setTimeout(() => endGiveaway(giveawayMsg.id, message.client, supabase, lang), ms);
+                // ⭐ TIMER SETZEN (WICHTIG!)
+                const timer = setTimeout(async () => {
+                    console.log(`⏰ Timer abgelaufen für Giveaway: ${giveawayMsg.id}`);
+                    await endGiveaway(giveawayMsg.id, client, supabase, lang);
+                    activeGiveaways.delete(giveawayMsg.id);
+                }, ms);
+                
+                activeGiveaways.set(giveawayMsg.id, timer);
+                console.log(`✅ Timer gesetzt für ${giveawayMsg.id}, läuft in ${ms}ms ab`);
             }
         },
         
@@ -440,11 +488,18 @@ module.exports = {
                 
                 const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
                 
-                await channel.send({ 
-                    content: lang === 'de'
-                        ? `🎉 **REROLL:** ${winnerMentions}\nHerzlichen Glückwunsch! Du hast **${giveaway.prize}** gewonnen!`
-                        : `🎉 **REROLL:** ${winnerMentions}\nCongratulations! You won **${giveaway.prize}**!`
-                });
+                // ⭐ GRÜNER REROLL EMBED
+                const rerollEmbed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                    .setTitle(lang === 'de' ? '🎉 REROLL' : '🎉 REROLL')
+                    .setDescription(lang === 'de'
+                        ? `**Neue Gewinner:** ${winnerMentions}\n\nHerzlichen Glückwunsch! Du hast **${giveaway.prize}** gewonnen!`
+                        : `**New Winners:** ${winnerMentions}\n\nCongratulations! You won **${giveaway.prize}**!`)
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+                
+                await channel.send({ embeds: [rerollEmbed] });
                 
                 await message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'reroll', 'reroll_success')] 
@@ -475,13 +530,14 @@ module.exports = {
                 
                 const list = giveaways.map(g => {
                     const channel = message.guild.channels.cache.get(g.channel_id);
+                    const endTimestamp = Math.floor(new Date(g.end_time).getTime() / 1000);
                     return lang === 'de'
-                        ? `🎁 **${g.prize}**\n📌 Channel: ${channel || 'Unbekannt'}\n👥 Teilnehmer: ${g.entries?.length || 0}\n🏆 Gewinner: ${g.winners}\n⏰ Endet: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:R>\n🆔 ID: \`${g.message_id}\``
-                        : `🎁 **${g.prize}**\n📌 Channel: ${channel || 'Unknown'}\n👥 Entries: ${g.entries?.length || 0}\n🏆 Winners: ${g.winners}\n⏰ Ends: <t:${Math.floor(new Date(g.end_time).getTime() / 1000)}:R>\n🆔 ID: \`${g.message_id}\``;
+                        ? `🎁 **${g.prize}**\n📌 Channel: ${channel || 'Unbekannt'}\n👥 Teilnehmer: ${g.entries?.length || 0}\n🏆 Gewinner: ${g.winners}\n⏰ Endet: <t:${endTimestamp}:R>\n🆔 ID: \`${g.message_id}\``
+                        : `🎁 **${g.prize}**\n📌 Channel: ${channel || 'Unknown'}\n👥 Entries: ${g.entries?.length || 0}\n🏆 Winners: ${g.winners}\n⏰ Ends: <t:${endTimestamp}:R>\n🆔 ID: \`${g.message_id}\``;
                 }).join('\n\n');
                 
                 const embed = new EmbedBuilder()
-                    .setColor(0x9B59B6)
+                    .setColor(0x2F3136)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                     .setTitle(lang === 'de' ? '🎉 Aktive Giveaways' : '🎉 Active Giveaways')
                     .setDescription(list.slice(0, 4096))
@@ -495,3 +551,4 @@ module.exports = {
 };
 
 module.exports.handleGiveawayReaction = handleGiveawayReaction;
+module.exports.activeGiveaways = activeGiveaways;

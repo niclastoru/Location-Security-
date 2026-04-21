@@ -1,8 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+    const lang = client.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -14,28 +14,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            jail_settings: 'Jail Einstellungen',
-            jail_role_set: 'Jail-Rolle gesetzt',
-            jail_channel_set: 'Jail-Channel gesetzt',
-            jail_msg_set: 'Jail-Nachricht gesetzt',
-            jail_msg_reset: 'Zurückgesetzt',
-            jail_msg: 'Jail-Nachricht',
-            server_settings: 'Server Einstellungen',
-            staff_role_added: 'Staff-Rolle hinzugefügt',
-            staff_role_removed: 'Staff-Rolle entfernt',
-            all_removed: 'Alle entfernt',
-            staff_roles: 'Staff-Rollen',
-            whitelist: 'Whitelist',
-            staff_whitelist: 'Staff-Whitelist',
-            user_added: 'User hinzugefügt',
-            user_removed: 'User entfernt',
-            staff_team: 'Staff-Team',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info',
-            invalid_usage: 'Falsche Nutzung'
-        },
         en: {
             jail_settings: 'Jail Settings',
             jail_role_set: 'Jail Role Set',
@@ -61,41 +39,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            jail_role_usage: '!jail-settings role @Rolle / ID',
-            jail_channel_usage: '!jail-settings channel #channel / ID',
-            jail_role_set: (role) => `${role} ist jetzt die Jail-Rolle.`,
-            jail_channel_set: (channel) => `${channel} ist jetzt der Jail-Log-Channel.`,
-            jail_role_label: 'Jail-Rolle',
-            log_channel_label: 'Log-Channel',
-            jail_footer: '!jail-settings role @Rolle | !jail-settings channel #channel',
-            not_set: '❌ Nicht gesetzt',
-            jail_msg_set: (msg) => `Nachricht: ${msg}`,
-            jail_msg_reset: (msg) => `Standard-Nachricht: ${msg}`,
-            jail_msg_current: (msg) => `Aktuelle Nachricht:\n**${msg}**`,
-            placeholders: 'Platzhalter',
-            placeholder_desc: '{user} - User-Name\n{server} - Server-Name\n{reason} - Grund',
-            jail_msg_footer: '!settings-jailmsg set <Nachricht> | !settings-jailmsg reset',
-            settings_footer: '!help settings für alle Settings-Befehle',
-            staff_role_added: (role) => `${role} ist jetzt eine Staff-Rolle.`,
-            staff_role_removed: (role) => `${role} ist keine Staff-Rolle mehr.`,
-            all_staff_removed: 'Alle Staff-Rollen wurden gelöscht.',
-            staff_usage: '!settingsstaff add @Rolle\n!settingsstaff remove @Rolle\n!settingsstaff clear',
-            no_staff_roles: 'Keine Staff-Rollen konfiguriert.',
-            roles_count: (count) => `${count} Rollen`,
-            no_whitelist: 'Keine User auf der Staff-Whitelist.',
-            user_added: (user) => `${user} ist jetzt auf der Staff-Whitelist.`,
-            user_removed: (user) => `${user} wurde von der Whitelist entfernt.`,
-            whitelist_usage: '!settingsstaffwhitelist add @User\n!settingsstaffwhitelist remove @User\n!settingsstaffwhitelist list',
-            users_count: (count) => `${count} User`,
-            no_staff_members: 'Keine Staff-Mitglieder gefunden.',
-            total_staff: (count) => `Gesamt: ${count} Staff-Mitglieder`,
-            whitelist_role: 'Whitelist',
-            jail_role: '🔒 Jail-Rolle',
-            jail_channel: '📋 Jail-Channel',
-            staff_roles_label: '👮 Staff-Rollen',
-            staff_whitelist_label: '✅ Staff-Whitelist'
-        },
         en: {
             jail_role_usage: '!jail-settings role @Role / ID',
             jail_channel_usage: '!jail-settings channel #channel / ID',
@@ -179,12 +122,12 @@ module.exports = {
         'jail-settings': {
             aliases: ['jailconfig'],
             permissions: 'Administrator',
-            description: 'Konfiguriert das Jail-System / Configures the jail system',
+            description: 'Configures the jail system',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const value = args[1];
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (action === 'role') {
                     const role = message.mentions.roles.first() || message.guild.roles.cache.get(value);
@@ -222,25 +165,25 @@ module.exports = {
                     });
                 }
                 
-                // Aktuelle Settings anzeigen
+                // Show current settings
                 const { data } = await supabase
                     .from('jail_settings')
                     .select('*')
                     .eq('guild_id', message.guild.id)
                     .single();
                 
-                const jailRole = data?.jail_role ? `<@&${data.jail_role}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
-                const jailChannel = data?.jail_channel ? `<#${data.jail_channel}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
+                const jailRole = data?.jail_role ? `<@&${data.jail_role}>` : '❌ Not set';
+                const jailChannel = data?.jail_channel ? `<#${data.jail_channel}>` : '❌ Not set';
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x808080)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🔒 Jail Einstellungen' : '🔒 Jail Settings')
+                    .setTitle('🔒 Jail Settings')
                     .addFields([
-                        { name: lang === 'de' ? 'Jail-Rolle' : 'Jail Role', value: jailRole, inline: true },
-                        { name: lang === 'de' ? 'Log-Channel' : 'Log Channel', value: jailChannel, inline: true }
+                        { name: 'Jail Role', value: jailRole, inline: true },
+                        { name: 'Log Channel', value: jailChannel, inline: true }
                     ])
-                    .setFooter({ text: lang === 'de' ? '!jail-settings role @Rolle | !jail-settings channel #channel' : '!jail-settings role @Role | !jail-settings channel #channel', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!jail-settings role @Role | !jail-settings channel #channel', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -251,14 +194,14 @@ module.exports = {
         'settings-jailmsg': {
             aliases: ['jailmessage', 'jailmsg'],
             permissions: 'Administrator',
-            description: 'Setzt die Jail-Nachricht / Sets the jail message',
+            description: 'Sets the jail message',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const msg = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
-                if (action === '12' && msg) {
+                if (action === 'set' && msg) {
                     await supabase.from('jail_settings').upsert({
                         guild_id: message.guild.id,
                         jail_message: msg
@@ -270,7 +213,7 @@ module.exports = {
                 }
                 
                 if (action === 'reset' || action === 'default') {
-                    const defaultMsg = lang === 'de' ? 'Du bist im Jail!' : 'You are in jail!';
+                    const defaultMsg = 'You are in jail!';
                     await supabase.from('jail_settings').upsert({
                         guild_id: message.guild.id,
                         jail_message: defaultMsg
@@ -287,18 +230,18 @@ module.exports = {
                     .eq('guild_id', message.guild.id)
                     .single();
                 
-                const currentMsg = data?.jail_message || (lang === 'de' ? 'Du bist im Jail!' : 'You are in jail!');
+                const currentMsg = data?.jail_message || 'You are in jail!';
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x808080)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '📝 Jail-Nachricht' : '📝 Jail Message')
-                    .setDescription(lang === 'de' ? `Aktuelle Nachricht:\n**${currentMsg}**` : `Current message:\n**${currentMsg}**`)
+                    .setTitle('📝 Jail Message')
+                    .setDescription(`Current message:\n**${currentMsg}**`)
                     .addFields([{
-                        name: lang === 'de' ? 'Platzhalter' : 'Placeholders',
-                        value: lang === 'de' ? '{user} - User-Name\n{server} - Server-Name\n{reason} - Grund' : '{user} - Username\n{server} - Server name\n{reason} - Reason'
+                        name: 'Placeholders',
+                        value: '{user} - Username\n{server} - Server name\n{reason} - Reason'
                     }])
-                    .setFooter({ text: lang === 'de' ? '!settings-jailmsg set <Nachricht> | !settings-jailmsg reset' : '!settings-jailmsg set <Message> | !settings-jailmsg reset', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!settings-jailmsg set <Message> | !settings-jailmsg reset', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -309,10 +252,10 @@ module.exports = {
         settings: {
             aliases: ['config', 'einstellungen'],
             permissions: 'Administrator',
-            description: 'Zeigt alle Einstellungen / Shows all settings',
+            description: 'Shows all settings',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const { data: jail } = await supabase
                     .from('jail_settings')
@@ -330,22 +273,22 @@ module.exports = {
                     .select('user_id')
                     .eq('guild_id', message.guild.id);
                 
-                const jailRole = jail?.jail_role ? `<@&${jail.jail_role}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
-                const jailChannel = jail?.jail_channel ? `<#${jail.jail_channel}>` : (lang === 'de' ? '❌ Nicht gesetzt' : '❌ Not set');
+                const jailRole = jail?.jail_role ? `<@&${jail.jail_role}>` : '❌ Not set';
+                const jailChannel = jail?.jail_channel ? `<#${jail.jail_channel}>` : '❌ Not set';
                 const staffCount = staffRoles?.length || 0;
                 const whitelistCount = staffWhitelist?.length || 0;
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '⚙️ Server Einstellungen' : '⚙️ Server Settings')
+                    .setTitle('⚙️ Server Settings')
                     .addFields([
-                        { name: lang === 'de' ? '🔒 Jail-Rolle' : '🔒 Jail Role', value: jailRole, inline: true },
-                        { name: lang === 'de' ? '📋 Jail-Channel' : '📋 Jail Channel', value: jailChannel, inline: true },
-                        { name: lang === 'de' ? '👮 Staff-Rollen' : '👮 Staff Roles', value: `${staffCount} ${lang === 'de' ? 'Rollen' : 'roles'}`, inline: true },
-                        { name: lang === 'de' ? '✅ Staff-Whitelist' : '✅ Staff Whitelist', value: `${whitelistCount} ${lang === 'de' ? 'User' : 'users'}`, inline: true }
+                        { name: '🔒 Jail Role', value: jailRole, inline: true },
+                        { name: '📋 Jail Channel', value: jailChannel, inline: true },
+                        { name: '👮 Staff Roles', value: `${staffCount} roles`, inline: true },
+                        { name: '✅ Staff Whitelist', value: `${whitelistCount} users`, inline: true }
                     ])
-                    .setFooter({ text: lang === 'de' ? '!help settings für alle Settings-Befehle' : '!help settings for all settings commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!help settings for all settings commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -356,12 +299,12 @@ module.exports = {
         settingsstaff: {
             aliases: ['staffconfig', 'sstaff'],
             permissions: 'Administrator',
-            description: 'Staff-Rollen verwalten / Manage staff roles',
+            description: 'Manage staff roles',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const role = message.mentions.roles.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (action === 'add' && role) {
                     await supabase.from('staff_roles').upsert({
@@ -406,10 +349,10 @@ module.exports = {
         settingsstafflist: {
             aliases: ['stafflist', 'slist'],
             permissions: 'Administrator',
-            description: 'Listet alle Staff-Rollen / Lists all staff roles',
+            description: 'Lists all staff roles',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const { data } = await supabase
                     .from('staff_roles')
@@ -427,9 +370,9 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '👮 Staff-Rollen' : '👮 Staff Roles')
+                    .setTitle('👮 Staff Roles')
                     .setDescription(list)
-                    .setFooter({ text: `${data.length} ${lang === 'de' ? 'Rollen' : 'roles'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `${data.length} roles`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -440,12 +383,12 @@ module.exports = {
         settingsstaffwhitelist: {
             aliases: ['staffwhitelist', 'swl'],
             permissions: 'Administrator',
-            description: 'Staff-Whitelist verwalten / Manage staff whitelist',
+            description: 'Manage staff whitelist',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const target = message.mentions.users.first() || await message.client.users.fetch(args[1]).catch(() => null);
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (action === 'add' && target) {
                     await supabase.from('staff_whitelist').upsert({
@@ -487,9 +430,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x00FF00)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '✅ Staff-Whitelist' : '✅ Staff Whitelist')
+                        .setTitle('✅ Staff Whitelist')
                         .setDescription(list)
-                        .setFooter({ text: `${data.length} ${lang === 'de' ? 'User' : 'users'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setFooter({ text: `${data.length} users`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
                     
                     return message.reply({ embeds: [embed] });
@@ -504,10 +447,10 @@ module.exports = {
         // ========== STAFF ==========
         staff: {
             aliases: ['staffinfo', 'team'],
-            description: 'Zeigt alle Staff-Mitglieder / Shows all staff members',
+            description: 'Shows all staff members',
             category: 'Settings',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const { data: staffRoles } = await supabase
                     .from('staff_roles')
@@ -556,7 +499,7 @@ module.exports = {
                                     else if (member.presence.status === 'idle') status = idle;
                                     else if (member.presence.status === 'dnd') status = dnd;
                                 }
-                                staffMembers.set(wl.user_id, { member, status, role: lang === 'de' ? 'Whitelist' : 'Whitelist' });
+                                staffMembers.set(wl.user_id, { member, status, role: 'Whitelist' });
                             }
                         }
                     }
@@ -586,9 +529,9 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '👥 Staff-Team' : '👥 Staff Team')
+                    .setTitle('👥 Staff Team')
                     .addFields(fields)
-                    .setFooter({ text: lang === 'de' ? `Gesamt: ${staffMembers.size} Staff-Mitglieder` : `Total: ${staffMembers.size} staff members`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `Total: ${staffMembers.size} staff members`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });

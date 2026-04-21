@@ -1,8 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
-async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+// ⭐ HELPER: Create embed (ENGLISH ONLY)
+function createEmbed(message, type, title, description, fields = []) {
+    const client = message.client;
     
     const colors = {
         success: 0x57F287,
@@ -13,166 +13,15 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
         gold: 0xFFD700
     };
     
-    const titles = {
-        de: {
-            no_level: 'Kein Level',
-            level_system: 'Leveling System',
-            stack_roles: 'Stack Roles',
-            level_role_added: 'Level-Rolle hinzugefügt',
-            level_role_removed: 'Level-Rolle entfernt',
-            level_roles: 'Level-Rollen',
-            leaderboard: 'Level Leaderboard',
-            xp_rate_set: 'XP-Rate gesetzt',
-            ignored: 'Ignoriert',
-            level_locked: 'Level-Benachrichtigungen',
-            level_unlocked: 'Level-Channel',
-            xp_added: 'XP hinzugefügt',
-            xp_removed: 'XP entfernt',
-            level_set: 'Level gesetzt',
-            level_reset: 'Level zurückgesetzt',
-            cleanup: 'Cleanup',
-            sync: 'Sync',
-            update: 'Update',
-            message_mode: 'Message Mode',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info',
-            invalid_usage: 'Falsche Nutzung',
-            no_data: 'Keine Daten'
-        },
-        en: {
-            no_level: 'No Level',
-            level_system: 'Leveling System',
-            stack_roles: 'Stack Roles',
-            level_role_added: 'Level Role Added',
-            level_role_removed: 'Level Role Removed',
-            level_roles: 'Level Roles',
-            leaderboard: 'Level Leaderboard',
-            xp_rate_set: 'XP Rate Set',
-            ignored: 'Ignored',
-            level_locked: 'Level Notifications',
-            level_unlocked: 'Level Channel',
-            xp_added: 'XP Added',
-            xp_removed: 'XP Removed',
-            level_set: 'Level Set',
-            level_reset: 'Level Reset',
-            cleanup: 'Cleanup',
-            sync: 'Sync',
-            update: 'Update',
-            message_mode: 'Message Mode',
-            error: 'Error',
-            success: 'Success',
-            info: 'Info',
-            invalid_usage: 'Invalid Usage',
-            no_data: 'No Data'
-        }
-    };
-    
-    const descriptions = {
-        de: {
-            no_level: (user) => `${user} hat noch kein Level!`,
-            level_activated: 'Das Level-System ist jetzt aktiv!',
-            level_deactivated: 'Das Level-System wurde deaktiviert.',
-            level_status: (status, min, max, stack) => `Status: ${status}\nXP Rate: ${min}-${max} XP\nStack Roles: ${stack}`,
-            stack_enabled: 'Level-Rollen werden jetzt gestackt.',
-            stack_disabled: 'Level-Rollen werden ersetzt.',
-            level_add_usage: '!levels-add <Level> @Rolle',
-            level_added: (level, role) => `Level ${level} → ${role}`,
-            level_remove_usage: '!levels-remove <Level>',
-            level_removed: (level) => `Level ${level} entfernt.`,
-            no_roles: 'Keine Level-Rollen konfiguriert.',
-            leaderboard_empty: 'Noch niemand hat XP gesammelt!',
-            setrate_usage: '!levels-setrate <Min> <Max>\nBeispiel: !levels-setrate 15 25',
-            xp_rate_set: (min, max) => `Min: ${min} XP, Max: ${max} XP`,
-            ignore_usage: '!levels-ignore #channel / @Rolle',
-            ignored: (target) => `${target} wird jetzt ignoriert.`,
-            level_locked: 'Werden jetzt im jeweiligen Channel gesendet.',
-            level_unlocked: (channel) => `Level-Ups werden in ${channel} gesendet.`,
-            setxp_usage: '!setxp @User <XP>',
-            xp_added: (amount, user) => `${amount} XP für ${user}!`,
-            removexp_usage: '!removexp @User <XP>',
-            xp_removed: (amount, user) => `${amount} XP von ${user} entfernt.`,
-            setlevel_usage: '!setlevel @User <Level>',
-            level_set: (user, level) => `${user} ist jetzt Level ${level}!`,
-            level_reset_usage: '!levels-reset @User',
-            level_reset: (user) => `${user} wurde auf Level 1 zurückgesetzt.`,
-            cleanup_success: (count) => `${count} verlassene User entfernt.`,
-            sync_success: (count) => `${count} User synchronisiert.`,
-            update_success: (user) => `Rollen für ${user} aktualisiert.`,
-            message_mode_invalid: 'Modi: default, embed, silent',
-            message_mode_set: (mode) => `Modus: ${mode}`,
-            help_footer: '!help leveling für alle Befehle',
-            level_up: (user, level) => `🎉 ${user} hat Level ${level} erreicht!`
-        },
-        en: {
-            no_level: (user) => `${user} has no level yet!`,
-            level_activated: 'The level system is now active!',
-            level_deactivated: 'The level system has been deactivated.',
-            level_status: (status, min, max, stack) => `Status: ${status}\nXP Rate: ${min}-${max} XP\nStack Roles: ${stack}`,
-            stack_enabled: 'Level roles will now be stacked.',
-            stack_disabled: 'Level roles will be replaced.',
-            level_add_usage: '!levels-add <Level> @Role',
-            level_added: (level, role) => `Level ${level} → ${role}`,
-            level_remove_usage: '!levels-remove <Level>',
-            level_removed: (level) => `Level ${level} removed.`,
-            no_roles: 'No level roles configured.',
-            leaderboard_empty: 'No one has collected XP yet!',
-            setrate_usage: '!levels-setrate <Min> <Max>\nExample: !levels-setrate 15 25',
-            xp_rate_set: (min, max) => `Min: ${min} XP, Max: ${max} XP`,
-            ignore_usage: '!levels-ignore #channel / @Role',
-            ignored: (target) => `${target} is now ignored.`,
-            level_locked: 'Will now be sent in the respective channel.',
-            level_unlocked: (channel) => `Level ups will be sent in ${channel}.`,
-            setxp_usage: '!setxp @User <XP>',
-            xp_added: (amount, user) => `${amount} XP for ${user}!`,
-            removexp_usage: '!removexp @User <XP>',
-            xp_removed: (amount, user) => `${amount} XP removed from ${user}.`,
-            setlevel_usage: '!setlevel @User <Level>',
-            level_set: (user, level) => `${user} is now level ${level}!`,
-            level_reset_usage: '!levels-reset @User',
-            level_reset: (user) => `${user} has been reset to level 1.`,
-            cleanup_success: (count) => `${count} abandoned users removed.`,
-            sync_success: (count) => `${count} users synchronized.`,
-            update_success: (user) => `Roles for ${user} updated.`,
-            message_mode_invalid: 'Modes: default, embed, silent',
-            message_mode_set: (mode) => `Mode: ${mode}`,
-            help_footer: '!help leveling for all commands',
-            level_up: (user, level) => `🎉 ${user} reached level ${level}!`
-        }
-    };
-    
-    const title = titles[lang]?.[titleKey] || titleKey;
-    let description = descriptions[lang]?.[descKey] || descKey;
-    
-    if (typeof description === 'function') {
-        if (Array.isArray(fields)) {
-            description = description(...fields);
-        } else {
-            description = description(fields);
-        }
-    } else {
-        for (const [key, value] of Object.entries(replacements)) {
-            description = description.replace(new RegExp(`{${key}}`, 'g'), value);
-        }
-    }
-    
     const embed = new EmbedBuilder()
         .setColor(type === 'leveling' ? 0x9B59B6 : type === 'gold' ? 0xFFD700 : (colors[type] || 0x5865F2))
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(type === 'gold' ? `🏆 ${title}` : (type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : `📊 ${title}`))
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
     
-    const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : type === 'gold' ? '🏆' : '📊';
-    embed.setTitle(`${emoji} ${title}`);
-    embed.setDescription(description);
-    
-    if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
-        }
-    }
-    embed.setTimestamp();
-    
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
+    if (fields.length > 0) {
         embed.addFields(fields);
     }
     
@@ -186,11 +35,10 @@ module.exports = {
         // ========== LEVEL ==========
         level: {
             aliases: ['rank', 'xp'],
-            description: 'Zeigt dein Level und XP / Shows your level and XP',
+            description: 'Show your level and XP',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first() || message.author;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 const { data } = await supabase
                     .from('user_levels')
@@ -201,7 +49,7 @@ module.exports = {
                 
                 if (!data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'no_level', 'no_level', [target.toString()])] 
+                        embeds: [createEmbed(message, 'info', 'No Level', `${target} has no level yet!`)] 
                     });
                 }
                 
@@ -221,26 +69,25 @@ module.exports = {
                     .setAuthor({ name: target.username, iconURL: target.displayAvatarURL() })
                     .setTitle(`📊 Level ${data.level}`)
                     .addFields([
-                        { name: lang === 'de' ? '🏆 Rang' : '🏆 Rank', value: `#${rank}`, inline: true },
+                        { name: '🏆 Rank', value: `#${rank}`, inline: true },
                         { name: '📈 XP', value: `${data.xp}/${nextLevelXp}`, inline: true },
-                        { name: lang === 'de' ? '💰 Total XP' : '💰 Total XP', value: `${data.total_xp}`, inline: true }
+                        { name: '💰 Total XP', value: `${data.total_xp}`, inline: true }
                     ])
                     .setDescription(`\`${bar}\``)
-                    .setFooter({ text: lang === 'de' ? `${nextLevelXp - data.xp} XP bis Level ${data.level + 1}` : `${nextLevelXp - data.xp} XP until level ${data.level + 1}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `${nextLevelXp - data.xp} XP until Level ${data.level + 1}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
             }
         },
         
-        // ========== LEVELS (Alias/Übersicht) ==========
+        // ========== LEVELS ==========
         levels: {
             aliases: ['lvl'],
-            description: 'Leveling Übersicht / Leveling overview',
+            description: 'Leveling overview',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'on' || action === 'enable') {
                     await supabase.from('leveling_settings').upsert({
@@ -248,7 +95,7 @@ module.exports = {
                         enabled: true
                     });
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_system', 'level_activated')] 
+                        embeds: [createEmbed(message, 'success', 'Leveling Activated', 'The level system is now active!')] 
                     });
                 }
                 
@@ -258,7 +105,7 @@ module.exports = {
                         enabled: false
                     });
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_system', 'level_deactivated')] 
+                        embeds: [createEmbed(message, 'success', 'Leveling Deactivated', 'The level system has been deactivated.')] 
                     });
                 }
                 
@@ -268,19 +115,19 @@ module.exports = {
                     .eq('guild_id', message.guild.id)
                     .single();
                 
-                const status = data?.enabled ? (lang === 'de' ? '🟢 Aktiviert' : '🟢 Enabled') : (lang === 'de' ? '🔴 Deaktiviert' : '🔴 Disabled');
-                const stack = data?.stack_roles ? (lang === 'de' ? '✅ Ja' : '✅ Yes') : (lang === 'de' ? '❌ Nein' : '❌ No');
+                const status = data?.enabled ? '🟢 Enabled' : '🔴 Disabled';
+                const stack = data?.stack_roles ? '✅ Yes' : '❌ No';
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x9B59B6)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '📊 Leveling System' : '📊 Leveling System')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('📊 Leveling System')
                     .addFields([
-                        { name: lang === 'de' ? 'Status' : 'Status', value: status, inline: true },
-                        { name: lang === 'de' ? 'XP Rate' : 'XP Rate', value: `${data?.rate_min || 15}-${data?.rate_max || 25} XP`, inline: true },
-                        { name: lang === 'de' ? 'Stack Roles' : 'Stack Roles', value: stack, inline: true }
+                        { name: 'Status', value: status, inline: true },
+                        { name: 'XP Rate', value: `${data?.rate_min || 15}-${data?.rate_max || 25} XP`, inline: true },
+                        { name: 'Stack Roles', value: stack, inline: true }
                     ])
-                    .setFooter({ text: lang === 'de' ? '!help leveling für alle Befehle' : '!help leveling for all commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: '!help leveling for all commands', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -291,9 +138,9 @@ module.exports = {
         'levels stackroles': {
             aliases: ['stackroles'],
             permissions: 'Administrator',
-            description: 'Stackt Level-Rollen / Stacks level roles',
+            description: 'Toggle stack level roles',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const action = args[0]?.toLowerCase();
                 const stack = action === 'on' || action === 'enable' || action === 'true';
                 
@@ -303,7 +150,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'stack_roles', stack ? 'stack_enabled' : 'stack_disabled')] 
+                    embeds: [createEmbed(message, 'success', 'Stack Roles', stack ? 'Level roles will now be stacked.' : 'Level roles will be replaced.')] 
                 });
             }
         },
@@ -312,15 +159,15 @@ module.exports = {
         'levels-add': {
             aliases: ['addlevelreward'],
             permissions: 'Administrator',
-            description: 'Fügt Level-Rolle hinzu / Adds level role',
+            description: 'Add level role reward',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const level = parseInt(args[0]);
                 const role = message.mentions.roles.first();
                 
                 if (isNaN(level) || !role) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'level_add_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!levels-add <Level> @Role')] 
                     });
                 }
                 
@@ -331,7 +178,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_role_added', 'level_added', [level, role.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Level Role Added', `Level ${level} → ${role}`)] 
                 });
             }
         },
@@ -340,14 +187,14 @@ module.exports = {
         'levels-remove': {
             aliases: ['removelevelreward'],
             permissions: 'Administrator',
-            description: 'Entfernt Level-Rolle / Removes level role',
+            description: 'Remove level role reward',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const level = parseInt(args[0]);
                 
                 if (isNaN(level)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'level_remove_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!levels-remove <Level>')] 
                     });
                 }
                 
@@ -357,7 +204,7 @@ module.exports = {
                     .eq('level', level);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_role_removed', 'level_removed', [level])] 
+                    embeds: [createEmbed(message, 'success', 'Level Role Removed', `Level ${level} removed.`)] 
                 });
             }
         },
@@ -365,11 +212,9 @@ module.exports = {
         // ========== LEVELS-ROLES ==========
         'levels-roles': {
             aliases: ['levelroles'],
-            description: 'Zeigt alle Level-Rollen / Shows all level roles',
+            description: 'Show all level roles',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data } = await supabase
                     .from('level_roles')
                     .select('*')
@@ -378,7 +223,7 @@ module.exports = {
                 
                 if (!data || data.length === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'level_roles', 'no_roles')] 
+                        embeds: [createEmbed(message, 'info', 'Level Roles', 'No level roles configured.')] 
                     });
                 }
                 
@@ -386,8 +231,8 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x9B59B6)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🎭 Level-Rollen' : '🎭 Level Roles')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('🎭 Level Roles')
                     .setDescription(list)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -399,11 +244,9 @@ module.exports = {
         // ========== LEVELS-LEADERBOARD ==========
         'levels-leaderboard': {
             aliases: ['lb', 'top'],
-            description: 'Zeigt das Level-Leaderboard / Shows the level leaderboard',
+            description: 'Show level leaderboard',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
+            async execute(message, args, { supabase }) {
                 const { data } = await supabase
                     .from('user_levels')
                     .select('user_id, level, total_xp')
@@ -413,7 +256,7 @@ module.exports = {
                 
                 if (!data || data.length === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'leaderboard', 'leaderboard_empty')] 
+                        embeds: [createEmbed(message, 'info', 'Leaderboard', 'No one has collected XP yet!')] 
                     });
                 }
                 
@@ -424,10 +267,10 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFFD700)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🏆 Level Leaderboard' : '🏆 Level Leaderboard')
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('🏆 Level Leaderboard')
                     .setDescription(leaderboard)
-                    .setFooter({ text: `${lang === 'de' ? 'Top 10 von' : 'Top 10 of'} ${data.length} ${lang === 'de' ? 'Usern' : 'users'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `Top 10 of ${data.length} users`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -438,15 +281,15 @@ module.exports = {
         'levels-setrate': {
             aliases: ['setxprate'],
             permissions: 'Administrator',
-            description: 'Setzt XP-Rate / Sets XP rate',
+            description: 'Set XP rate',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const min = parseInt(args[0]);
                 const max = parseInt(args[1]);
                 
                 if (isNaN(min) || isNaN(max) || min < 1 || max < min) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'setrate_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!levels-setrate <Min> <Max>\nExample: !levels-setrate 15 25')] 
                     });
                 }
                 
@@ -457,7 +300,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'xp_rate_set', 'xp_rate_set', [min, max])] 
+                    embeds: [createEmbed(message, 'success', 'XP Rate Set', `Min: ${min} XP, Max: ${max} XP`)] 
                 });
             }
         },
@@ -466,14 +309,14 @@ module.exports = {
         'levels-ignore': {
             aliases: ['ignorechannel'],
             permissions: 'Administrator',
-            description: 'Ignoriert Channel/Rolle / Ignores channel/role',
+            description: 'Ignore channel/role for XP',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.channels.first() || message.mentions.roles.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ignore_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!levels-ignore #channel / @Role')] 
                     });
                 }
                 
@@ -499,7 +342,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ignored', 'ignored', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Ignored', `${target} is now ignored.`)] 
                 });
             }
         },
@@ -508,16 +351,16 @@ module.exports = {
         'levels-lock': {
             aliases: ['locklevel'],
             permissions: 'Administrator',
-            description: 'Sperrt Level-Benachrichtigungen / Locks level notifications',
+            description: 'Lock level-up notifications to current channel',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 await supabase.from('leveling_settings').upsert({
                     guild_id: message.guild.id,
                     level_channel: null
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_locked', 'level_locked')] 
+                    embeds: [createEmbed(message, 'success', 'Level Notifications', 'Will now be sent in the respective channel.')] 
                 });
             }
         },
@@ -526,9 +369,9 @@ module.exports = {
         'levels-unlock': {
             aliases: ['unlocklevel'],
             permissions: 'Administrator',
-            description: 'Setzt Level-Channel / Sets level channel',
+            description: 'Set level-up channel',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const channel = message.mentions.channels.first() || message.channel;
                 
                 await supabase.from('leveling_settings').upsert({
@@ -537,7 +380,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_unlocked', 'level_unlocked', [channel.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Level Channel', `Level ups will be sent in ${channel}.`)] 
                 });
             }
         },
@@ -546,22 +389,22 @@ module.exports = {
         setxp: {
             aliases: ['addxp', 'givexp'],
             permissions: 'Administrator',
-            description: 'Setzt/Fügt XP hinzu / Sets/Adds XP',
+            description: 'Add XP to a user',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const amount = parseInt(args[1]);
                 
                 if (!target || isNaN(amount)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'setxp_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!setxp @User <XP>')] 
                     });
                 }
                 
                 await addXp(message.guild.id, target.id, amount, supabase, message.client);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'xp_added', 'xp_added', [amount, target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'XP Added', `${amount} XP for ${target}!`)] 
                 });
             }
         },
@@ -570,15 +413,15 @@ module.exports = {
         removexp: {
             aliases: ['takexp'],
             permissions: 'Administrator',
-            description: 'Entfernt XP / Removes XP',
+            description: 'Remove XP from a user',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const amount = parseInt(args[1]);
                 
                 if (!target || isNaN(amount)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'removexp_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!removexp @User <XP>')] 
                     });
                 }
                 
@@ -600,7 +443,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'xp_removed', 'xp_removed', [amount, target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'XP Removed', `${amount} XP removed from ${target}.`)] 
                 });
             }
         },
@@ -609,15 +452,15 @@ module.exports = {
         setlevel: {
             aliases: ['setlvl'],
             permissions: 'Administrator',
-            description: 'Setzt Level eines Users / Sets a user\'s level',
+            description: 'Set a user\'s level',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const level = parseInt(args[1]);
                 
                 if (!target || isNaN(level) || level < 1) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'setlevel_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!setlevel @User <Level>')] 
                     });
                 }
                 
@@ -632,7 +475,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_set', 'level_set', [target.toString(), level])] 
+                    embeds: [createEmbed(message, 'success', 'Level Set', `${target} is now level ${level}!`)] 
                 });
             }
         },
@@ -641,14 +484,14 @@ module.exports = {
         'levels-reset': {
             aliases: ['resetlevel', 'resetuser'],
             permissions: 'Administrator',
-            description: 'Setzt User-Level zurück / Resets user level',
+            description: 'Reset a user\'s level',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 
                 if (!target) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'level_reset_usage')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!levels-reset @User')] 
                     });
                 }
                 
@@ -658,7 +501,7 @@ module.exports = {
                     .eq('user_id', target.id);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'level_reset', 'level_reset', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Level Reset', `${target} has been reset to level 1.`)] 
                 });
             }
         },
@@ -667,9 +510,9 @@ module.exports = {
         'levels-cleanup': {
             aliases: ['cleanuplevels'],
             permissions: 'Administrator',
-            description: 'Bereinigt verlassene User / Cleans up abandoned users',
+            description: 'Clean up abandoned users',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data } = await supabase
                     .from('user_levels')
                     .select('user_id')
@@ -690,7 +533,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'cleanup', 'cleanup_success', [removed])] 
+                    embeds: [createEmbed(message, 'success', 'Cleanup', `${removed} abandoned users removed.`)] 
                 });
             }
         },
@@ -699,9 +542,9 @@ module.exports = {
         'levels-sync': {
             aliases: ['synclevels'],
             permissions: 'Administrator',
-            description: 'Synchronisiert Level-Rollen / Synchronizes level roles',
+            description: 'Synchronize level roles',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const { data } = await supabase
                     .from('user_levels')
                     .select('user_id, level')
@@ -719,7 +562,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'sync', 'sync_success', [synced])] 
+                    embeds: [createEmbed(message, 'success', 'Sync', `${synced} users synchronized.`)] 
                 });
             }
         },
@@ -728,9 +571,9 @@ module.exports = {
         'levels-update': {
             aliases: ['updatelevel'],
             permissions: 'Administrator',
-            description: 'Updated Level-Rollen / Updates level roles',
+            description: 'Update level roles for a user',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const target = message.mentions.members.first() || message.member;
                 
                 const { data } = await supabase
@@ -745,7 +588,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'update', 'update_success', [target.toString()])] 
+                    embeds: [createEmbed(message, 'success', 'Update', `Roles for ${target} updated.`)] 
                 });
             }
         },
@@ -754,14 +597,14 @@ module.exports = {
         'levels-messageMode': {
             aliases: ['messagemode'],
             permissions: 'Administrator',
-            description: 'Setzt Nachrichten-Modus / Sets message mode',
+            description: 'Set level-up message mode',
             category: 'Leveling',
-            async execute(message, args, { client, supabase }) {
+            async execute(message, args, { supabase }) {
                 const mode = args[0]?.toLowerCase();
                 
                 if (!['default', 'embed', 'silent'].includes(mode)) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'message_mode_invalid')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Mode', 'Modes: default, embed, silent')] 
                     });
                 }
                 
@@ -771,7 +614,7 @@ module.exports = {
                 });
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'message_mode', 'message_mode_set', [mode])] 
+                    embeds: [createEmbed(message, 'success', 'Message Mode', `Mode: ${mode}`)] 
                 });
             }
         }
@@ -826,9 +669,7 @@ async function addXp(guildId, userId, xpToAdd, supabase, client) {
                 const channelId = settings?.level_channel;
                 const channel = channelId ? guild.channels.cache.get(channelId) : null;
                 
-                const lang = client.languages?.get(guildId) || 'de';
-                const message = settings?.level_message?.replace(/{user}/g, member.user.username).replace(/{level}/g, newLevel) || 
-                               (lang === 'de' ? `🎉 ${member.user.username} hat Level ${newLevel} erreicht!` : `🎉 ${member.user.username} reached level ${newLevel}!`);
+                const message = `🎉 ${member.user.username} reached Level ${newLevel}!`;
                 
                 if (channel) {
                     channel.send(message).catch(() => {});
@@ -883,7 +724,7 @@ async function syncLevelRoles(guildId, member, level, supabase) {
     if (rolesToRemove.length > 0) await member.roles.remove(rolesToRemove).catch(() => {});
 }
 
-// ========== MESSAGE HANDLER (in index.js einfügen) ==========
+// ========== MESSAGE HANDLER ==========
 async function handleLevelingMessage(message, supabase) {
     if (message.author.bot || !message.guild) return;
     

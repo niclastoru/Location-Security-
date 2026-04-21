@@ -22,7 +22,7 @@ function getQueue(guildId) {
             connection: null,
             channel: null,
             loop: false,
-            volume: 1.0, // 🔴 Standard auf 100% (nicht 0.5)
+            volume: 1.0,
             nowPlaying: null
         });
     }
@@ -182,10 +182,9 @@ async function searchSong(query) {
     }
 }
 
-// ⭐ Play song (FIXED - with proper volume and stream handling)
+// ⭐ Play song (FULLY FIXED)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
-    const lang = client?.languages?.get(guild.id) || 'en';
     
     try {
         console.log(`🎵 Attempting to play: ${song.title} (${song.platform})`);
@@ -199,12 +198,11 @@ async function playSong(guild, channel, song, client) {
         let stream;
         try {
             stream = await play.stream(song.url, {
-                discordPlayerCompatibility: true, // Wichtig für Discord!
-                quality: 2 // Beste Qualität
+                discordPlayerCompatibility: true,
+                quality: 2
             });
         } catch (streamError) {
             console.error('Stream error:', streamError);
-            // Try alternative method for YouTube
             if (song.platform === 'youtube') {
                 const videoInfo = await play.video_basic_info(song.url);
                 stream = await play.stream_from_info(videoInfo, {
@@ -275,11 +273,16 @@ async function playSong(guild, channel, song, client) {
             }
         });
         
+        // FIXED: Player error handler with IIFE for async
         queue.player.on('error', (error) => {
             console.error('❌ Player error:', error);
-            channel.send({ 
-                embeds: [await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error')] 
-            });
+            
+            // IIFE for async embed creation
+            (async () => {
+                const errorEmbed = await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error');
+                channel.send({ embeds: [errorEmbed] }).catch(() => {});
+            })();
+            
             queue.songs.shift();
             if (queue.songs.length > 0) {
                 playSong(guild, channel, queue.songs[0], client);
@@ -288,22 +291,13 @@ async function playSong(guild, channel, song, client) {
         
     } catch (error) {
         console.error('❌ Play error:', error);
-        channel.send({ 
-            embeds: [await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error')] 
-        });
+        const errorEmbed = await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error');
+        channel.send({ embeds: [errorEmbed] }).catch(() => {});
         queue.songs.shift();
         if (queue.songs.length > 0) {
             playSong(guild, channel, queue.songs[0], client);
         }
     }
-}
-
-function formatDuration(ms) {
-    if (!ms) return '0:00';
-    const seconds = Math.floor(ms / 1000);
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 module.exports = {
@@ -317,7 +311,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const voiceChannel = message.member.voice.channel;
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (!voiceChannel) {
                     return message.reply({ 
@@ -423,8 +416,8 @@ module.exports = {
                                 channelId: voiceChannel.id,
                                 guildId: message.guild.id,
                                 adapterCreator: message.guild.voiceAdapterCreator,
-                                selfMute: false,   // 🔴 Bot NICHT stumm schalten!
-                                selfDeaf: false    // 🔴 Bot NICHT taub schalten!
+                                selfMute: false,
+                                selfDeaf: false
                             });
                             queue.connection.subscribe(queue.player);
                             

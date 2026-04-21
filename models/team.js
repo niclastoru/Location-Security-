@@ -1,8 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+    const lang = client.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -14,25 +14,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            no_hierarchy: 'Keine Hierarchie',
-            no_team_member: 'Kein Team-Mitglied',
-            team_info: 'Team-Informationen',
-            uprank: 'Uprank',
-            derank: 'Derank',
-            team_added: 'Ins Team aufgenommen',
-            team_removed: 'Aus Team entfernt',
-            uprank_history: 'Uprank History',
-            derank_history: 'Derank History',
-            hierarchy_saved: 'Hierarchie gespeichert',
-            hierarchy_reset: 'Reset',
-            log_channel_set: 'Log-Channel',
-            log_settings: 'Team Logs',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info',
-            no_data: 'Keine Daten'
-        },
         en: {
             no_hierarchy: 'No Hierarchy',
             no_team_member: 'Not a Team Member',
@@ -55,49 +36,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            no_hierarchy: 'Nutze `!teamhierarchy set @Rolle1 @Rolle2`\n**Niedrigste ZUERST!**',
-            no_team_member: (user) => `${user} ist kein Team-Mitglied!`,
-            team_since: 'Team seit',
-            roles: (count) => `🎭 Rollen [${count}]`,
-            history: 'History',
-            requested_by: (user) => `Angefordert von ${user}`,
-            unknown: 'Unbekannt',
-            none: 'Keine',
-            uprank_no_user: '!uprank @User',
-            uprank_self: 'Nicht selbst!',
-            uprank_max: (user) => `${user} hat bereits die höchste Rolle!`,
-            uprank_success: (user, role) => `${user} ist jetzt **${role}**!`,
-            uprank_from: 'Von',
-            uprank_to: 'Zu',
-            moderator: 'Moderator',
-            derank_no_user: '!derank @User',
-            derank_self: 'Nicht selbst!',
-            derank_min: (user) => `${user} hat bereits die niedrigste Rolle!`,
-            derank_removed: (user) => `${user} ist nicht mehr im Team!`,
-            derank_success: (user) => `${user} wurde degradiert!`,
-            uprank_empty: (user) => `${user} wurde nie befördert.`,
-            derank_empty: (user) => `${user} wurde nie degradiert.`,
-            hierarchy_set_usage: 'Erwähne mindestens 1 Rolle mit @!\n`!teamhierarchy set @Supporter @Moderator @Admin`',
-            hierarchy_saved: (count) => `**${count} Rollen gespeichert!**\n\n**Reihenfolge (1 = niedrigste):**`,
-            hierarchy_no_roles: 'Keine gültigen Rollen gefunden!',
-            hierarchy_list_empty: 'Nutze `!teamhierarchy set @Rolle1 @Rolle2 ...`\n**Niedrigste zuerst!**',
-            hierarchy_footer: '1 = Niedrigste • Höchste Nummer = Höchste Rolle',
-            hierarchy_reset: 'Hierarchie gelöscht.',
-            teamlog_usage: '`!teamlog <uprank/derank/all> #channel`',
-            teamlog_all: (channel) => `Alle Logs in ${channel}`,
-            teamlog_type: (type, channel) => `${type}-Logs in ${channel}`,
-            uprank_logs: '⬆️ Uprank',
-            derank_logs: '⬇️ Derank',
-            off: '❌ Aus',
-            role_not_exist: 'Erste Rolle existiert nicht!',
-            target_role_not_exist: 'Ziel-Rolle existiert nicht!',
-            from: 'Von',
-            to: 'Zu',
-            mod: 'Mod',
-            given_by: 'Gegeben von',
-            received: 'Erhalten'
-        },
         en: {
             no_hierarchy: 'Use `!teamhierarchy set @Role1 @Role2`\n**Lowest FIRST!**',
             no_team_member: (user) => `${user} is not a team member!`,
@@ -181,7 +119,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Rollen-Hierarchie laden (1 = niedrigste)
+// ⭐ Load role hierarchy (1 = lowest)
 async function loadHierarchy(guildId, supabase) {
     const { data, error } = await supabase
         .from('team_hierarchy')
@@ -190,14 +128,14 @@ async function loadHierarchy(guildId, supabase) {
         .order('position', { ascending: true });
     
     if (error) {
-        console.error('Fehler beim Laden der Hierarchie:', error);
+        console.error('Error loading hierarchy:', error);
         return [];
     }
     
     return data || [];
 }
 
-// ⭐ Log Nachricht senden
+// ⭐ Send log message
 async function sendLogMessage(guild, logType, embed, supabase) {
     const { data } = await supabase
         .from('team_log_channels')
@@ -214,7 +152,7 @@ async function sendLogMessage(guild, logType, embed, supabase) {
     }
 }
 
-// ⭐ Team-Beitritt speichern
+// ⭐ Save team join
 async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByTag, supabase) {
     await supabase.from('team_join').insert({
         guild_id: guildId,
@@ -227,7 +165,7 @@ async function saveTeamJoin(guildId, userId, roleId, roleName, givenBy, givenByT
     });
 }
 
-// ⭐ Team-Beitritt für User holen
+// ⭐ Get team join for user
 async function getTeamJoin(guildId, userId, roleId, supabase) {
     const { data } = await supabase
         .from('team_join')
@@ -241,7 +179,7 @@ async function getTeamJoin(guildId, userId, roleId, supabase) {
     return data?.[0] || null;
 }
 
-// ⭐ Ersten Team-Beitritt holen
+// ⭐ Get first team join
 async function getFirstTeamJoin(guildId, userId, supabase) {
     const { data } = await supabase
         .from('team_join')
@@ -261,12 +199,12 @@ module.exports = {
         // ========== TEAM ==========
         team: {
             aliases: ['teaminfo', 'ti'],
-            description: 'Zeigt Team-Infos eines Users / Shows team info of a user',
+            description: 'Shows team info of a user',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.members.first() || message.member;
                 const user = target.user;
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const hierarchy = await loadHierarchy(message.guild.id, supabase);
                 
@@ -300,7 +238,7 @@ module.exports = {
                         const timestamp = Math.floor(joinDate.getTime() / 1000);
                         roleInfo.push(`**${role.name}**\n┗ 📅 <t:${timestamp}:D>\n┗ 👤 ${join.given_by_tag}`);
                     } else {
-                        roleInfo.push(`**${role.name}**\n┗ 📅 ${lang === 'de' ? 'Unbekannt' : 'Unknown'}\n┗ 👤 ${lang === 'de' ? 'Unbekannt' : 'Unknown'}`);
+                        roleInfo.push(`**${role.name}**\n┗ 📅 Unknown\n┗ 👤 Unknown`);
                     }
                 }
                 
@@ -310,22 +248,22 @@ module.exports = {
                     .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 1024 }))
                     .addFields(
                         { name: '🆔 User ID', value: user.id, inline: true },
-                        { name: lang === 'de' ? '👤 Discord' : '👤 Discord', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true }
+                        { name: '👤 Discord', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true }
                     );
                 
                 if (firstJoin) {
                     const firstDate = new Date(firstJoin.joined_at);
                     const firstTimestamp = Math.floor(firstDate.getTime() / 1000);
                     embed.addFields({
-                        name: lang === 'de' ? '📅 Team seit' : '📅 Team since',
+                        name: '📅 Team since',
                         value: `<t:${firstTimestamp}:D>\n┗ 👤 ${firstJoin.given_by_tag}`,
                         inline: true
                     });
                 }
                 
                 embed.addFields(
-                    { name: lang === 'de' ? `🎭 Rollen [${userTeamRoles.size}]` : `🎭 Roles [${userTeamRoles.size}]`, value: rolesList.join(' ') || (lang === 'de' ? 'Keine' : 'None'), inline: false },
-                    { name: lang === 'de' ? '📋 History' : '📋 History', value: roleInfo.join('\n\n') || (lang === 'de' ? 'Keine' : 'None'), inline: false }
+                    { name: `🎭 Roles [${userTeamRoles.size}]`, value: rolesList.join(' ') || 'None', inline: false },
+                    { name: '📋 History', value: roleInfo.join('\n\n') || 'None', inline: false }
                 )
                 .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                 .setTimestamp();
@@ -338,11 +276,11 @@ module.exports = {
         uprank: {
             aliases: ['promote', 'up'],
             permissions: 'ManageRoles',
-            description: 'Befördert einen User / Promotes a user',
+            description: 'Promotes a user',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.members.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (!target) {
                     return message.reply({ 
@@ -387,7 +325,7 @@ module.exports = {
                         moderator_id: message.author.id,
                         moderator_tag: message.author.tag,
                         old_role_id: null,
-                        old_role_name: lang === 'de' ? 'Keine' : 'None',
+                        old_role_name: 'None',
                         new_role_id: firstRoleData.role_id,
                         new_role_name: firstRoleData.role_name
                     });
@@ -395,9 +333,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x00FF00)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '⬆️ Ins Team aufgenommen' : '⬆️ Added to Team')
-                        .setDescription(lang === 'de' ? `${target} ist jetzt **${firstRole.name}**!` : `${target} is now **${firstRole.name}**!`)
-                        .addFields({ name: lang === 'de' ? 'Moderator' : 'Moderator', value: `${message.author}`, inline: true })
+                        .setTitle('⬆️ Added to Team')
+                        .setDescription(`${target} is now **${firstRole.name}**!`)
+                        .addFields({ name: 'Moderator', value: `${message.author}`, inline: true })
                         .setThumbnail(target.user.displayAvatarURL())
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -454,12 +392,12 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x00FF00)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '⬆️ Uprank' : '⬆️ Promotion')
-                    .setDescription(lang === 'de' ? `${target} wurde befördert!` : `${target} has been promoted!`)
+                    .setTitle('⬆️ Promotion')
+                    .setDescription(`${target} has been promoted!`)
                     .addFields([
-                        { name: lang === 'de' ? 'Von' : 'From', value: oldRole.name, inline: true },
-                        { name: lang === 'de' ? 'Zu' : 'To', value: newRole.name, inline: true },
-                        { name: lang === 'de' ? 'Mod' : 'Mod', value: `${message.author}`, inline: true }
+                        { name: 'From', value: oldRole.name, inline: true },
+                        { name: 'To', value: newRole.name, inline: true },
+                        { name: 'Mod', value: `${message.author}`, inline: true }
                     ])
                     .setThumbnail(target.user.displayAvatarURL())
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
@@ -474,11 +412,11 @@ module.exports = {
         derank: {
             aliases: ['demote', 'down'],
             permissions: 'ManageRoles',
-            description: 'Degradiert einen User / Demotes a user',
+            description: 'Demotes a user',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.members.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (!target) {
                     return message.reply({ 
@@ -532,15 +470,15 @@ module.exports = {
                         old_role_id: currentRole.role_id,
                         old_role_name: currentRole.role_name,
                         new_role_id: null,
-                        new_role_name: lang === 'de' ? 'Aus Team entfernt' : 'Removed from Team'
+                        new_role_name: 'Removed from Team'
                     });
                     
                     const embed = new EmbedBuilder()
                         .setColor(0xFF0000)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '⬇️ Aus Team entfernt' : '⬇️ Removed from Team')
-                        .setDescription(lang === 'de' ? `${target} ist nicht mehr im Team!` : `${target} is no longer in the team!`)
-                        .addFields({ name: lang === 'de' ? 'Mod' : 'Mod', value: `${message.author}`, inline: true })
+                        .setTitle('⬇️ Removed from Team')
+                        .setDescription(`${target} is no longer in the team!`)
+                        .addFields({ name: 'Mod', value: `${message.author}`, inline: true })
                         .setThumbnail(target.user.displayAvatarURL())
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -581,12 +519,12 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0xFF0000)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '⬇️ Derank' : '⬇️ Demotion')
-                    .setDescription(lang === 'de' ? `${target} wurde degradiert!` : `${target} has been demoted!`)
+                    .setTitle('⬇️ Demotion')
+                    .setDescription(`${target} has been demoted!`)
                     .addFields([
-                        { name: lang === 'de' ? 'Von' : 'From', value: oldRole.name, inline: true },
-                        { name: lang === 'de' ? 'Zu' : 'To', value: newRole.name, inline: true },
-                        { name: lang === 'de' ? 'Mod' : 'Mod', value: `${message.author}`, inline: true }
+                        { name: 'From', value: oldRole.name, inline: true },
+                        { name: 'To', value: newRole.name, inline: true },
+                        { name: 'Mod', value: `${message.author}`, inline: true }
                     ])
                     .setThumbnail(target.user.displayAvatarURL())
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
@@ -600,11 +538,11 @@ module.exports = {
         // ========== UPRANKINFO ==========
         uprankinfo: {
             aliases: ['upi'],
-            description: 'Zeigt Uprank-History / Shows promotion history',
+            description: 'Shows promotion history',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.users.first() || message.author;
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const { data } = await supabase
                     .from('uprank_history')
@@ -622,7 +560,7 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x00FF00)
-                    .setAuthor({ name: `${target.username} - ${lang === 'de' ? 'Upranks' : 'Promotions'}`, iconURL: target.displayAvatarURL() })
+                    .setAuthor({ name: `${target.username} - Promotions`, iconURL: target.displayAvatarURL() })
                     .setThumbnail(target.displayAvatarURL())
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -631,7 +569,7 @@ module.exports = {
                     const ts = Math.floor(new Date(u.created_at).getTime() / 1000);
                     embed.addFields({
                         name: `<t:${ts}:D>`,
-                        value: `**${lang === 'de' ? 'Von' : 'From'}:** ${u.old_role_name || (lang === 'de' ? 'Keine' : 'None')}\n**${lang === 'de' ? 'Zu' : 'To'}:** ${u.new_role_name}\n**${lang === 'de' ? 'Mod' : 'Mod'}:** ${u.moderator_tag}`,
+                        value: `**From:** ${u.old_role_name || 'None'}\n**To:** ${u.new_role_name}\n**Mod:** ${u.moderator_tag}`,
                         inline: true
                     });
                 });
@@ -643,11 +581,11 @@ module.exports = {
         // ========== DERANKINFO ==========
         derankinfo: {
             aliases: ['di'],
-            description: 'Zeigt Derank-History / Shows demotion history',
+            description: 'Shows demotion history',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.users.first() || message.author;
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const { data } = await supabase
                     .from('derank_history')
@@ -665,7 +603,7 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFF0000)
-                    .setAuthor({ name: `${target.username} - ${lang === 'de' ? 'Deranks' : 'Demotions'}`, iconURL: target.displayAvatarURL() })
+                    .setAuthor({ name: `${target.username} - Demotions`, iconURL: target.displayAvatarURL() })
                     .setThumbnail(target.displayAvatarURL())
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -674,7 +612,7 @@ module.exports = {
                     const ts = Math.floor(new Date(u.created_at).getTime() / 1000);
                     embed.addFields({
                         name: `<t:${ts}:D>`,
-                        value: `**${lang === 'de' ? 'Von' : 'From'}:** ${u.old_role_name}\n**${lang === 'de' ? 'Zu' : 'To'}:** ${u.new_role_name || (lang === 'de' ? 'Entfernt' : 'Removed')}\n**${lang === 'de' ? 'Mod' : 'Mod'}:** ${u.moderator_tag}`,
+                        value: `**From:** ${u.old_role_name}\n**To:** ${u.new_role_name || 'Removed'}\n**Mod:** ${u.moderator_tag}`,
                         inline: true
                     });
                 });
@@ -687,11 +625,11 @@ module.exports = {
         teamhierarchy: {
             aliases: ['th', 'sethierarchy'],
             permissions: 'Administrator',
-            description: 'Konfiguriert die Team-Hierarchie / Configures team hierarchy',
+            description: 'Configures team hierarchy',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (action === 'set') {
                     const content = message.content;
@@ -756,9 +694,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '📊 Team Hierarchie' : '📊 Team Hierarchy')
+                        .setTitle('📊 Team Hierarchy')
                         .setDescription(list)
-                        .setFooter({ text: lang === 'de' ? '1 = Niedrigste • Höchste Nummer = Höchste Rolle' : '1 = Lowest • Highest Number = Highest Role', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setFooter({ text: '1 = Lowest • Highest Number = Highest Role', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
                     
                     return message.reply({ embeds: [embed] });
@@ -781,12 +719,12 @@ module.exports = {
         teamlog: {
             aliases: ['tlog'],
             permissions: 'Administrator',
-            description: 'Setzt Log-Channel / Sets log channel',
+            description: 'Sets log channel',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
                 const type = args[0]?.toLowerCase();
                 const channel = message.mentions.channels.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 if (!type || !['uprank', 'derank', 'all'].includes(type) || !channel) {
                     return message.reply({ 
@@ -813,10 +751,10 @@ module.exports = {
         teamlogstatus: {
             aliases: ['tlogstatus'],
             permissions: 'ManageRoles',
-            description: 'Zeigt Log-Einstellungen / Shows log settings',
+            description: 'Shows log settings',
             category: 'Team',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 const { data } = await supabase.from('team_log_channels').select('*').eq('guild_id', message.guild.id);
                 
                 const uprank = data?.find(d => d.log_type === 'uprank');
@@ -825,10 +763,10 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '📋 Team Logs' : '📋 Team Logs')
+                    .setTitle('📋 Team Logs')
                     .addFields([
-                        { name: lang === 'de' ? '⬆️ Uprank' : '⬆️ Promotions', value: uprank ? `<#${uprank.channel_id}>` : (lang === 'de' ? '❌ Aus' : '❌ Off'), inline: true },
-                        { name: lang === 'de' ? '⬇️ Derank' : '⬇️ Demotions', value: derank ? `<#${derank.channel_id}>` : (lang === 'de' ? '❌ Aus' : '❌ Off'), inline: true }
+                        { name: '⬆️ Promotions', value: uprank ? `<#${uprank.channel_id}>` : '❌ Off', inline: true },
+                        { name: '⬇️ Demotions', value: derank ? `<#${derank.channel_id}>` : '❌ Off', inline: true }
                     ])
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();

@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+    const lang = client.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -14,36 +14,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            autorole: 'Auto-Role',
-            autorole_set: 'Auto-Role gesetzt',
-            autorole_removed: 'Auto-Role entfernt',
-            whitelist: 'Whitelist',
-            guild_whitelist: 'Guild Whitelist',
-            prefix: 'Prefix',
-            prefix_changed: 'Prefix geändert',
-            prefix_reset: 'Prefix zurückgesetzt',
-            current_prefix: 'Aktueller Prefix',
-            ticket_panel: 'Ticket-Panel',
-            ticket_created: 'Ticket-Panel erstellt',
-            ticket_removed: 'Ticket-Panel entfernt',
-            ticket_info: 'Ticket-Panel Info',
-            vanity_role: 'Vanity-Role',
-            vanity_set: 'Vanity-Role gesetzt',
-            vanity_removed: 'Vanity-Role entfernt',
-            welcome: 'Welcome',
-            welcome_added: 'Welcome hinzugefügt',
-            welcome_removed: 'Welcome entfernt',
-            welcome_list: 'Welcome Nachrichten',
-            welcome_view: 'Welcome',
-            welcome_test: 'Welcome Test',
-            test_sent: 'Test gesendet',
-            welcome_help: 'Welcome Befehle',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info',
-            invalid_usage: 'Falsche Nutzung'
-        },
         en: {
             autorole: 'Auto-Role',
             autorole_set: 'Auto-Role Set',
@@ -77,45 +47,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            autorole_set: (role) => `${role} wird neuen Mitgliedern automatisch gegeben.`,
-            autorole_removed: 'Auto-Role wurde deaktiviert.',
-            autorole_current: (role) => `Aktuelle Auto-Role: <@&${role}>\n\n**Nutze:**\n!autorole set @Rolle\n!autorole remove`,
-            autorole_none: 'Keine Auto-Role gesetzt.\n\n**Nutze:**\n!autorole set @Rolle',
-            whitelist_added: (id) => `Server ${id} wurde zur Whitelist hinzugefügt.`,
-            whitelist_removed: (id) => `Server ${id} wurde von der Whitelist entfernt.`,
-            whitelist_empty: 'Keine Server auf der Whitelist.',
-            whitelist_usage: '!guildwhitelist add <ServerID>\n!guildwhitelist remove <ServerID>\n!guildwhitelist list',
-            prefix_no_prefix: '!prefix <NeuerPrefix>',
-            prefix_too_long: 'Prefix darf maximal 5 Zeichen lang sein!',
-            prefix_changed: (prefix) => `Neuer Prefix: **${prefix}**`,
-            prefix_reset: 'Prefix wurde auf **!** zurückgesetzt.',
-            current_prefix: (prefix) => `Der Prefix für diesen Server ist: **${prefix}**`,
-            ticket_created: (channel) => `Panel wurde in ${channel} erstellt!`,
-            ticket_removed: 'Ticket-Panel wurde gelöscht.',
-            ticket_no_panel: 'Kein Ticket-Panel konfiguriert.\n\n**Nutze:**\n!ticketpanel create [#channel]\n!ticketpanel remove',
-            ticket_channel: 'Channel',
-            ticket_category: 'Kategorie',
-            ticket_support: 'Support-Rolle',
-            ticket_none: 'Keine',
-            ticket_usage: '!ticketpanel create [#channel]\n!ticketpanel remove\n!ticketpanel info',
-            vanity_set: (role) => `${role} wird bei Vanity-URL Join vergeben.`,
-            vanity_removed: 'Vanity-Role wurde deaktiviert.',
-            vanity_current: (role) => `Aktuelle Vanity-Role: <@&${role}>\n\n**Nutze:**\n!vanity-role set @Rolle\n!vanity-role remove`,
-            vanity_none: 'Keine Vanity-Role gesetzt.\n\n**Nutze:**\n!vanity-role set @Rolle',
-            welcome_add_usage: '!welcome-add #channel <Nachricht>\n\n**Platzhalter:** {user}, {user.mention}, {server}, {membercount}',
-            welcome_added: (channel, msg) => `Nachricht in ${channel}:\n${msg}`,
-            welcome_remove_usage: '!welcome-remove #channel',
-            welcome_removed: (channel) => `Welcome-Nachricht in ${channel} wurde entfernt.`,
-            welcome_not_found: 'Keine Welcome-Nachricht in diesem Channel gefunden.',
-            welcome_empty: 'Keine Welcome-Nachrichten konfiguriert.',
-            welcome_view_empty: (channel) => `Keine Welcome-Nachricht in ${channel} konfiguriert.`,
-            welcome_test_none: 'Keine Welcome-Nachrichten konfiguriert!',
-            welcome_test_sent: 'Welcome-Nachrichten wurden als Test gesendet!',
-            welcome_test_title: '🧪 Welcome Test',
-            welcome_help_text: '**!welcome-add** #channel <Nachricht>\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Platzhalter:** {user}, {user.mention}, {server}, {membercount}',
-            added_by: 'hinzugefügt'
-        },
         en: {
             autorole_set: (role) => `${role} will be automatically given to new members.`,
             autorole_removed: 'Auto-Role has been disabled.',
@@ -153,7 +84,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             welcome_test_sent: 'Welcome messages have been sent as a test!',
             welcome_test_title: '🧪 Welcome Test',
             welcome_help_text: '**!welcome-add** #channel <Message>\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
-            added_by: 'added'
+            added_by: 'added by'
         }
     };
     
@@ -203,12 +134,11 @@ module.exports = {
         autorole: {
             aliases: ['auto-role', 'joinrole'],
             permissions: 'Administrator',
-            description: 'Setzt Auto-Rolle für neue Mitglieder / Sets auto-role for new members',
+            description: 'Sets auto-role for new members',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const role = message.mentions.roles.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'set' && role) {
                     await supabase.from('autorole').upsert({
@@ -217,14 +147,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'autorole_set', 'autorole_set', [role.toString()])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'autorole_set', 'autorole_set', [role.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('autorole').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'autorole_removed', 'autorole_removed')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'autorole_removed', 'autorole_removed')] 
                     });
                 }
                 
@@ -236,11 +166,11 @@ module.exports = {
                 
                 if (data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_current', [data.role_id])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_current', [data.role_id])] 
                     });
                 } else {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_none')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_none')] 
                     });
                 }
             }
@@ -250,12 +180,11 @@ module.exports = {
         guildwhitelist: {
             aliases: ['guild-wl', 'serverwhitelist'],
             permissions: 'Administrator',
-            description: 'Server-Whitelist verwalten / Manage server whitelist',
+            description: 'Manage server whitelist',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const targetGuildId = args[1];
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'add' && targetGuildId) {
                     await supabase.from('guild_whitelist').upsert({
@@ -264,14 +193,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_added', [targetGuildId])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_added', [targetGuildId])] 
                     });
                 }
                 
                 if (action === 'remove' && targetGuildId) {
                     await supabase.from('guild_whitelist').delete().eq('guild_id', targetGuildId);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_removed', [targetGuildId])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_removed', [targetGuildId])] 
                     });
                 }
                 
@@ -280,16 +209,16 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'guild_whitelist', 'whitelist_empty')] 
+                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'guild_whitelist', 'whitelist_empty')] 
                         });
                     }
                     
-                    const list = data.map(g => `🆔 ${g.guild_id} (${lang === 'de' ? 'hinzugefügt' : 'added'} <t:${Math.floor(new Date(g.created_at).getTime() / 1000)}:R>)`).join('\n');
+                    const list = data.map(g => `🆔 ${g.guild_id} (added <t:${Math.floor(new Date(g.created_at).getTime() / 1000)}:R>)`).join('\n');
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '📋 Guild Whitelist' : '📋 Guild Whitelist')
+                        .setTitle('📋 Guild Whitelist')
                         .setDescription(list.slice(0, 4096))
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -298,7 +227,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'whitelist_usage')] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'whitelist_usage')] 
                 });
             }
         },
@@ -307,25 +236,24 @@ module.exports = {
         prefix: {
             aliases: ['setprefix'],
             permissions: 'Administrator',
-            description: 'Ändert den Bot-Prefix / Changes the bot prefix',
+            description: 'Changes the bot prefix',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const newPrefix = args[0];
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!newPrefix) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_no_prefix')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_no_prefix')] 
                     });
                 }
                 
                 if (newPrefix.length > 5) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long')] 
                     });
                 }
                 
-                console.log(`📝 Speichere Prefix: ${newPrefix} für Guild: ${message.guild.id}`);
+                console.log(`📝 Saving prefix: ${newPrefix} for Guild: ${message.guild.id}`);
                 
                 const { error } = await supabase
                     .from('custom_prefixes')
@@ -337,15 +265,15 @@ module.exports = {
                 if (error) {
                     console.error('❌ Prefix Save Error:', error);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'prefix_no_prefix')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'prefix_no_prefix')] 
                     });
                 }
                 
                 client.prefixes.set(message.guild.id, newPrefix);
-                console.log(`✅ Prefix gespeichert: ${newPrefix}`);
+                console.log(`✅ Prefix saved: ${newPrefix}`);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
                 });
             }
         },
@@ -354,14 +282,14 @@ module.exports = {
         'prefix-remove': {
             aliases: ['prefix-delete', 'resetprefix'],
             permissions: 'Administrator',
-            description: 'Setzt Prefix auf Standard zurück / Resets prefix to default',
+            description: 'Resets prefix to default',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 await supabase.from('custom_prefixes').delete().eq('guild_id', message.guild.id);
                 client.prefixes.set(message.guild.id, '!');
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset')] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset')] 
                 });
             }
         },
@@ -369,13 +297,13 @@ module.exports = {
         // ========== PREFIX-VIEW ==========
         'prefix-view': {
             aliases: ['prefix-show', 'showprefix'],
-            description: 'Zeigt aktuellen Prefix / Shows current prefix',
+            description: 'Shows current prefix',
             category: 'Server',
             async execute(message, args, { client }) {
                 const prefix = client.prefixes.get(message.guild.id) || '!';
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix])] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix])] 
                 });
             }
         },
@@ -384,11 +312,10 @@ module.exports = {
         ticketpanel: {
             aliases: ['ticket-panel', 'ticketsetup'],
             permissions: 'Administrator',
-            description: 'Erstellt Ticket-Panel / Creates ticket panel',
+            description: 'Creates ticket panel',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'create' || action === 'setup') {
                     const channel = message.mentions.channels.first() || message.channel;
@@ -398,8 +325,8 @@ module.exports = {
                     const panelEmbed = new EmbedBuilder()
                         .setColor(0x5865F2)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '🎫 Ticket erstellen' : '🎫 Create Ticket')
-                        .setDescription(lang === 'de' ? 'Klicke auf den Button um ein Ticket zu öffnen!' : 'Click the button to open a ticket!')
+                        .setTitle('🎫 Create Ticket')
+                        .setDescription('Click the button to open a ticket!')
                         .setFooter({ text: message.guild.name })
                         .setTimestamp();
                     
@@ -407,7 +334,7 @@ module.exports = {
                         .addComponents(
                             new ButtonBuilder()
                                 .setCustomId('create_ticket')
-                                .setLabel(lang === 'de' ? 'Ticket öffnen' : 'Open Ticket')
+                                .setLabel('Open Ticket')
                                 .setStyle(ButtonStyle.Primary)
                                 .setEmoji('🎫')
                         );
@@ -423,14 +350,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('ticket_panels').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed')] 
                     });
                 }
                 
@@ -443,18 +370,18 @@ module.exports = {
                     
                     if (!data) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel')] 
+                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel')] 
                         });
                     }
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x5865F2)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? '🎫 Ticket-Panel Info' : '🎫 Ticket Panel Info')
+                        .setTitle('🎫 Ticket Panel Info')
                         .addFields([
-                            { name: lang === 'de' ? 'Channel' : 'Channel', value: `<#${data.channel_id}>`, inline: true },
-                            { name: lang === 'de' ? 'Kategorie' : 'Category', value: data.category_id ? `<#${data.category_id}>` : (lang === 'de' ? 'Keine' : 'None'), inline: true },
-                            { name: lang === 'de' ? 'Support-Rolle' : 'Support Role', value: data.support_role_id ? `<@&${data.support_role_id}>` : (lang === 'de' ? 'Keine' : 'None'), inline: true }
+                            { name: 'Channel', value: `<#${data.channel_id}>`, inline: true },
+                            { name: 'Category', value: data.category_id ? `<#${data.category_id}>` : 'None', inline: true },
+                            { name: 'Support Role', value: data.support_role_id ? `<@&${data.support_role_id}>` : 'None', inline: true }
                         ])
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
@@ -463,7 +390,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage')] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage')] 
                 });
             }
         },
@@ -472,12 +399,11 @@ module.exports = {
         'vanity-role': {
             aliases: ['vanityrole', 'vrole'],
             permissions: 'Administrator',
-            description: 'Setzt Rolle für Vanity-URL Joins / Sets role for vanity URL joins',
+            description: 'Sets role for vanity URL joins',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
                 const role = message.mentions.roles.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'set' && role) {
                     await supabase.from('vanity_role').upsert({
@@ -486,14 +412,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('vanity_role').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed')] 
                     });
                 }
                 
@@ -505,11 +431,11 @@ module.exports = {
                 
                 if (data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id])] 
                     });
                 } else {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none')] 
                     });
                 }
             }
@@ -519,16 +445,15 @@ module.exports = {
         'welcome-add': {
             aliases: ['welcome-set', 'setwelcome'],
             permissions: 'Administrator',
-            description: 'Fügt Welcome-Nachricht hinzu / Adds welcome message',
+            description: 'Adds welcome message',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
                 const welcomeMessage = args.slice(1).join(' ');
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel || !welcomeMessage) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
                     });
                 }
                 
@@ -543,14 +468,12 @@ module.exports = {
                 
                 let result;
                 if (existing) {
-                    console.log('📝 Update existing welcome');
                     result = await supabase
                         .from('welcome_messages')
                         .update({ message: welcomeMessage })
                         .eq('guild_id', message.guild.id)
                         .eq('channel_id', channel.id);
                 } else {
-                    console.log('📝 Insert new welcome');
                     result = await supabase
                         .from('welcome_messages')
                         .insert({
@@ -564,14 +487,14 @@ module.exports = {
                 if (result.error) {
                     console.error('❌ Welcome Save Error:', result.error);
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
                     });
                 }
                 
-                console.log('✅ Welcome gespeichert!');
+                console.log('✅ Welcome saved!');
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
                 });
             }
         },
@@ -580,15 +503,14 @@ module.exports = {
         'welcome-remove': {
             aliases: ['welcome-delete', 'delwelcome'],
             permissions: 'Administrator',
-            description: 'Entfernt Welcome-Nachricht / Removes welcome message',
+            description: 'Removes welcome message',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
                     });
                 }
                 
@@ -600,12 +522,12 @@ module.exports = {
                 
                 if (error) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()])] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()])] 
                 });
             }
         },
@@ -614,11 +536,9 @@ module.exports = {
         'welcome-list': {
             aliases: ['welcomes', 'listwelcome'],
             permissions: 'Administrator',
-            description: 'Listet alle Welcome-Nachrichten / Lists all welcome messages',
+            description: 'Lists all welcome messages',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
-                
                 const { data, error } = await supabase
                     .from('welcome_messages')
                     .select('*')
@@ -629,18 +549,18 @@ module.exports = {
                 
                 if (!data || data.length === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty')] 
                     });
                 }
                 
-                const list = data.map(w => `📝 <#${w.channel_id}>\n${w.message}`).join('\n\n');
+                const list = data.map(w => `📝 <#${w.channel_id}>\n${w.message.substring(0, 100)}${w.message.length > 100 ? '...' : ''}`).join('\n\n');
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x00FF00)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '👋 Welcome Nachrichten' : '👋 Welcome Messages')
+                    .setTitle('👋 Welcome Messages')
                     .setDescription(list.slice(0, 4096))
-                    .setFooter({ text: `${data.length} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: `${data.length} messages`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -651,15 +571,14 @@ module.exports = {
         'welcome-view': {
             aliases: ['welcome-show', 'showwelcome'],
             permissions: 'Administrator',
-            description: 'Zeigt Welcome-Nachricht eines Channels / Shows welcome message of a channel',
+            description: 'Shows welcome message of a channel',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
                     });
                 }
                 
@@ -675,14 +594,14 @@ module.exports = {
                 
                 if (!data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()])] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()])] 
                     });
                 }
                 
                 const embed = new EmbedBuilder()
                     .setColor(parseInt(data.embed_color?.replace('#', '') || '00FF00', 16))
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? `👋 Welcome in ${channel.name}` : `👋 Welcome to ${channel.name}`)
+                    .setTitle(`👋 Welcome to ${channel.name}`)
                     .setDescription(data.message)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -697,11 +616,10 @@ module.exports = {
         welcome: {
             aliases: ['welcome-info'],
             permissions: 'Administrator',
-            description: 'Welcome-Infos & Test / Welcome info & test',
+            description: 'Welcome info & test',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const action = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (action === 'test') {
                     const { data } = await supabase
@@ -711,7 +629,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none')] 
+                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none')] 
                         });
                     }
                     
@@ -727,7 +645,7 @@ module.exports = {
                             const embed = new EmbedBuilder()
                                 .setColor(0x00FF00)
                                 .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                                .setTitle(lang === 'de' ? '🧪 Welcome Test' : '🧪 Welcome Test')
+                                .setTitle('🧪 Welcome Test')
                                 .setDescription(testMessage)
                                 .setTimestamp();
                             
@@ -736,12 +654,12 @@ module.exports = {
                     }
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent')] 
+                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
+                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
                 });
             }
         }

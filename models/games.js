@@ -1,7 +1,35 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
-// Aktive TicTacToe Spiele (Cache)
+// Active TicTacToe games (Cache)
 const tttGames = new Map();
+
+// ⭐ HELPER: Create embed (ENGLISH ONLY)
+function createEmbed(message, type, title, description, fields = []) {
+    const client = message.client;
+    
+    const colors = {
+        success: 0x57F287,
+        error: 0xED4245,
+        info: 0x5865F2,
+        warn: 0xFEE75C,
+        economy: 0xF1C40F,
+        games: 0x3498DB
+    };
+    
+    const embed = new EmbedBuilder()
+        .setColor(type === 'economy' ? 0xF1C40F : type === 'games' ? 0x3498DB : (colors[type] || 0x5865F2))
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`)
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
+    
+    if (fields.length > 0) {
+        embed.addFields(fields);
+    }
+    
+    return embed;
+}
 
 module.exports = {
     category: 'Games',
@@ -10,7 +38,7 @@ module.exports = {
         // ========== DAILY ==========
         daily: {
             aliases: ['dailyreward'],
-            description: 'Tägliche Belohnung abholen',
+            description: 'Claim your daily reward',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const { data: user } = await supabase
@@ -26,7 +54,9 @@ module.exports = {
                 if (lastDaily && now - lastDaily < 24 * 60 * 60 * 1000) {
                     const nextDaily = new Date(lastDaily.getTime() + 24 * 60 * 60 * 1000);
                     const timeLeft = Math.floor((nextDaily - now) / 1000 / 60 / 60);
-                    return message.reply({ embeds: [global.embed.error('Bereits abgeholt', `Nächste Belohnung in **${timeLeft}** Stunden!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Already Claimed', `Next reward in **${timeLeft}** hours!`)] 
+                    });
                 }
                 
                 const reward = 500 + Math.floor(Math.random() * 500);
@@ -38,14 +68,16 @@ module.exports = {
                     daily_last: now.toISOString()
                 });
                 
-                return message.reply({ embeds: [global.embed.success('Daily Reward', `Du hast **${reward}** 💰 erhalten!\nNeuer Kontostand: **${(user?.balance || 0) + reward}**`)] });
+                return message.reply({ 
+                    embeds: [createEmbed(message, 'success', 'Daily Reward', `You received **${reward}** 💰!\nNew Balance: **${(user?.balance || 0) + reward}**`)] 
+                });
             }
         },
         
         // ========== WORK ==========
         work: {
             aliases: ['job'],
-            description: 'Arbeite für Geld',
+            description: 'Work for money',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const { data: user } = await supabase
@@ -61,15 +93,17 @@ module.exports = {
                 if (lastWork && now - lastWork < 60 * 60 * 1000) {
                     const nextWork = new Date(lastWork.getTime() + 60 * 60 * 1000);
                     const timeLeft = Math.floor((nextWork - now) / 1000 / 60);
-                    return message.reply({ embeds: [global.embed.error('Bereits gearbeitet', `Nächste Arbeit in **${timeLeft}** Minuten!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Already Worked', `Next work in **${timeLeft}** minutes!`)] 
+                    });
                 }
                 
                 const jobs = [
-                    { name: 'Pizzalieferant', min: 100, max: 300 },
-                    { name: 'Programmierer', min: 200, max: 500 },
-                    { name: 'Kellner', min: 80, max: 250 },
-                    { name: 'Verkäufer', min: 120, max: 350 },
-                    { name: 'Putzfrau', min: 90, max: 280 }
+                    { name: 'Pizza Delivery', min: 100, max: 300 },
+                    { name: 'Programmer', min: 200, max: 500 },
+                    { name: 'Waiter', min: 80, max: 250 },
+                    { name: 'Salesperson', min: 120, max: 350 },
+                    { name: 'Cleaner', min: 90, max: 280 }
                 ];
                 
                 const job = jobs[Math.floor(Math.random() * jobs.length)];
@@ -82,14 +116,16 @@ module.exports = {
                     work_last: now.toISOString()
                 });
                 
-                return message.reply({ embeds: [global.embed.success('Arbeit', `Als **${job.name}** hast du **${earned}** 💰 verdient!\nNeuer Kontostand: **${(user?.balance || 0) + earned}**`)] });
+                return message.reply({ 
+                    embeds: [createEmbed(message, 'success', 'Work Complete', `As a **${job.name}** you earned **${earned}** 💰!\nNew Balance: **${(user?.balance || 0) + earned}**`)] 
+                });
             }
         },
         
         // ========== BALANCE ==========
         balance: {
             aliases: ['bal', 'money'],
-            description: 'Zeigt deinen Kontostand',
+            description: 'Show your balance',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first() || message.author;
@@ -104,33 +140,41 @@ module.exports = {
                 const balance = user?.balance || 0;
                 const bank = user?.bank || 0;
                 
-                return message.reply({ embeds: [{
-                    color: 0xF1C40F,
-                    title: `💰 Kontostand von ${target.username}`,
-                    fields: [
-                        { name: '💵 Bargeld', value: `${balance}`, inline: true },
+                const embed = new EmbedBuilder()
+                    .setColor(0xF1C40F)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle(`💰 ${target.username}'s Balance`)
+                    .addFields([
+                        { name: '💵 Wallet', value: `${balance}`, inline: true },
                         { name: '🏦 Bank', value: `${bank}`, inline: true },
-                        { name: '📊 Gesamt', value: `${balance + bank}`, inline: true }
-                    ]
-                }] });
+                        { name: '📊 Total', value: `${balance + bank}`, inline: true }
+                    ])
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+                
+                return message.reply({ embeds: [embed] });
             }
         },
         
         // ========== PAY ==========
         pay: {
             aliases: ['send', 'give'],
-            description: 'Sende Geld an einen User',
+            description: 'Send money to a user',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const amount = parseInt(args[1]);
                 
                 if (!target || isNaN(amount) || amount <= 0) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!pay @User <Betrag>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!pay @User <Amount>')] 
+                    });
                 }
                 
                 if (target.id === message.author.id) {
-                    return message.reply({ embeds: [global.embed.error('Echt jetzt?', 'Du kannst dir nicht selbst Geld senden!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot send money to yourself!')] 
+                    });
                 }
                 
                 const { data: sender } = await supabase
@@ -141,7 +185,9 @@ module.exports = {
                     .single();
                 
                 if (!sender || sender.balance < amount) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${sender?.balance || 0}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${sender?.balance || 0}**!`)] 
+                    });
                 }
                 
                 const { data: receiver } = await supabase
@@ -163,20 +209,24 @@ module.exports = {
                     balance: (receiver?.balance || 0) + amount
                 });
                 
-                return message.reply({ embeds: [global.embed.success('Überweisung', `Du hast **${amount}** 💰 an ${target} gesendet!`)] });
+                return message.reply({ 
+                    embeds: [createEmbed(message, 'success', 'Payment Sent', `You sent **${amount}** 💰 to ${target}!`)] 
+                });
             }
         },
         
         // ========== DEPOSIT ==========
         deposit: {
             aliases: ['dep'],
-            description: 'Zahle Geld auf die Bank ein',
+            description: 'Deposit money to your bank',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const amount = args[0]?.toLowerCase() === 'all' ? 'all' : parseInt(args[0]);
                 
                 if (!amount || (amount !== 'all' && (isNaN(amount) || amount <= 0))) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!deposit <Betrag/all>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!deposit <Amount/all>')] 
+                    });
                 }
                 
                 const { data: user } = await supabase
@@ -190,7 +240,9 @@ module.exports = {
                 const depositAmount = amount === 'all' ? balance : amount;
                 
                 if (depositAmount > balance) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${balance}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${balance}**!`)] 
+                    });
                 }
                 
                 await supabase.from('economy').upsert({
@@ -200,20 +252,24 @@ module.exports = {
                     bank: (user?.bank || 0) + depositAmount
                 });
                 
-                return message.reply({ embeds: [global.embed.success('Einzahlung', `**${depositAmount}** 💰 auf die Bank eingezahlt!`)] });
+                return message.reply({ 
+                    embeds: [createEmbed(message, 'success', 'Deposit Successful', `**${depositAmount}** 💰 deposited to your bank!`)] 
+                });
             }
         },
         
         // ========== WITHDRAW ==========
         withdraw: {
             aliases: ['with'],
-            description: 'Hebe Geld von der Bank ab',
+            description: 'Withdraw money from your bank',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const amount = args[0]?.toLowerCase() === 'all' ? 'all' : parseInt(args[0]);
                 
                 if (!amount || (amount !== 'all' && (isNaN(amount) || amount <= 0))) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!withdraw <Betrag/all>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!withdraw <Amount/all>')] 
+                    });
                 }
                 
                 const { data: user } = await supabase
@@ -227,7 +283,9 @@ module.exports = {
                 const withdrawAmount = amount === 'all' ? bank : amount;
                 
                 if (withdrawAmount > bank) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug auf Bank', `Du hast nur **${bank}** auf der Bank!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough in Bank', `You only have **${bank}** in your bank!`)] 
+                    });
                 }
                 
                 await supabase.from('economy').upsert({
@@ -237,21 +295,25 @@ module.exports = {
                     bank: bank - withdrawAmount
                 });
                 
-                return message.reply({ embeds: [global.embed.success('Auszahlung', `**${withdrawAmount}** 💰 von der Bank abgehoben!`)] });
+                return message.reply({ 
+                    embeds: [createEmbed(message, 'success', 'Withdrawal Successful', `**${withdrawAmount}** 💰 withdrawn from your bank!`)] 
+                });
             }
         },
         
         // ========== ROULETTE ==========
         roulette: {
             aliases: ['roul'],
-            description: 'Roulette spielen',
+            description: 'Play roulette',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const bet = parseInt(args[0]);
                 const choice = args[1]?.toLowerCase();
                 
                 if (isNaN(bet) || bet <= 0 || !choice) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!roulette <Betrag> <rot/schwarz/grün/zahl>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!roulette <Bet> <red/black/green/number>')] 
+                    });
                 }
                 
                 const { data: user } = await supabase
@@ -262,16 +324,18 @@ module.exports = {
                     .single();
                 
                 if (!user || user.balance < bet) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${user?.balance || 0}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${user?.balance || 0}**!`)] 
+                    });
                 }
                 
                 const number = Math.floor(Math.random() * 37);
-                let color = number === 0 ? 'grün' : (number % 2 === 0 ? 'rot' : 'schwarz');
+                let color = number === 0 ? 'green' : (number % 2 === 0 ? 'red' : 'black');
                 let win = 0;
                 
-                if (choice === 'rot' && color === 'rot') win = bet * 2;
-                else if (choice === 'schwarz' && color === 'schwarz') win = bet * 2;
-                else if (choice === 'grün' && color === 'grün') win = bet * 14;
+                if (choice === 'red' && color === 'red') win = bet * 2;
+                else if (choice === 'black' && color === 'black') win = bet * 2;
+                else if (choice === 'green' && color === 'green') win = bet * 14;
                 else if (!isNaN(parseInt(choice)) && parseInt(choice) === number) win = bet * 35;
                 
                 const newBalance = user.balance - bet + win;
@@ -282,11 +346,13 @@ module.exports = {
                     balance: newBalance
                 });
                 
-                const resultEmbed = {
-                    color: win > 0 ? 0x00FF00 : 0xFF0000,
-                    title: win > 0 ? '🎉 GEWONNEN!' : '😢 VERLOREN!',
-                    description: `**Zahl:** ${number} (${color})\n**Einsatz:** ${bet} 💰\n**Gewinn:** ${win} 💰\n**Neuer Stand:** ${newBalance} 💰`
-                };
+                const resultEmbed = new EmbedBuilder()
+                    .setColor(win > 0 ? 0x57F287 : 0xED4245)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle(win > 0 ? '🎉 YOU WON!' : '😢 YOU LOST!')
+                    .setDescription(`**Number:** ${number} (${color})\n**Bet:** ${bet} 💰\n**Win:** ${win} 💰\n**New Balance:** ${newBalance} 💰`)
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
                 
                 return message.reply({ embeds: [resultEmbed] });
             }
@@ -295,18 +361,22 @@ module.exports = {
         // ========== COINFLIP ==========
         coinflip: {
             aliases: ['cf'],
-            description: 'Kopf oder Zahl gegen andere User',
+            description: 'Coin flip against another user',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const bet = parseInt(args[1]);
                 
                 if (!target || isNaN(bet) || bet <= 0) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!coinflip @User <Betrag>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!coinflip @User <Bet>')] 
+                    });
                 }
                 
                 if (target.id === message.author.id) {
-                    return message.reply({ embeds: [global.embed.error('Echt jetzt?', 'Du kannst nicht gegen dich selbst spielen!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot play against yourself!')] 
+                    });
                 }
                 
                 const { data: challenger } = await supabase
@@ -324,24 +394,30 @@ module.exports = {
                     .single();
                 
                 if (!challenger || challenger.balance < bet) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${challenger?.balance || 0}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${challenger?.balance || 0}**!`)] 
+                    });
                 }
                 
                 if (!opponent || opponent.balance < bet) {
-                    return message.reply({ embeds: [global.embed.error('Gegner hat nicht genug', `${target} hat nur **${opponent?.balance || 0}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Opponent Lacks Funds', `${target} only has **${opponent?.balance || 0}**!`)] 
+                    });
                 }
                 
-                // Challenge Embed mit Buttons
                 const row = new ActionRowBuilder()
                     .addComponents(
-                        new ButtonBuilder().setCustomId(`cf_accept_${message.author.id}_${target.id}_${bet}`).setLabel('✅ Annehmen').setStyle(ButtonStyle.Success),
-                        new ButtonBuilder().setCustomId(`cf_reject_${message.author.id}`).setLabel('❌ Ablehnen').setStyle(ButtonStyle.Danger)
+                        new ButtonBuilder().setCustomId(`cf_accept_${message.author.id}_${target.id}_${bet}`).setLabel('✅ Accept').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId(`cf_reject_${message.author.id}`).setLabel('❌ Reject').setStyle(ButtonStyle.Danger)
                     );
                 
                 const challengeEmbed = new EmbedBuilder()
                     .setColor(0xF1C40F)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
                     .setTitle('🪙 Coinflip Challenge')
-                    .setDescription(`${message.author} fordert ${target} heraus!\n**Einsatz:** ${bet} 💰\n\n${target}, klicke auf Annehmen!`);
+                    .setDescription(`${message.author} challenges ${target}!\n**Bet:** ${bet} 💰\n\n${target}, click Accept to play!`)
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
                 
                 const msg = await message.reply({ content: `${target}`, embeds: [challengeEmbed], components: [row] });
                 
@@ -366,19 +442,36 @@ module.exports = {
                         });
                         
                         const resultEmbed = new EmbedBuilder()
-                            .setColor(0x00FF00)
-                            .setTitle('🪙 Coinflip Ergebnis')
-                            .setDescription(`**${winner.username}** gewinnt **${bet}** 💰!`);
+                            .setColor(0x57F287)
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('🪙 Coinflip Result')
+                            .setDescription(`**${winner.username}** wins **${bet}** 💰!`)
+                            .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                            .setTimestamp();
                         
                         await i.update({ embeds: [resultEmbed], components: [] });
                     } else {
-                        await i.update({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('❌ Abgelehnt').setDescription(`${target} hat die Challenge abgelehnt.`)], components: [] });
+                        const rejectEmbed = new EmbedBuilder()
+                            .setColor(0xED4245)
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('❌ Rejected')
+                            .setDescription(`${target} rejected the challenge.`)
+                            .setTimestamp();
+                        
+                        await i.update({ embeds: [rejectEmbed], components: [] });
                     }
                 });
                 
                 collector.on('end', async (collected) => {
                     if (collected.size === 0) {
-                        await msg.edit({ embeds: [new EmbedBuilder().setColor(0x808080).setTitle('⏰ Timeout').setDescription('Challenge abgelaufen.')], components: [] });
+                        const timeoutEmbed = new EmbedBuilder()
+                            .setColor(0x808080)
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('⏰ Timeout')
+                            .setDescription('Challenge expired.')
+                            .setTimestamp();
+                        
+                        await msg.edit({ embeds: [timeoutEmbed], components: [] });
                     }
                 });
             }
@@ -387,25 +480,31 @@ module.exports = {
         // ========== TICTACTOE ==========
         tictactoe: {
             aliases: ['ttt', 'xo'],
-            description: 'TicTacToe gegen andere User',
+            description: 'Play TicTacToe against another user',
             category: 'Games',
             async execute(message, args, { supabase }) {
                 const target = message.mentions.users.first();
                 const bet = parseInt(args[1]) || 0;
                 
                 if (!target) {
-                    return message.reply({ embeds: [global.embed.error('Kein Gegner', '!tictactoe @User [Einsatz]')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'No Opponent', '!tictactoe @User [Bet]')] 
+                    });
                 }
                 
                 if (target.id === message.author.id) {
-                    return message.reply({ embeds: [global.embed.error('Echt jetzt?', 'Du kannst nicht gegen dich selbst spielen!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Really?', 'You cannot play against yourself!')] 
+                    });
                 }
                 
                 if (target.bot) {
-                    return message.reply({ embeds: [global.embed.error('Bot', 'Du kannst nicht gegen Bots spielen!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Bot', 'You cannot play against bots!')] 
+                    });
                 }
                 
-                // Prüfen ob bereits ein Spiel läuft
+                // Check if already in a game
                 const existingGame = Array.from(tttGames.values()).find(g => 
                     g.guildId === message.guild.id && 
                     (g.playerX === message.author.id || g.playerO === message.author.id || 
@@ -413,10 +512,12 @@ module.exports = {
                 );
                 
                 if (existingGame) {
-                    return message.reply({ embeds: [global.embed.error('Bereits im Spiel', 'Einer der Spieler ist bereits in einem TicTacToe-Spiel!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Already in Game', 'One of the players is already in a TicTacToe game!')] 
+                    });
                 }
                 
-                // Bei Einsatz: Guthaben prüfen
+                // Check balances if betting
                 if (bet > 0) {
                     const { data: challenger } = await supabase
                         .from('economy')
@@ -433,25 +534,32 @@ module.exports = {
                         .single();
                     
                     if (!challenger || challenger.balance < bet) {
-                        return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${challenger?.balance || 0}**!`)] });
+                        return message.reply({ 
+                            embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${challenger?.balance || 0}**!`)] 
+                        });
                     }
                     
                     if (!opponent || opponent.balance < bet) {
-                        return message.reply({ embeds: [global.embed.error('Gegner hat nicht genug', `${target} hat nur **${opponent?.balance || 0}**!`)] });
+                        return message.reply({ 
+                            embeds: [createEmbed(message, 'error', 'Opponent Lacks Funds', `${target} only has **${opponent?.balance || 0}**!`)] 
+                        });
                     }
                 }
                 
                 // Challenge Embed
                 const row = new ActionRowBuilder()
                     .addComponents(
-                        new ButtonBuilder().setCustomId(`ttt_accept_${message.author.id}_${target.id}_${bet}`).setLabel('✅ Annehmen').setStyle(ButtonStyle.Success),
-                        new ButtonBuilder().setCustomId(`ttt_reject_${message.author.id}`).setLabel('❌ Ablehnen').setStyle(ButtonStyle.Danger)
+                        new ButtonBuilder().setCustomId(`ttt_accept_${message.author.id}_${target.id}_${bet}`).setLabel('✅ Accept').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId(`ttt_reject_${message.author.id}`).setLabel('❌ Reject').setStyle(ButtonStyle.Danger)
                     );
                 
                 const challengeEmbed = new EmbedBuilder()
                     .setColor(0x3498DB)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
                     .setTitle('🎮 TicTacToe Challenge')
-                    .setDescription(`${message.author} fordert ${target} heraus!\n${bet > 0 ? `**Einsatz:** ${bet} 💰\n\n` : ''}${target}, klicke auf Annehmen!`);
+                    .setDescription(`${message.author} challenges ${target}!\n${bet > 0 ? `**Bet:** ${bet} 💰\n\n` : '\n'}${target}, click Accept to play!`)
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
                 
                 const msg = await message.reply({ content: `${target}`, embeds: [challengeEmbed], components: [row] });
                 
@@ -460,15 +568,29 @@ module.exports = {
                 
                 collector.on('collect', async (i) => {
                     if (i.customId.startsWith('ttt_accept')) {
-                        await startTicTacToe(i, message.author, target, bet, supabase);
+                        await startTicTacToe(i, message.author, target, bet, supabase, message.client);
                     } else {
-                        await i.update({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('❌ Abgelehnt').setDescription(`${target} hat die Challenge abgelehnt.`)], components: [] });
+                        const rejectEmbed = new EmbedBuilder()
+                            .setColor(0xED4245)
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('❌ Rejected')
+                            .setDescription(`${target} rejected the challenge.`)
+                            .setTimestamp();
+                        
+                        await i.update({ embeds: [rejectEmbed], components: [] });
                     }
                 });
                 
                 collector.on('end', async (collected) => {
                     if (collected.size === 0) {
-                        await msg.edit({ embeds: [new EmbedBuilder().setColor(0x808080).setTitle('⏰ Timeout').setDescription('Challenge abgelaufen.')], components: [] });
+                        const timeoutEmbed = new EmbedBuilder()
+                            .setColor(0x808080)
+                            .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                            .setTitle('⏰ Timeout')
+                            .setDescription('Challenge expired.')
+                            .setTimestamp();
+                        
+                        await msg.edit({ embeds: [timeoutEmbed], components: [] });
                     }
                 });
             }
@@ -477,7 +599,7 @@ module.exports = {
         // ========== LEADERBOARD ==========
         leaderboard: {
             aliases: ['lb', 'top', 'rich'],
-            description: 'Zeigt die reichsten User',
+            description: 'Show the richest users',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const { data: users } = await supabase
@@ -488,35 +610,42 @@ module.exports = {
                     .limit(10);
                 
                 if (!users || users.length === 0) {
-                    return message.reply({ embeds: [global.embed.info('Keine Daten', 'Noch niemand hat Geld!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'info', 'No Data', 'No one has money yet!')] 
+                    });
                 }
                 
                 const lb = await Promise.all(users.map(async (u, i) => {
                     const user = await message.client.users.fetch(u.user_id).catch(() => null);
                     const total = (u.balance || 0) + (u.bank || 0);
                     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
-                    return `${medal} **${user?.username || 'Unbekannt'}**: ${total} 💰`;
+                    return `${medal} **${user?.username || 'Unknown'}**: ${total} 💰`;
                 }));
                 
-                return message.reply({ embeds: [{
-                    color: 0xF1C40F,
-                    title: '🏆 Leaderboard',
-                    description: lb.join('\n'),
-                    footer: { text: `Top 10 von ${users.length} Usern` }
-                }] });
+                const embed = new EmbedBuilder()
+                    .setColor(0xF1C40F)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle('🏆 Leaderboard')
+                    .setDescription(lb.join('\n'))
+                    .setFooter({ text: `Top 10 of ${users.length} users`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+                
+                return message.reply({ embeds: [embed] });
             }
         },
         
         // ========== SLOTS ==========
         slots: {
             aliases: ['slot'],
-            description: 'Spielautomat',
+            description: 'Play the slot machine',
             category: 'Economy',
             async execute(message, args, { supabase }) {
                 const bet = parseInt(args[0]);
                 
                 if (isNaN(bet) || bet <= 0) {
-                    return message.reply({ embeds: [global.embed.error('Falsche Nutzung', '!slots <Betrag>')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!slots <Bet>')] 
+                    });
                 }
                 
                 const { data: user } = await supabase
@@ -527,7 +656,9 @@ module.exports = {
                     .single();
                 
                 if (!user || user.balance < bet) {
-                    return message.reply({ embeds: [global.embed.error('Nicht genug Geld', `Du hast nur **${user?.balance || 0}**!`)] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Not Enough Money', `You only have **${user?.balance || 0}**!`)] 
+                    });
                 }
                 
                 const emojis = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣'];
@@ -554,18 +685,22 @@ module.exports = {
                     balance: newBalance
                 });
                 
-                return message.reply({ embeds: [{
-                    color: win > 0 ? 0x00FF00 : 0xFF0000,
-                    title: win > 0 ? '🎰 GEWONNEN!' : '🎰 VERLOREN!',
-                    description: `**${slots.join('  ')}**\n\nEinsatz: ${bet} 💰\nGewinn: ${win} 💰\nNeuer Stand: ${newBalance} 💰`
-                }] });
+                const resultEmbed = new EmbedBuilder()
+                    .setColor(win > 0 ? 0x57F287 : 0xED4245)
+                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                    .setTitle(win > 0 ? '🎰 YOU WON!' : '🎰 YOU LOST!')
+                    .setDescription(`**${slots.join('  ')}**\n\nBet: ${bet} 💰\nWin: ${win} 💰\nNew Balance: ${newBalance} 💰`)
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+                
+                return message.reply({ embeds: [resultEmbed] });
             }
         }
     }
 };
 
-// ⭐ TicTacToe Spiel starten
-async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
+// ⭐ TicTacToe Game Starter (FIXED)
+async function startTicTacToe(interaction, playerX, playerO, bet, supabase, client) {
     const board = ['⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜'];
     const gameId = `${interaction.guild.id}_${playerX.id}_${playerO.id}`;
     
@@ -575,8 +710,7 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
         playerO: playerO.id,
         currentTurn: playerX.id,
         board: board,
-        bet: bet,
-        message: null
+        bet: bet
     });
     
     const rows = [];
@@ -595,33 +729,35 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
     
     const embed = new EmbedBuilder()
         .setColor(0x3498DB)
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
         .setTitle('🎮 TicTacToe')
-        .setDescription(`**${playerX.username}** ❌ vs **${playerO.username}** ⭕\n\n**${playerX.username}** ist am Zug!`);
+        .setDescription(`**${playerX.username}** ❌ vs **${playerO.username}** ⭕\n\n**${playerX.username}**'s turn!`)
+        .setFooter({ text: `${playerX.username} vs ${playerO.username}` })
+        .setTimestamp();
     
     const msg = await interaction.update({ embeds: [embed], components: rows, fetchReply: true });
-    tttGames.get(gameId).message = msg;
     
-    // Collector für das Spiel
+    // Game collector
     const collector = msg.createMessageComponentCollector({ time: 120000 });
     
     collector.on('collect', async (i) => {
         const game = tttGames.get(gameId);
-        if (!game) return i.reply({ content: 'Spiel existiert nicht mehr!', ephemeral: true });
+        if (!game) return i.reply({ content: 'Game no longer exists!', ephemeral: true });
         
         if (i.user.id !== game.currentTurn) {
-            return i.reply({ content: 'Du bist nicht am Zug!', ephemeral: true });
+            return i.reply({ content: 'It\'s not your turn!', ephemeral: true });
         }
         
         const pos = parseInt(i.customId.split('_')[3]);
         
         if (game.board[pos] !== '⬜') {
-            return i.reply({ content: 'Dieses Feld ist bereits belegt!', ephemeral: true });
+            return i.reply({ content: 'This field is already taken!', ephemeral: true });
         }
         
         const symbol = game.currentTurn === game.playerX ? '❌' : '⭕';
         game.board[pos] = symbol;
         
-        // UI updaten
+        // Update UI
         const newRows = [];
         for (let r = 0; r < 3; r++) {
             const row = new ActionRowBuilder();
@@ -639,7 +775,7 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
             newRows.push(row);
         }
         
-        // Gewinner prüfen
+        // Check winner
         const winPatterns = [
             [0,1,2], [3,4,5], [6,7,8],
             [0,3,6], [1,4,7], [2,5,8],
@@ -665,9 +801,9 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
             if (winner) {
                 const winnerUser = winner === game.playerX ? playerX : playerO;
                 const loserUser = winner === game.playerX ? playerO : playerX;
-                resultText = `**${winnerUser.username}** hat gewonnen!`;
+                resultText = `**${winnerUser.username}** wins!`;
                 
-                // Bei Einsatz: Geld transferieren
+                // Handle bet
                 if (bet > 0) {
                     const { data: winnerData } = await supabase
                         .from('economy')
@@ -695,30 +831,35 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
                         balance: (loserData?.balance || 0) - bet
                     });
                     
-                    resultText += `\n\n💰 **${bet}** gewonnen!`;
+                    resultText += `\n\n💰 **${bet}** won!`;
                 }
             } else {
-                resultText = '**Unentschieden!**';
+                resultText = '**It\'s a draw!**';
             }
             
             const finalEmbed = new EmbedBuilder()
-                .setColor(winner ? 0x00FF00 : 0x808080)
-                .setTitle(winner ? '🏆 Gewinner!' : '🤝 Unentschieden!')
-                .setDescription(`${playerX.username} ❌ vs ${playerO.username} ⭕\n\n${resultText}`);
+                .setColor(winner ? 0x57F287 : 0x808080)
+                .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                .setTitle(winner ? '🏆 Winner!' : '🤝 Draw!')
+                .setDescription(`${playerX.username} ❌ vs ${playerO.username} ⭕\n\n${resultText}`)
+                .setTimestamp();
             
             await i.update({ embeds: [finalEmbed], components: [] });
             tttGames.delete(gameId);
             return;
         }
         
-        // Nächster Zug
+        // Next turn
         game.currentTurn = game.currentTurn === game.playerX ? game.playerO : game.playerX;
         const nextUser = game.currentTurn === game.playerX ? playerX : playerO;
         
         const turnEmbed = new EmbedBuilder()
             .setColor(0x3498DB)
+            .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
             .setTitle('🎮 TicTacToe')
-            .setDescription(`**${playerX.username}** ❌ vs **${playerO.username}** ⭕\n\n**${nextUser.username}** ist am Zug!`);
+            .setDescription(`**${playerX.username}** ❌ vs **${playerO.username}** ⭕\n\n**${nextUser.username}**'s turn!`)
+            .setFooter({ text: `${playerX.username} vs ${playerO.username}` })
+            .setTimestamp();
         
         await i.update({ embeds: [turnEmbed], components: newRows });
     });
@@ -726,12 +867,16 @@ async function startTicTacToe(interaction, playerX, playerO, bet, supabase) {
     collector.on('end', async (collected, reason) => {
         const game = tttGames.get(gameId);
         if (game && reason === 'time') {
-            const timeoutEmbed = new EmbedBuilder()
-                .setColor(0x808080)
-                .setTitle('⏰ Timeout')
-                .setDescription('Spiel abgelaufen!');
-            
-            await game.message.edit({ embeds: [timeoutEmbed], components: [] });
+            try {
+                const timeoutEmbed = new EmbedBuilder()
+                    .setColor(0x808080)
+                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                    .setTitle('⏰ Timeout')
+                    .setDescription('Game expired due to inactivity.')
+                    .setTimestamp();
+                
+                await interaction.editReply({ embeds: [timeoutEmbed], components: [] });
+            } catch {}
             tttGames.delete(gameId);
         }
     });

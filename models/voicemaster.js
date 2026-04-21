@@ -1,9 +1,9 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 
-// Cache für schnellen Zugriff (wird aus Supabase geladen)
+// Cache for fast access (loaded from Supabase)
 const vmCache = new Map();
 
-// ========== HELPER: Konfiguration aus Supabase laden ==========
+// ========== HELPER: Load config from Supabase ==========
 async function loadConfig(guildId, supabase) {
     if (vmCache.has(guildId)) return vmCache.get(guildId);
     
@@ -37,7 +37,7 @@ async function loadConfig(guildId, supabase) {
     return null;
 }
 
-// ========== HELPER FUNKTION ==========
+// ========== HELPER FUNCTION ==========
 async function isOwner(userId, channel, guildId, supabase) {
     const config = await loadConfig(guildId, supabase);
     if (!config) return false;
@@ -46,9 +46,9 @@ async function isOwner(userId, channel, guildId, supabase) {
     return ownerId === userId;
 }
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = []) {
-    const lang = client.languages?.get(guildId) || 'de';
+    const lang = client.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -58,40 +58,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            no_vc: 'Kein VC',
-            no_vm_channel: 'Kein VM Channel',
-            no_setup: 'Kein Setup',
-            no_owner: 'Kein Owner',
-            already_claimed: 'Bereits geclaimed',
-            locked: 'Gesperrt',
-            unlocked: 'Entsperrt',
-            hidden: 'Versteckt',
-            revealed: 'Sichtbar',
-            claimed: 'Geclaimed',
-            disconnect: 'Disconnect',
-            activity: 'Aktivität',
-            error: 'Fehler',
-            info: 'Info',
-            limit_increased: 'Limit erhöht',
-            limit_decreased: 'Limit verringert',
-            setup: 'Setup',
-            reset: 'VoiceMaster Reset',
-            channel_locked: 'Channel gesperrt',
-            channel_unlocked: 'Channel entsperrt',
-            channel_hidden: 'Channel versteckt',
-            channel_revealed: 'Channel sichtbar',
-            channel_claimed: 'Channel übernommen',
-            transfer: 'Transfer',
-            limit_set: 'Limit gesetzt',
-            renamed: 'Umbenannt',
-            user_banned: 'User gebannt',
-            user_unbanned: 'User entbannt',
-            unlimited: 'Unbegrenzt',
-            voice_master: 'VoiceMaster',
-            setup_complete: 'VoiceMaster Setup',
-            unknown: 'Unbekannt'
-        },
         en: {
             no_vc: 'No VC',
             no_vm_channel: 'No VM Channel',
@@ -129,45 +95,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            no_vc: 'Du bist in keinem Voice-Channel!',
-            no_vm_channel: 'Das ist kein VoiceMaster Channel!',
-            no_setup: 'VoiceMaster ist nicht eingerichtet!',
-            no_owner: 'Nur der Channel-Owner kann das!',
-            already_claimed: 'Dieser Channel hat bereits einen Owner!',
-            locked: 'Channel wurde gesperrt!',
-            unlocked: 'Channel wurde entsperrt!',
-            hidden: 'Channel ist jetzt versteckt!',
-            revealed: 'Channel ist jetzt sichtbar!',
-            claimed: (user) => `Du bist jetzt Owner von ${user}!`,
-            disconnect: 'Nutze `!voice-kick @User` um jemanden zu kicken.',
-            activity: (link) => `[Klick hier für YouTube Together](https://discord.gg/${link})`,
-            error_activity: 'Konnte Aktivität nicht starten!',
-            limit_increased: (limit) => `Neues Limit: ${limit}`,
-            limit_decreased: (limit) => `Neues Limit: ${limit === 0 ? 'Unbegrenzt' : limit}`,
-            setup: '⏳ Erstelle VoiceMaster...',
-            reset: 'VoiceMaster wurde zurückgesetzt.',
-            channel_locked: (channel) => `${channel} wurde gesperrt.`,
-            channel_unlocked: (channel) => `${channel} wurde entsperrt.`,
-            channel_hidden: (channel) => `${channel} ist jetzt versteckt.`,
-            channel_revealed: (channel) => `${channel} ist jetzt sichtbar.`,
-            channel_claimed: (channel) => `Du bist jetzt Owner von ${channel}!`,
-            transfer: (user) => `Channel-Ownership wurde an ${user} übertragen!`,
-            limit_set: (limit) => `User-Limit: ${limit === 0 ? 'Unbegrenzt' : limit}`,
-            renamed: (name) => `Channel heißt jetzt **${name}**`,
-            user_banned: (user) => `${user} wurde vom Channel gebannt.`,
-            user_unbanned: (user) => `${user} wurde entbannt.`,
-            invalid_limit: 'Limit muss zwischen 0 und 99 sein!',
-            no_name: '!voice-rename <Name>',
-            name_too_long: 'Name darf maximal 100 Zeichen haben!',
-            no_user: '!voice-ban @User',
-            no_user_unban: '!voice-unban @User / ID',
-            self_ban: 'Du kannst dich nicht selbst bannen!',
-            no_transfer_user: '!voice-transfer @User',
-            not_in_channel: (user) => `${user} ist nicht in deinem Channel!`,
-            setup_success: (jtc, iface) => `✅ **Join-to-Create:** ${jtc}\n✅ **Interface:** ${iface}\n\nUser können jetzt dem Join-to-Create Channel beitreten!`,
-            unknown: 'Dieser Button ist nicht konfiguriert.'
-        },
         en: {
             no_vc: 'You are not in a voice channel!',
             no_vm_channel: 'This is not a VoiceMaster channel!',
@@ -212,7 +139,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     const title = titles[lang]?.[titleKey] || titleKey;
     let description = descriptions[lang]?.[descKey] || descKey;
     
-    // Funktionen in descriptions ausführen
+    // Execute functions in descriptions
     if (typeof description === 'function') {
         if (fields.length > 0) {
             description = description(...fields);
@@ -229,7 +156,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     embed.setTitle(`${emoji} ${title}`);
     embed.setDescription(description);
     
-    // Footer mit User
+    // Footer with User
     if (userId) {
         const user = await client.users.fetch(userId).catch(() => null);
         if (user) {
@@ -245,7 +172,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
 async function handleVoiceMasterButton(interaction, client, supabase) {
     const { customId, member, guild } = interaction;
     const channel = member.voice.channel;
-    const lang = client.languages?.get(guild.id) || 'de';
+    const lang = client.languages?.get(guild.id) || 'en';
     
     await interaction.deferReply({ ephemeral: true });
     
@@ -375,10 +302,10 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
                 .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                 .setTitle(`ℹ️ ${channel.name}`)
                 .addFields([
-                    { name: lang === 'de' ? 'Owner' : 'Owner', value: ownerUser?.username || (lang === 'de' ? 'Keiner' : 'None'), inline: true },
-                    { name: lang === 'de' ? 'User' : 'Users', value: `${channel.members.size}`, inline: true },
-                    { name: lang === 'de' ? 'User-Limit' : 'User Limit', value: channel.userLimit === 0 ? (lang === 'de' ? 'Unbegrenzt' : 'Unlimited') : `${channel.userLimit}`, inline: true },
-                    { name: lang === 'de' ? 'Bitrate' : 'Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
+                    { name: 'Owner', value: ownerUser?.username || 'None', inline: true },
+                    { name: 'Users', value: `${channel.members.size}`, inline: true },
+                    { name: 'User Limit', value: channel.userLimit === 0 ? 'Unlimited' : `${channel.userLimit}`, inline: true },
+                    { name: 'Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
                 ])
                 .setFooter({ text: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
                 .setTimestamp();
@@ -424,16 +351,16 @@ module.exports = {
         voicemaster: {
             aliases: ['setupvm', 'vm', 'voicesetup'],
             permissions: 'Administrator',
-            description: 'Erstellt das VoiceMaster System / Creates VoiceMaster System',
+            description: 'Creates the VoiceMaster system',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const loadingMsg = await message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'setup', 'setup')] 
                 });
                 
-                // Alte Config löschen falls vorhanden
+                // Delete old config if exists
                 const existing = await loadConfig(message.guild.id, supabase);
                 if (existing) {
                     const jtcChannel = message.guild.channels.cache.get(existing.jtcChannel);
@@ -463,21 +390,19 @@ module.exports = {
                 const panelEmbed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '🎛️ VoiceMaster Interface' : '🎛️ VoiceMaster Interface')
-                    .setDescription(lang === 'de' 
-                        ? 'Nutze die Buttons unten um deinen Voice-Channel zu steuern.\n\n*Antworten sind nur für dich sichtbar!*'
-                        : 'Use the buttons below to control your voice channel.\n\n*Responses are only visible to you!*')
+                    .setTitle('🎛️ VoiceMaster Interface')
+                    .setDescription('Use the buttons below to control your voice channel.\n\n*Responses are only visible to you!*')
                     .addFields(
-                        { name: '🔒 Lock', value: lang === 'de' ? 'Sperrt den Channel' : 'Locks the channel', inline: true },
-                        { name: '🔓 Unlock', value: lang === 'de' ? 'Entsperrt den Channel' : 'Unlocks the channel', inline: true },
-                        { name: '👻 Hide', value: lang === 'de' ? 'Versteckt den Channel' : 'Hides the channel', inline: true },
-                        { name: '👁️ Reveal', value: lang === 'de' ? 'Zeigt den Channel' : 'Reveals the channel', inline: true },
-                        { name: '📋 Claim', value: lang === 'de' ? 'Übernimmt den Channel' : 'Claims the channel', inline: true },
-                        { name: '👢 Disconnect', value: lang === 'de' ? 'Kickt einen User' : 'Kicks a user', inline: true },
-                        { name: '🎮 Activity', value: lang === 'de' ? 'Startet eine Aktivität' : 'Starts an activity', inline: true },
-                        { name: 'ℹ️ Info', value: lang === 'de' ? 'Channel-Informationen' : 'Channel information', inline: true },
-                        { name: '⬆️ Limit+', value: lang === 'de' ? 'Erhöht User-Limit' : 'Increases user limit', inline: true },
-                        { name: '⬇️ Limit-', value: lang === 'de' ? 'Verringert User-Limit' : 'Decreases user limit', inline: true }
+                        { name: '🔒 Lock', value: 'Locks the channel', inline: true },
+                        { name: '🔓 Unlock', value: 'Unlocks the channel', inline: true },
+                        { name: '👻 Hide', value: 'Hides the channel', inline: true },
+                        { name: '👁️ Reveal', value: 'Reveals the channel', inline: true },
+                        { name: '📋 Claim', value: 'Claims the channel', inline: true },
+                        { name: '👢 Disconnect', value: 'Kicks a user', inline: true },
+                        { name: '🎮 Activity', value: 'Starts an activity', inline: true },
+                        { name: 'ℹ️ Info', value: 'Channel information', inline: true },
+                        { name: '⬆️ Limit+', value: 'Increases user limit', inline: true },
+                        { name: '⬇️ Limit-', value: 'Decreases user limit', inline: true }
                     )
                     .setFooter({ text: message.guild.name })
                     .setTimestamp();
@@ -517,10 +442,8 @@ module.exports = {
                 const successEmbed = new EmbedBuilder()
                     .setColor(0x57F287)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(lang === 'de' ? '✅ VoiceMaster Setup' : '✅ VoiceMaster Setup')
-                    .setDescription(lang === 'de' 
-                        ? `✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}\n\nUser können jetzt dem Join-to-Create Channel beitreten!`
-                        : `✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}\n\nUsers can now join the Join-to-Create channel!`)
+                    .setTitle('✅ VoiceMaster Setup')
+                    .setDescription(`✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}\n\nUsers can now join the Join-to-Create channel!`)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
@@ -532,10 +455,9 @@ module.exports = {
         'voicemaster-reset': {
             aliases: ['vm-reset', 'resetvm'],
             permissions: 'Administrator',
-            description: 'Setzt VoiceMaster zurück / Resets VoiceMaster',
+            description: 'Resets VoiceMaster',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 const config = await loadConfig(message.guild.id, supabase);
                 
                 if (config) {
@@ -564,11 +486,10 @@ module.exports = {
         // ========== VOICE-LOCK ==========
         'voice-lock': {
             aliases: ['vlock'],
-            description: 'Sperrt deinen Voice-Channel / Locks your voice channel',
+            description: 'Locks your voice channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -592,7 +513,7 @@ module.exports = {
         // ========== VOICE-UNLOCK ==========
         'voice-unlock': {
             aliases: ['vunlock'],
-            description: 'Entsperrt deinen Voice-Channel / Unlocks your voice channel',
+            description: 'Unlocks your voice channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
@@ -619,7 +540,7 @@ module.exports = {
         // ========== VOICE-HIDE ==========
         'voice-hide': {
             aliases: ['vhide', 'ghost'],
-            description: 'Versteckt deinen Voice-Channel / Hides your voice channel',
+            description: 'Hides your voice channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
@@ -646,7 +567,7 @@ module.exports = {
         // ========== VOICE-UNHIDE ==========
         'voice-unhide': {
             aliases: ['vunhide', 'reveal'],
-            description: 'Zeigt deinen Voice-Channel / Reveals your voice channel',
+            description: 'Reveals your voice channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
@@ -673,11 +594,10 @@ module.exports = {
         // ========== VOICE-CLAIM ==========
         'voice-claim': {
             aliases: ['vclaim'],
-            description: 'Übernimmt einen Voice-Channel / Claims a voice channel',
+            description: 'Claims a voice channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -718,11 +638,10 @@ module.exports = {
         // ========== VOICE-TRANSFER ==========
         'voice-transfer': {
             aliases: ['vtransfer', 'transfer-new'],
-            description: 'Überträgt Channel-Ownership / Transfers channel ownership',
+            description: 'Transfers channel ownership',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -772,11 +691,10 @@ module.exports = {
         // ========== VOICE-LIMIT ==========
         'voice-limit': {
             aliases: ['vlimit'],
-            description: 'Setzt User-Limit / Sets user limit',
+            description: 'Sets user limit',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -807,11 +725,10 @@ module.exports = {
         // ========== VOICE-RENAME ==========
         'voice-rename': {
             aliases: ['vrename'],
-            description: 'Benennt Channel um / Renames channel',
+            description: 'Renames channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -848,11 +765,10 @@ module.exports = {
         // ========== VOICE-BAN ==========
         'voice-ban': {
             aliases: ['vban'],
-            description: 'Bannt User vom Channel / Bans user from channel',
+            description: 'Bans user from channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 
@@ -894,11 +810,10 @@ module.exports = {
         // ========== VOICE-UNBAN ==========
         'voice-unban': {
             aliases: ['vunban', 'voice-unban-new'],
-            description: 'Entbannt User vom Channel / Unbans user from channel',
+            description: 'Unbans user from channel',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                const lang = client.languages?.get(message.guild.id) || 'de';
                 
                 if (!channel) {
                     return message.reply({ 

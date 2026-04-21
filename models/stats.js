@@ -1,12 +1,12 @@
 const { createCanvas, loadImage } = require('canvas');
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
 
-// Stats Cache für Performance
+// Stats Cache for performance
 const statsCache = new Map();
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'de';
+    const lang = client.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -17,18 +17,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            stats: 'Stats',
-            server_stats: 'Server Statistiken',
-            rank: 'Rank',
-            top: 'Top',
-            error: 'Fehler',
-            info: 'Info',
-            loading_user: 'Generiere User-Statistiken...',
-            loading_server: 'Generiere Server-Statistiken...',
-            loading_rank: 'Berechne Ranking...',
-            loading_top: (limit) => `Berechne Top ${limit}...`
-        },
         en: {
             stats: 'Stats',
             server_stats: 'Server Statistics',
@@ -44,18 +32,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            stats_error: 'Konnte Stats nicht generieren!',
-            rank_error: 'Konnte Ranking nicht berechnen!',
-            top_error: 'Konnte Top-Liste nicht erstellen!',
-            no_data: 'Keine Daten verfügbar.',
-            your_rank: (rank, amount, unit) => `**Dein Rang:** #${rank} mit **${amount}** ${unit}`,
-            lookback: (days) => `Letzte ${days} Tage • Platzierung in diesem Server`,
-            top_title: (type, limit) => `🏆 Top ${limit} - ${type === 'messages' ? 'Nachrichten' : 'Voice Zeit'}`,
-            messages: 'Nachrichten',
-            voice_time: 'Voice Zeit',
-            powered_by: (bot) => `Lookback: Last 14 days • Powered by ${bot}`
-        },
         en: {
             stats_error: 'Could not generate stats!',
             rank_error: 'Could not calculate ranking!',
@@ -115,18 +91,18 @@ module.exports = {
         // ========== STATS ==========
         stats: {
             aliases: ['serverstats', 'ranking', 'statistics'],
-            description: 'Zeigt Statistiken (User oder Server) / Shows statistics (User or Server)',
+            description: 'Shows statistics (User or Server)',
             category: 'Stats',
             async execute(message, args, { client, supabase }) {
                 const type = args[0]?.toLowerCase();
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 // Server Stats
                 if (type === 'server' || type === 'guild') {
                     return await generateServerStats(message, args, client, supabase);
                 }
                 
-                // User Stats (Standard)
+                // User Stats (Default)
                 const target = message.mentions.users.first() || 
                                (args[0] && !isNaN(args[0]) ? await client.users.fetch(args[0]).catch(() => null) : null) || 
                                message.author;
@@ -146,9 +122,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x2F3136)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' ? `📊 Stats für ${target.username}` : `📊 Stats for ${target.username}`)
+                        .setTitle(`📊 Stats for ${target.username}`)
                         .setImage('attachment://stats.png')
-                        .setFooter({ text: lang === 'de' ? `Lookback: Letzte ${days} Tage • Powered by ${client.user.username}` : `Lookback: Last ${days} days • Powered by ${client.user.username}` })
+                        .setFooter({ text: `Lookback: Last ${days} days • Powered by ${client.user.username}` })
                         .setTimestamp();
                     
                     await loadingMsg.edit({ embeds: [embed], files: [attachment] });
@@ -165,12 +141,12 @@ module.exports = {
         // ========== RANK ==========
         rank: {
             aliases: ['levelstats', 'userstats'],
-            description: 'Zeigt User-Ranking Statistiken / Shows user ranking statistics',
+            description: 'Shows user ranking statistics',
             category: 'Stats',
             async execute(message, args, { client, supabase }) {
                 const target = message.mentions.users.first() || message.author;
                 const type = args[0]?.toLowerCase() || 'messages';
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const loadingMsg = await message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'rank', 'loading_rank')] 
@@ -182,11 +158,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x2F3136)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' 
-                            ? `🏆 ${type === 'messages' ? 'Nachrichten' : 'Voice'} Ranking` 
-                            : `🏆 ${type === 'messages' ? 'Messages' : 'Voice'} Ranking`)
+                        .setTitle(`🏆 ${type === 'messages' ? 'Messages' : 'Voice'} Ranking`)
                         .setDescription(ranking)
-                        .setFooter({ text: lang === 'de' ? `Letzte 14 Tage • Platzierung in diesem Server` : `Last 14 days • Ranking on this server` })
+                        .setFooter({ text: `Last 14 days • Ranking on this server` })
                         .setTimestamp();
                     
                     await loadingMsg.edit({ embeds: [embed] });
@@ -203,12 +177,12 @@ module.exports = {
         // ========== TOP ==========
         top: {
             aliases: ['leaderboard', 'topusers'],
-            description: 'Zeigt Top User nach Nachrichten/Voice / Shows top users by messages/voice',
+            description: 'Shows top users by messages/voice',
             category: 'Stats',
             async execute(message, args, { client, supabase }) {
                 const type = args[0]?.toLowerCase() || 'messages';
-                const limit = parseInt(args[1]) || 10;
-                const lang = client.languages?.get(message.guild.id) || 'de';
+                const limit = Math.min(parseInt(args[1]) || 10, 25);
+                const lang = client.languages?.get(message.guild.id) || 'en';
                 
                 const loadingMsg = await message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'top', 'loading_top', [limit])] 
@@ -220,11 +194,9 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0x2F3136)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                        .setTitle(lang === 'de' 
-                            ? `🏆 Top ${limit} - ${type === 'messages' ? 'Nachrichten' : 'Voice Zeit'}` 
-                            : `🏆 Top ${limit} - ${type === 'messages' ? 'Messages' : 'Voice Time'}`)
+                        .setTitle(`🏆 Top ${limit} - ${type === 'messages' ? 'Messages' : 'Voice Time'}`)
                         .setDescription(topUsers)
-                        .setFooter({ text: lang === 'de' ? `Letzte 14 Tage` : `Last 14 days` })
+                        .setFooter({ text: `Last 14 days` })
                         .setTimestamp();
                     
                     await loadingMsg.edit({ embeds: [embed] });
@@ -240,10 +212,10 @@ module.exports = {
     }
 };
 
-// ⭐ SERVER STATS GENERIEREN
+// ⭐ GENERATE SERVER STATS
 async function generateServerStats(message, args, client, supabase) {
     const period = args[1]?.toLowerCase() || '14d';
-    const lang = client.languages?.get(message.guild.id) || 'de';
+    const lang = client.languages?.get(message.guild.id) || 'en';
     
     const loadingMsg = await message.reply({ 
         embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'server_stats', 'loading_server')] 
@@ -259,9 +231,9 @@ async function generateServerStats(message, args, client, supabase) {
         const embed = new EmbedBuilder()
             .setColor(0x2F3136)
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-            .setTitle(lang === 'de' ? `📊 Server Statistiken` : `📊 Server Statistics`)
+            .setTitle(`📊 Server Statistics`)
             .setImage('attachment://server-stats.png')
-            .setFooter({ text: lang === 'de' ? `Lookback: Letzte ${days} Tage • Powered by ${client.user.username}` : `Lookback: Last ${days} days • Powered by ${client.user.username}` })
+            .setFooter({ text: `Lookback: Last ${days} days • Powered by ${client.user.username}` })
             .setTimestamp();
         
         await loadingMsg.edit({ embeds: [embed], files: [attachment] });
@@ -274,27 +246,27 @@ async function generateServerStats(message, args, client, supabase) {
     }
 }
 
-// ⭐ Server Stats sammeln
+// ⭐ Collect server stats
 async function collectServerStats(guildId, days, supabase, client) {
     const since = new Date();
     since.setDate(since.getDate() - days);
     const sinceStr = since.toISOString().split('T')[0];
     
-    // Nachrichten Stats (gesamt)
+    // Message stats (total)
     const { data: msgStats } = await supabase
         .from('message_stats')
         .select('message_count, date')
         .eq('guild_id', guildId)
         .gte('date', sinceStr);
     
-    // Voice Stats (gesamt)
+    // Voice stats (total)
     const { data: voiceStats } = await supabase
         .from('voice_stats')
         .select('duration, date')
         .eq('guild_id', guildId)
         .gte('date', sinceStr);
     
-    // Nachrichten pro Tag berechnen
+    // Messages per day
     const messagesByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
     const voiceByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
     
@@ -324,7 +296,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         });
     }
     
-    // Top Channels (Nachrichten)
+    // Top channels (messages)
     const { data: channelMessages } = await supabase
         .from('message_stats')
         .select('channel_id, message_count')
@@ -343,7 +315,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3);
     
-    // Top Voice Channels
+    // Top voice channels
     const { data: channelVoice } = await supabase
         .from('voice_stats')
         .select('channel_id, duration')
@@ -362,7 +334,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3);
     
-    // Top User (Nachrichten)
+    // Top users (messages)
     const { data: userMessages } = await supabase
         .from('message_stats')
         .select('user_id, message_count')
@@ -381,7 +353,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
     
-    // Top User (Voice)
+    // Top users (voice)
     const { data: userVoice } = await supabase
         .from('voice_stats')
         .select('user_id, duration')
@@ -400,7 +372,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
     
-    // Channel Namen holen
+    // Get channel names
     const channelNames = new Map();
     const { data: savedNames } = await supabase
         .from('channel_names')
@@ -411,7 +383,7 @@ async function collectServerStats(guildId, days, supabase, client) {
         savedNames.forEach(c => channelNames.set(c.channel_id, c.channel_name));
     }
     
-    // Member Stats
+    // Member stats
     const guild = client.guilds.cache.get(guildId);
     const totalMembers = guild?.memberCount || 0;
     const onlineMembers = guild?.members.cache.filter(m => m.presence?.status === 'online').size || 0;
@@ -444,13 +416,13 @@ async function collectServerStats(guildId, days, supabase, client) {
     };
 }
 
-// ⭐ User Stats sammeln
+// ⭐ Collect user stats
 async function collectUserStats(guildId, userId, days, supabase, client) {
     const since = new Date();
     since.setDate(since.getDate() - days);
     const sinceStr = since.toISOString().split('T')[0];
     
-    // Nachrichten Stats
+    // Message stats
     const { data: msgStats } = await supabase
         .from('message_stats')
         .select('channel_id, message_count')
@@ -458,7 +430,7 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
         .eq('user_id', userId)
         .gte('date', sinceStr);
     
-    // Voice Stats
+    // Voice stats
     const { data: voiceStats } = await supabase
         .from('voice_stats')
         .select('channel_id, duration')
@@ -466,7 +438,7 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
         .eq('user_id', userId)
         .gte('date', sinceStr);
     
-    // Nachrichten pro Tag berechnen
+    // Messages per day
     const messagesByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
     const voiceByDay = { '1d': 0, '7d': 0, '14d': 0, '30d': 0 };
     
@@ -496,7 +468,7 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
         });
     }
     
-    // Top Channels (Nachrichten)
+    // Top channels (messages)
     const channelMessages = new Map();
     if (msgStats) {
         msgStats.forEach(s => {
@@ -509,7 +481,7 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 1);
     
-    // Top Voice Channels
+    // Top voice channels
     const channelVoice = new Map();
     if (voiceStats) {
         voiceStats.forEach(s => {
@@ -522,7 +494,7 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 1);
     
-    // Channel Namen holen
+    // Get channel names
     const channelNames = new Map();
     const { data: savedNames } = await supabase
         .from('channel_names')
@@ -554,22 +526,22 @@ async function collectUserStats(guildId, userId, days, supabase, client) {
     };
 }
 
-// ⭐ Server Stats Bild generieren
+// ⭐ Generate server stats image
 async function generateServerStatsImage(stats, guild, days, client, lang) {
     const width = 900;
     const height = 700;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Hintergrund
+    // Background
     ctx.fillStyle = '#1a1b1e';
     ctx.fillRect(0, 0, width, height);
     
-    // Header Bereich
+    // Header area
     ctx.fillStyle = '#2c2f33';
     ctx.fillRect(0, 0, width, 120);
     
-    // Server Icon
+    // Server icon
     ctx.save();
     ctx.beginPath();
     ctx.arc(60, 60, 40, 0, Math.PI * 2);
@@ -585,21 +557,17 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     }
     ctx.restore();
     
-    // Server Name & Stats
+    // Server name & stats
     ctx.font = 'bold 28px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.fillText(guild.name, 120, 50);
     
     ctx.font = '16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(lang === 'de' 
-        ? `👥 ${stats.totalMembers} Mitglieder (${stats.onlineMembers} online)` 
-        : `👥 ${stats.totalMembers} Members (${stats.onlineMembers} online)`, 120, 80);
-    ctx.fillText(lang === 'de' 
-        ? `👤 ${stats.humanCount} Menschen • 🤖 ${stats.botCount} Bots` 
-        : `👤 ${stats.humanCount} Humans • 🤖 ${stats.botCount} Bots`, 120, 105);
+    ctx.fillText(`👥 ${stats.totalMembers} Members (${stats.onlineMembers} online)`, 120, 80);
+    ctx.fillText(`👤 ${stats.humanCount} Humans • 🤖 ${stats.botCount} Bots`, 120, 105);
     
-    // Trennlinie
+    // Separator line
     ctx.strokeStyle = '#40444b';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -609,10 +577,10 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     
     let yPos = 170;
     
-    // Messages Sektion
+    // Messages section
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '📊 Nachrichten (Gesamt)' : '📊 Messages (Total)', 30, yPos);
+    ctx.fillText('📊 Messages (Total)', 30, yPos);
     yPos += 35;
     
     const msgStats = stats.messages;
@@ -624,10 +592,10 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     ctx.fillText(`30d: ${msgStats['30d'] || 0}`, 400, yPos);
     yPos += 40;
     
-    // Voice Sektion
+    // Voice section
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '🎤 Voice Aktivität (Gesamt)' : '🎤 Voice Activity (Total)', 30, yPos);
+    ctx.fillText('🎤 Voice Activity (Total)', 30, yPos);
     yPos += 35;
     
     const voiceStats = stats.voice;
@@ -645,7 +613,7 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     ctx.fillText(`30d: ${formatVoice(voiceStats['30d'])}`, 400, yPos);
     yPos += 50;
     
-    // Trennlinie
+    // Separator line
     ctx.strokeStyle = '#40444b';
     ctx.beginPath();
     ctx.moveTo(20, yPos);
@@ -653,10 +621,10 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     ctx.stroke();
     yPos += 30;
     
-    // Top Text Channels
+    // Top text channels
     ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '💬 Top Text Channels' : '💬 Top Text Channels', 30, yPos);
+    ctx.fillText('💬 Top Text Channels', 30, yPos);
     yPos += 30;
     
     ctx.font = '13px "Segoe UI", "Arial", sans-serif';
@@ -664,9 +632,7 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     
     if (stats.topMsgChannels.length > 0) {
         stats.topMsgChannels.forEach((ch, i) => {
-            ctx.fillText(lang === 'de' 
-                ? `${i+1}. #${ch.name}: ${ch.count} Nachrichten` 
-                : `${i+1}. #${ch.name}: ${ch.count} messages`, 40, yPos);
+            ctx.fillText(`${i+1}. #${ch.name}: ${ch.count} messages`, 40, yPos);
             yPos += 22;
         });
     } else {
@@ -675,10 +641,10 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     }
     yPos += 15;
     
-    // Top Voice Channels
+    // Top voice channels
     ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '🎤 Top Voice Channels' : '🎤 Top Voice Channels', 30, yPos);
+    ctx.fillText('🎤 Top Voice Channels', 30, yPos);
     yPos += 30;
     
     ctx.font = '13px "Segoe UI", "Arial", sans-serif';
@@ -695,13 +661,13 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     }
     yPos += 15;
     
-    // Top User (Messages) - Rechte Spalte
+    // Top users (messages) - Right column
     const rightColX = 480;
     let rightY = 170;
     
     ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '🏆 Top User (Nachrichten)' : '🏆 Top Users (Messages)', rightColX, rightY);
+    ctx.fillText('🏆 Top Users (Messages)', rightColX, rightY);
     rightY += 30;
     
     ctx.font = '13px "Segoe UI", "Arial", sans-serif';
@@ -719,10 +685,10 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     }
     rightY += 20;
     
-    // Top User (Voice)
+    // Top users (voice)
     ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '🎤 Top User (Voice)' : '🎤 Top Users (Voice)', rightColX, rightY);
+    ctx.fillText('🎤 Top Users (Voice)', rightColX, rightY);
     rightY += 30;
     
     ctx.font = '13px "Segoe UI", "Arial", sans-serif';
@@ -741,24 +707,24 @@ async function generateServerStatsImage(stats, guild, days, client, lang) {
     // Footer
     ctx.font = '12px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#72767d';
-    ctx.fillText(lang === 'de' ? `LOOKBACK: LETZTE ${days} TAGE` : `LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
+    ctx.fillText(`LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
     ctx.fillText(`POWERED BY ${client.user.username.toUpperCase()}`, width - 250, height - 30);
     
     return canvas.toBuffer('image/png');
 }
 
-// ⭐ User Stats Bild generieren
+// ⭐ Generate user stats image
 async function generateUserStatsImage(stats, user, guild, days, client, lang) {
     const width = 800;
     const height = 550;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Hintergrund
+    // Background
     ctx.fillStyle = '#1a1b1e';
     ctx.fillRect(0, 0, width, height);
     
-    // Header Bereich
+    // Header area
     ctx.fillStyle = '#2c2f33';
     ctx.fillRect(0, 0, width, 100);
     
@@ -778,16 +744,16 @@ async function generateUserStatsImage(stats, user, guild, days, client, lang) {
     }
     ctx.restore();
     
-    // Username und Server
+    // Username and server
     ctx.font = 'bold 24px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.fillText(user.username, 110, 45);
     
     ctx.font = '16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(lang === 'de' ? `Server: ${guild.name}` : `Server: ${guild.name}`, 110, 70);
+    ctx.fillText(`Server: ${guild.name}`, 110, 70);
     
-    // Trennlinie
+    // Separator line
     ctx.strokeStyle = '#40444b';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -795,30 +761,30 @@ async function generateUserStatsImage(stats, user, guild, days, client, lang) {
     ctx.lineTo(width - 20, 110);
     ctx.stroke();
     
-    // Messages Sektion
+    // Messages section
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '📊 Nachrichten' : '📊 Messages', 30, 150);
+    ctx.fillText('📊 Messages', 30, 150);
     
     const msgStats = stats.messages;
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(`1d: ${msgStats['1d'] || 0} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, 40, 185);
-    ctx.fillText(`7d: ${msgStats['7d'] || 0} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, 180, 185);
-    ctx.fillText(`14d: ${msgStats['14d'] || 0} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, 320, 185);
-    ctx.fillText(`30d: ${msgStats['30d'] || 0} ${lang === 'de' ? 'Nachrichten' : 'messages'}`, 460, 185);
+    ctx.fillText(`1d: ${msgStats['1d'] || 0} messages`, 40, 185);
+    ctx.fillText(`7d: ${msgStats['7d'] || 0} messages`, 180, 185);
+    ctx.fillText(`14d: ${msgStats['14d'] || 0} messages`, 320, 185);
+    ctx.fillText(`30d: ${msgStats['30d'] || 0} messages`, 460, 185);
     
-    // Voice Activity Sektion
+    // Voice activity section
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? '🎤 Voice Aktivität' : '🎤 Voice Activity', 30, 240);
+    ctx.fillText('🎤 Voice Activity', 30, 240);
     
     const voiceStats = stats.voice;
     const formatVoice = (s) => {
-        if (!s) return lang === 'de' ? 'Keine Daten' : 'No Data';
+        if (!s) return 'No Data';
         const hours = Math.floor(s / 3600);
         const minutes = Math.floor((s % 3600) / 60);
-        return `${hours}.${minutes.toString().padStart(2, '0')} ${lang === 'de' ? 'Stunden' : 'hours'}`;
+        return `${hours}.${minutes.toString().padStart(2, '0')} hours`;
     };
     
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
@@ -828,31 +794,31 @@ async function generateUserStatsImage(stats, user, guild, days, client, lang) {
     ctx.fillText(`14d: ${formatVoice(voiceStats['14d'])}`, 320, 275);
     ctx.fillText(`30d: ${formatVoice(voiceStats['30d'])}`, 460, 275);
     
-    // Top Channels
+    // Top channels
     ctx.font = 'bold 18px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(lang === 'de' ? 'Top Channels' : 'Top Channels', 30, 340);
+    ctx.fillText('Top Channels', 30, 340);
     
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
     ctx.fillText(stats.topMsgChannel ? 
-        (lang === 'de' ? `💬 ${stats.topMsgChannel.name}: ${stats.topMsgChannel.count} Nachrichten` : `💬 ${stats.topMsgChannel.name}: ${stats.topMsgChannel.count} messages`) : 
-        (lang === 'de' ? '💬 Keine Daten' : '💬 No Data'), 40, 375);
+        `💬 ${stats.topMsgChannel.name}: ${stats.topMsgChannel.count} messages` : 
+        '💬 No Data', 40, 375);
     
     ctx.fillText(stats.topVoiceChannel ? 
         `🎤 ${stats.topVoiceChannel.name}: ${formatVoice(stats.topVoiceChannel.duration)}` : 
-        (lang === 'de' ? '🎤 Keine Daten' : '🎤 No Data'), 40, 405);
+        '🎤 No Data', 40, 405);
     
     // Footer
     ctx.font = '12px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#72767d';
-    ctx.fillText(lang === 'de' ? `LOOKBACK: LETZTE ${days} TAGE` : `LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
+    ctx.fillText(`LOOKBACK: LAST ${days} DAYS`, 30, height - 30);
     ctx.fillText(`POWERED BY ${client.user.username.toUpperCase()}`, width - 250, height - 30);
     
     return canvas.toBuffer('image/png');
 }
 
-// ⭐ User Ranking
+// ⭐ User ranking
 async function getUserRanking(guildId, userId, type, supabase, client, lang) {
     const since = new Date();
     since.setDate(since.getDate() - 14);
@@ -865,7 +831,7 @@ async function getUserRanking(guildId, userId, type, supabase, client, lang) {
             .eq('guild_id', guildId)
             .gte('date', sinceStr);
         
-        if (!data) return lang === 'de' ? 'Keine Daten verfügbar.' : 'No data available.';
+        if (!data) return 'No data available.';
         
         const userTotals = new Map();
         data.forEach(d => {
@@ -879,12 +845,10 @@ async function getUserRanking(guildId, userId, type, supabase, client, lang) {
         
         const ranking = sorted.slice(0, 10).map(([id, count], i) => {
             const isUser = id === userId;
-            return `${isUser ? '**➤**' : '  '} ${i+1}. <@${id}>: ${count} ${lang === 'de' ? 'Nachrichten' : 'messages'}${isUser ? (lang === 'de' ? ' **← DU**' : ' **← YOU**') : ''}`;
+            return `${isUser ? '**➤**' : '  '} ${i+1}. <@${id}>: ${count} messages${isUser ? ' **← YOU**' : ''}`;
         }).join('\n');
         
-        return lang === 'de' 
-            ? `**Dein Rang:** #${userRank} mit **${userTotal}** Nachrichten\n\n${ranking}`
-            : `**Your Rank:** #${userRank} with **${userTotal}** messages\n\n${ranking}`;
+        return `**Your Rank:** #${userRank} with **${userTotal}** messages\n\n${ranking}`;
         
     } else {
         const { data } = await supabase
@@ -893,7 +857,7 @@ async function getUserRanking(guildId, userId, type, supabase, client, lang) {
             .eq('guild_id', guildId)
             .gte('date', sinceStr);
         
-        if (!data) return lang === 'de' ? 'Keine Daten verfügbar.' : 'No data available.';
+        if (!data) return 'No data available.';
         
         const userTotals = new Map();
         data.forEach(d => {
@@ -911,16 +875,14 @@ async function getUserRanking(guildId, userId, type, supabase, client, lang) {
             const isUser = id === userId;
             const hrs = Math.floor(secs / 3600);
             const mins = Math.floor((secs % 3600) / 60);
-            return `${isUser ? '**➤**' : '  '} ${i+1}. <@${id}>: ${hrs}h ${mins}m${isUser ? (lang === 'de' ? ' **← DU**' : ' **← YOU**') : ''}`;
+            return `${isUser ? '**➤**' : '  '} ${i+1}. <@${id}>: ${hrs}h ${mins}m${isUser ? ' **← YOU**' : ''}`;
         }).join('\n');
         
-        return lang === 'de'
-            ? `**Dein Rang:** #${userRank} mit **${hours}h ${minutes}m**\n\n${ranking}`
-            : `**Your Rank:** #${userRank} with **${hours}h ${minutes}m**\n\n${ranking}`;
+        return `**Your Rank:** #${userRank} with **${hours}h ${minutes}m**\n\n${ranking}`;
     }
 }
 
-// ⭐ Top Users
+// ⭐ Top users
 async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -933,7 +895,7 @@ async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
             .eq('guild_id', guildId)
             .gte('date', sinceStr);
         
-        if (!data) return lang === 'de' ? 'Keine Daten verfügbar.' : 'No data available.';
+        if (!data) return 'No data available.';
         
         const userTotals = new Map();
         data.forEach(d => {
@@ -947,7 +909,7 @@ async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
         
         return sorted.map(([id, count], i) => {
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
-            return `${medal} <@${id}>: **${count}** ${lang === 'de' ? 'Nachrichten' : 'messages'}`;
+            return `${medal} <@${id}>: **${count}** messages`;
         }).join('\n');
         
     } else {
@@ -957,7 +919,7 @@ async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
             .eq('guild_id', guildId)
             .gte('date', sinceStr);
         
-        if (!data) return lang === 'de' ? 'Keine Daten verfügbar.' : 'No data available.';
+        if (!data) return 'No data available.';
         
         const userTotals = new Map();
         data.forEach(d => {
@@ -978,7 +940,7 @@ async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
     }
 }
 
-// ⭐ Tracking Handler
+// ⭐ Tracking handlers
 async function trackMessage(message, supabase) {
     if (message.author.bot || !message.guild) return;
     

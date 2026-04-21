@@ -158,7 +158,7 @@ module.exports = {
                 ];
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'success', 'Timeout Set', `${target} has been timed out for ${minutes} minutes.`, fields)] 
+                    embeds: [createEmbed(message, 'success', 'Timeout Set', `${target.user.tag} has been timed out for ${minutes} minutes.`, fields)] 
                 });
             }
         },
@@ -180,13 +180,13 @@ module.exports = {
                 
                 if (!target.communicationDisabledUntil) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'info', 'No Timeout', `${target} has no active timeout.`)] 
+                        embeds: [createEmbed(message, 'info', 'No Timeout', `${target.user.tag} has no active timeout.`)] 
                     });
                 }
                 
                 await target.timeout(null);
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'success', 'Timeout Removed', `Timeout for ${target} has been removed.`)] 
+                    embeds: [createEmbed(message, 'success', 'Timeout Removed', `Timeout for ${target.user.tag} has been removed.`)] 
                 });
             }
         },
@@ -484,7 +484,7 @@ module.exports = {
                 if (!jailRole) {
                     jailRole = await message.guild.roles.create({ name: 'Jail', color: 0x808080 });
                     message.guild.channels.cache.forEach(channel => {
-                        channel.permissionOverwrites.create(jailRole, { SendMessages: false, AddReactions:20 }).catch(() => {});
+                        channel.permissionOverwrites.create(jailRole, { SendMessages: false, AddReactions: false }).catch(() => {});
                     });
                 }
                 
@@ -581,7 +581,7 @@ module.exports = {
                 
                 if (!target.voice.channel) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Not in VC', `${target} is not in a voice channel!')] 
+                        embeds: [createEmbed(message, 'error', 'Not in VC', `${target.user.tag} is not in a voice channel!`)] 
                     });
                 }
                 
@@ -593,7 +593,7 @@ module.exports = {
                 
                 await target.voice.setChannel(message.member.voice.channel);
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'success', 'User Dragged', `${target} has been dragged to your channel.`)] 
+                    embeds: [createEmbed(message, 'success', 'User Dragged', `${target.user.tag} has been dragged to your channel.`)] 
                 });
             }
         },

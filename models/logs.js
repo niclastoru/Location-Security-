@@ -1,11 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
 
-// Map für Log-Channels (pro Server)
+// Map for log channels (per server)
 const logChannels = new Map();
 
-// ⭐ HELPER: Schöne Embeds mit Sprache bauen
+// ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client?.languages?.get(guildId) || 'de';
+    const lang = client?.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -19,42 +19,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const titles = {
-        de: {
-            logs: 'Log-Einstellungen',
-            log_channel_set: 'Log-Channel gesetzt',
-            logging_disabled: 'Logging deaktiviert',
-            logs_reset: 'Logs zurückgesetzt',
-            message_deleted: 'Nachricht gelöscht',
-            message_edited: 'Nachricht bearbeitet',
-            bulk_deleted: 'Bulk-Nachrichten gelöscht',
-            member_joined: 'Mitglied beigetreten',
-            member_left: 'Mitglied verlassen',
-            nickname_changed: 'Nickname geändert',
-            role_added: 'Rolle hinzugefügt',
-            role_removed: 'Rolle entfernt',
-            voice_joined: 'Voice beigetreten',
-            voice_left: 'Voice verlassen',
-            voice_moved: 'Voice gewechselt',
-            member_banned: 'Mitglied gebannt',
-            member_unbanned: 'Mitglied entbannt',
-            member_kicked: 'Mitglied gekickt',
-            timeout_given: 'Timeout vergeben',
-            warned: 'Verwarnung',
-            channel_created: 'Channel erstellt',
-            channel_deleted: 'Channel gelöscht',
-            channel_renamed: 'Channel umbenannt',
-            role_created: 'Rolle erstellt',
-            role_deleted: 'Rolle gelöscht',
-            role_renamed: 'Rolle umbenannt',
-            emoji_created: 'Emoji erstellt',
-            emoji_deleted: 'Emoji gelöscht',
-            invite_created: 'Einladung erstellt',
-            invite_deleted: 'Einladung gelöscht',
-            error: 'Fehler',
-            success: 'Erfolg',
-            info: 'Info',
-            invalid_usage: 'Falsche Nutzung'
-        },
         en: {
             logs: 'Log Settings',
             log_channel_set: 'Log Channel Set',
@@ -94,68 +58,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     };
     
     const descriptions = {
-        de: {
-            all_logs: '📌 Alle Logs',
-            message_logs: '💬 Nachrichten',
-            member_logs: '👥 Mitglieder',
-            voice_logs: '🎤 Voice',
-            moderation_logs: '🛡️ Moderation',
-            server_logs: '⚙️ Server',
-            off: '❌ Aus',
-            uses_all: '↪️ Nutzt "Alle"',
-            logs_footer: '!logs <typ> #channel | !logs disable <typ> | !logs reset',
-            logs_usage: '!logs <all/message/member/voice/moderation/server> #channel\n!logs disable <typ>\n!logs reset',
-            channel_set: (channel, type) => {
-                const typeNames = {
-                    'all': 'ALLE Logs',
-                    'message': 'Nachrichten-Logs',
-                    'member': 'Mitglieder-Logs',
-                    'voice': 'Voice-Logs',
-                    'moderation': 'Moderations-Logs',
-                    'server': 'Server-Logs'
-                };
-                return `${channel} ist jetzt der Channel für **${typeNames[type]}**!`;
-            },
-            disable_usage: (types) => `!logs-disable <${types}>`,
-            logging_disabled: (type) => `Logging für **${type}** wurde deaktiviert.`,
-            logs_reset: 'Alle Log-Einstellungen wurden gelöscht.',
-            message_deleted: (author, channel, content) => `**${author}** in ${channel}\n\n${content || '*Kein Text*'}`,
-            message_edited: (author, channel, before, after) => `**${author}** in ${channel}\n\n**Vorher:** ${before || '*Kein Text*'}\n**Nachher:** ${after || '*Kein Text*'}`,
-            bulk_deleted: (count, channel) => `**${count}** Nachrichten in ${channel} wurden gelöscht.`,
-            member_joined: (user, id, created, memberCount) => `**${user}** (${id})\n\n📅 Account erstellt: <t:${Math.floor(created / 1000)}:R>\n👥 Server-Mitglieder: **${memberCount}**`,
-            member_left: (user, id, roles, memberCount) => `**${user}** (${id})\n\n🎭 Rollen: ${roles.slice(0, 500) || 'Keine'}\n👥 Server-Mitglieder: **${memberCount}**`,
-            nickname_changed: (user, before, after) => `**${user}**\n\n**Vorher:** ${before || '*Kein Nickname*'}\n**Nachher:** ${after || '*Kein Nickname*'}`,
-            role_added: (user, role) => `**${user}** hat die Rolle **${role}** erhalten.`,
-            role_removed: (user, role) => `**${user}** wurde die Rolle **${role}** entfernt.`,
-            voice_joined: (user, channel, count) => `**${user}** → **${channel}**\n👥 User im Channel: ${count}`,
-            voice_left: (user, channel, count) => `**${user}** ← **${channel}**\n👥 User im Channel: ${count}`,
-            voice_moved: (user, from, to) => `**${user}**\n**${from}** → **${to}**`,
-            member_banned: (user, id, mod, reason) => `**${user}** (${id})\n\n👮 Moderator: ${mod || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
-            member_unbanned: (user, id, mod) => `**${user}** (${id})\n\n👮 Moderator: ${mod || 'Unbekannt'}`,
-            member_kicked: (user, id, mod, reason) => `**${user}** (${id})\n\n👮 Moderator: ${mod || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
-            timeout_given: (user, id, mod, duration, reason) => `**${user}** (${id})\n\n👮 Moderator: ${mod || 'Unbekannt'}\n⏱️ Dauer: ${duration} Minuten\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
-            warned: (user, id, mod, reason) => `**${user}** (${id})\n\n👮 Moderator: ${mod || 'Unbekannt'}\n📝 Grund: ${reason || 'Kein Grund angegeben'}`,
-            channel_created: (name, type, category) => `**#${name}**\n📋 Typ: ${type}${category ? `\n📂 Kategorie: ${category}` : ''}`,
-            channel_deleted: (name, type) => `**#${name}**\n📋 Typ: ${type}`,
-            channel_renamed: (before, after) => `**${before}** → **${after}**`,
-            role_created: (name, color, perms) => `**${name}**\n🎨 Farbe: ${color}\n🔒 Berechtigungen: ${perms}`,
-            role_deleted: (name) => `**${name}**`,
-            role_renamed: (before, after) => `**${before}** → **${after}**`,
-            emoji_created: (name, animated) => `**${name}** ${animated ? '(Animiert)' : ''}`,
-            emoji_deleted: (name) => `**${name}**`,
-            invite_created: (inviter, channel, code, maxUses, expires) => `**${inviter}** hat eine Einladung für **#${channel}** erstellt.\nCode: \`${code}\`\nMax. Nutzungen: ${maxUses || 'Unbegrenzt'}\nLäuft ab: ${expires || 'Nie'}`,
-            invite_deleted: (code, channel) => `Einladung \`${code}\` für **#${channel}** wurde gelöscht.`,
-            unknown: 'Unbekannt',
-            no_reason: 'Kein Grund angegeben',
-            no_text: '*Kein Text*',
-            no_nickname: '*Kein Nickname*',
-            no_roles: 'Keine',
-            unlimited: 'Unbegrenzt',
-            never: 'Nie',
-            text: 'Text',
-            voice: 'Voice',
-            category: 'Kategorie'
-        },
         en: {
             all_logs: '📌 All Logs',
             message_logs: '💬 Messages',
@@ -185,7 +87,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             message_edited: (author, channel, before, after) => `**${author}** in ${channel}\n\n**Before:** ${before || '*No text*'}\n**After:** ${after || '*No text*'}`,
             bulk_deleted: (count, channel) => `**${count}** messages in ${channel} have been deleted.`,
             member_joined: (user, id, created, memberCount) => `**${user}** (${id})\n\n📅 Account created: <t:${Math.floor(created / 1000)}:R>\n👥 Server members: **${memberCount}**`,
-            member_left: (user, id, roles, memberCount) => `**${user}** (${id})\n\n🎭 Roles: ${roles.slice(0, 500) || 'None'}\n👥 Server members: **${memberCount}**`,
+            member_left: (user, id, roles, memberCount) => `**${user}** (${id})\n\n🎭 Roles: ${roles?.slice(0, 500) || 'None'}\n👥 Server members: **${memberCount}**`,
             nickname_changed: (user, before, after) => `**${user}**\n\n**Before:** ${before || '*No nickname*'}\n**After:** ${after || '*No nickname*'}`,
             role_added: (user, role) => `**${user}** received the **${role}** role.`,
             role_removed: (user, role) => `**${user}** was removed from the **${role}** role.`,
@@ -258,7 +160,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Log-Channel für Typ holen
+// ⭐ Get log channel for type
 function getLogChannel(guild, type) {
     const serverLogs = logChannels.get(guild.id);
     if (!serverLogs) return null;
@@ -269,77 +171,77 @@ function getLogChannel(guild, type) {
     return guild.channels.cache.get(channelId);
 }
 
-// ⭐ Log senden
+// ⭐ Send log
 async function sendLog(guild, type, titleKey, descKey, colorType = 'info', fields = [], replacements = {}) {
     const channel = getLogChannel(guild, type);
     if (!channel) return;
     
-    // Einfachen Embed-Builder ohne Client
-    const lang = 'de';
+    // Simple embed builder without client
+    const lang = 'en';
     const colors = { delete: 0xFF0000, edit: 0xFFA500, create: 0x00FF00, info: 0x3498DB };
     
     const titles = {
-        de: {
-            message_deleted: '🗑️ Nachricht gelöscht',
-            message_edited: '✏️ Nachricht bearbeitet',
-            bulk_deleted: '🗑️ Bulk-Nachrichten gelöscht',
-            member_joined: '📥 Mitglied beigetreten',
-            member_left: '📤 Mitglied verlassen',
-            nickname_changed: '📝 Nickname geändert',
-            role_added: '➕ Rolle hinzugefügt',
-            role_removed: '➖ Rolle entfernt',
-            voice_joined: '🎤 Voice beigetreten',
-            voice_left: '🔇 Voice verlassen',
-            voice_moved: '🔄 Voice gewechselt',
-            member_banned: '🔨 Mitglied gebannt',
-            member_unbanned: '🔓 Mitglied entbannt',
-            member_kicked: '👢 Mitglied gekickt',
-            timeout_given: '⏰ Timeout vergeben',
-            warned: '⚠️ Verwarnung',
-            channel_created: '📁 Channel erstellt',
-            channel_deleted: '🗑️ Channel gelöscht',
-            channel_renamed: '✏️ Channel umbenannt',
-            role_created: '🆕 Rolle erstellt',
-            role_deleted: '❌ Rolle gelöscht',
-            role_renamed: '✏️ Rolle umbenannt',
-            emoji_created: '😀 Emoji erstellt',
-            emoji_deleted: '🗑️ Emoji gelöscht',
-            invite_created: '🔗 Einladung erstellt',
-            invite_deleted: '🗑️ Einladung gelöscht'
+        en: {
+            message_deleted: '🗑️ Message Deleted',
+            message_edited: '✏️ Message Edited',
+            bulk_deleted: '🗑️ Bulk Messages Deleted',
+            member_joined: '📥 Member Joined',
+            member_left: '📤 Member Left',
+            nickname_changed: '📝 Nickname Changed',
+            role_added: '➕ Role Added',
+            role_removed: '➖ Role Removed',
+            voice_joined: '🎤 Voice Joined',
+            voice_left: '🔇 Voice Left',
+            voice_moved: '🔄 Voice Moved',
+            member_banned: '🔨 Member Banned',
+            member_unbanned: '🔓 Member Unbanned',
+            member_kicked: '👢 Member Kicked',
+            timeout_given: '⏰ Timeout Given',
+            warned: '⚠️ Warning',
+            channel_created: '📁 Channel Created',
+            channel_deleted: '🗑️ Channel Deleted',
+            channel_renamed: '✏️ Channel Renamed',
+            role_created: '🆕 Role Created',
+            role_deleted: '❌ Role Deleted',
+            role_renamed: '✏️ Role Renamed',
+            emoji_created: '😀 Emoji Created',
+            emoji_deleted: '🗑️ Emoji Deleted',
+            invite_created: '🔗 Invite Created',
+            invite_deleted: '🗑️ Invite Deleted'
         }
     };
     
     let description = '';
-    if (descKey === 'message_deleted') description = `**${replacements.author}** in ${replacements.channel}\n\n${replacements.content || '*Kein Text*'}`;
-    else if (descKey === 'message_edited') description = `**${replacements.author}** in ${replacements.channel}\n\n**Vorher:** ${replacements.before || '*Kein Text*'}\n**Nachher:** ${replacements.after || '*Kein Text*'}`;
-    else if (descKey === 'bulk_deleted') description = `**${replacements.count}** Nachrichten in ${replacements.channel} wurden gelöscht.`;
-    else if (descKey === 'member_joined') description = `**${replacements.user}** (${replacements.id})\n\n📅 Account erstellt: <t:${Math.floor(replacements.created / 1000)}:R>\n👥 Server-Mitglieder: **${replacements.memberCount}**`;
-    else if (descKey === 'member_left') description = `**${replacements.user}** (${replacements.id})\n\n🎭 Rollen: ${replacements.roles?.slice(0, 500) || 'Keine'}\n👥 Server-Mitglieder: **${replacements.memberCount}**`;
-    else if (descKey === 'nickname_changed') description = `**${replacements.user}**\n\n**Vorher:** ${replacements.before || '*Kein Nickname*'}\n**Nachher:** ${replacements.after || '*Kein Nickname*'}`;
-    else if (descKey === 'role_added') description = `**${replacements.user}** hat die Rolle **${replacements.role}** erhalten.`;
-    else if (descKey === 'role_removed') description = `**${replacements.user}** wurde die Rolle **${replacements.role}** entfernt.`;
-    else if (descKey === 'voice_joined') description = `**${replacements.user}** → **${replacements.channel}**\n👥 User im Channel: ${replacements.count}`;
-    else if (descKey === 'voice_left') description = `**${replacements.user}** ← **${replacements.channel}**\n👥 User im Channel: ${replacements.count}`;
+    if (descKey === 'message_deleted') description = `**${replacements.author}** in ${replacements.channel}\n\n${replacements.content || '*No text*'}`;
+    else if (descKey === 'message_edited') description = `**${replacements.author}** in ${replacements.channel}\n\n**Before:** ${replacements.before || '*No text*'}\n**After:** ${replacements.after || '*No text*'}`;
+    else if (descKey === 'bulk_deleted') description = `**${replacements.count}** messages in ${replacements.channel} have been deleted.`;
+    else if (descKey === 'member_joined') description = `**${replacements.user}** (${replacements.id})\n\n📅 Account created: <t:${Math.floor(replacements.created / 1000)}:R>\n👥 Server members: **${replacements.memberCount}**`;
+    else if (descKey === 'member_left') description = `**${replacements.user}** (${replacements.id})\n\n🎭 Roles: ${replacements.roles?.slice(0, 500) || 'None'}\n👥 Server members: **${replacements.memberCount}**`;
+    else if (descKey === 'nickname_changed') description = `**${replacements.user}**\n\n**Before:** ${replacements.before || '*No nickname*'}\n**After:** ${replacements.after || '*No nickname*'}`;
+    else if (descKey === 'role_added') description = `**${replacements.user}** received the **${replacements.role}** role.`;
+    else if (descKey === 'role_removed') description = `**${replacements.user}** was removed from the **${replacements.role}** role.`;
+    else if (descKey === 'voice_joined') description = `**${replacements.user}** → **${replacements.channel}**\n👥 Users in channel: ${replacements.count}`;
+    else if (descKey === 'voice_left') description = `**${replacements.user}** ← **${replacements.channel}**\n👥 Users in channel: ${replacements.count}`;
     else if (descKey === 'voice_moved') description = `**${replacements.user}**\n**${replacements.from}** → **${replacements.to}**`;
-    else if (descKey === 'member_banned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unbekannt'}\n📝 Grund: ${replacements.reason || 'Kein Grund angegeben'}`;
-    else if (descKey === 'member_unbanned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unbekannt'}`;
-    else if (descKey === 'member_kicked') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unbekannt'}\n📝 Grund: ${replacements.reason || 'Kein Grund angegeben'}`;
-    else if (descKey === 'timeout_given') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unbekannt'}\n⏱️ Dauer: ${replacements.duration} Minuten\n📝 Grund: ${replacements.reason || 'Kein Grund angegeben'}`;
-    else if (descKey === 'warned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unbekannt'}\n📝 Grund: ${replacements.reason || 'Kein Grund angegeben'}`;
-    else if (descKey === 'channel_created') description = `**#${replacements.name}**\n📋 Typ: ${replacements.type}${replacements.category ? `\n📂 Kategorie: ${replacements.category}` : ''}`;
-    else if (descKey === 'channel_deleted') description = `**#${replacements.name}**\n📋 Typ: ${replacements.type}`;
+    else if (descKey === 'member_banned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unknown'}\n📝 Reason: ${replacements.reason || 'No reason given'}`;
+    else if (descKey === 'member_unbanned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unknown'}`;
+    else if (descKey === 'member_kicked') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unknown'}\n📝 Reason: ${replacements.reason || 'No reason given'}`;
+    else if (descKey === 'timeout_given') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unknown'}\n⏱️ Duration: ${replacements.duration} minutes\n📝 Reason: ${replacements.reason || 'No reason given'}`;
+    else if (descKey === 'warned') description = `**${replacements.user}** (${replacements.id})\n\n👮 Moderator: ${replacements.mod || 'Unknown'}\n📝 Reason: ${replacements.reason || 'No reason given'}`;
+    else if (descKey === 'channel_created') description = `**#${replacements.name}**\n📋 Type: ${replacements.type}${replacements.category ? `\n📂 Category: ${replacements.category}` : ''}`;
+    else if (descKey === 'channel_deleted') description = `**#${replacements.name}**\n📋 Type: ${replacements.type}`;
     else if (descKey === 'channel_renamed') description = `**${replacements.before}** → **${replacements.after}**`;
-    else if (descKey === 'role_created') description = `**${replacements.name}**\n🎨 Farbe: ${replacements.color}\n🔒 Berechtigungen: ${replacements.perms}`;
+    else if (descKey === 'role_created') description = `**${replacements.name}**\n🎨 Color: ${replacements.color}\n🔒 Permissions: ${replacements.perms}`;
     else if (descKey === 'role_deleted') description = `**${replacements.name}**`;
     else if (descKey === 'role_renamed') description = `**${replacements.before}** → **${replacements.after}**`;
-    else if (descKey === 'emoji_created') description = `**${replacements.name}** ${replacements.animated ? '(Animiert)' : ''}`;
+    else if (descKey === 'emoji_created') description = `**${replacements.name}** ${replacements.animated ? '(Animated)' : ''}`;
     else if (descKey === 'emoji_deleted') description = `**${replacements.name}**`;
-    else if (descKey === 'invite_created') description = `**${replacements.inviter}** hat eine Einladung für **#${replacements.channel}** erstellt.\nCode: \`${replacements.code}\`\nMax. Nutzungen: ${replacements.maxUses || 'Unbegrenzt'}\nLäuft ab: ${replacements.expires || 'Nie'}`;
-    else if (descKey === 'invite_deleted') description = `Einladung \`${replacements.code}\` für **#${replacements.channel}** wurde gelöscht.`;
+    else if (descKey === 'invite_created') description = `**${replacements.inviter}** created an invite for **#${replacements.channel}**.\nCode: \`${replacements.code}\`\nMax uses: ${replacements.maxUses || 'Unlimited'}\nExpires: ${replacements.expires || 'Never'}`;
+    else if (descKey === 'invite_deleted') description = `Invite \`${replacements.code}\` for **#${replacements.channel}** was deleted.`;
     
     const embed = new EmbedBuilder()
         .setColor(colors[colorType] || 0x3498DB)
-        .setTitle(titles.de[titleKey] || titleKey)
+        .setTitle(titles.en[titleKey] || titleKey)
         .setDescription(description)
         .setTimestamp();
     
@@ -354,36 +256,36 @@ module.exports = {
         logs: {
             aliases: ['log', 'logchannel'],
             permissions: 'Administrator',
-            description: 'Zeigt oder setzt Log-Channels / Shows or sets log channels',
+            description: 'Shows or sets log channels',
             category: 'Logs',
             async execute(message, args) {
                 const type = args[0]?.toLowerCase();
                 const channel = message.mentions.channels.first();
                 const validTypes = ['all', 'message', 'member', 'voice', 'moderation', 'server'];
                 
-                // Zeige aktuelle Einstellungen
+                // Show current settings
                 if (!type || !channel) {
                     const serverLogs = logChannels.get(message.guild.id) || {};
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x3498DB)
                         .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                        .setTitle('📋 Log-Einstellungen')
+                        .setTitle('📋 Log Settings')
                         .addFields([
-                            { name: '📌 Alle Logs', value: serverLogs.all ? `<#${serverLogs.all}>` : '❌ Aus', inline: true },
-                            { name: '💬 Nachrichten', value: serverLogs.message ? `<#${serverLogs.message}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
-                            { name: '👥 Mitglieder', value: serverLogs.member ? `<#${serverLogs.member}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline:14 },
-                            { name: '🎤 Voice', value: serverLogs.voice ? `<#${serverLogs.voice}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
-                            { name: '🛡️ Moderation', value: serverLogs.moderation ? `<#${serverLogs.moderation}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true },
-                            { name: '⚙️ Server', value: serverLogs.server ? `<#${serverLogs.server}>` : (serverLogs.all ? '↪️ Nutzt "Alle"' : '❌ Aus'), inline: true }
+                            { name: '📌 All Logs', value: serverLogs.all ? `<#${serverLogs.all}>` : '❌ Off', inline: true },
+                            { name: '💬 Messages', value: serverLogs.message ? `<#${serverLogs.message}>` : (serverLogs.all ? '↪️ Uses "All"' : '❌ Off'), inline: true },
+                            { name: '👥 Members', value: serverLogs.member ? `<#${serverLogs.member}>` : (serverLogs.all ? '↪️ Uses "All"' : '❌ Off'), inline: true },
+                            { name: '🎤 Voice', value: serverLogs.voice ? `<#${serverLogs.voice}>` : (serverLogs.all ? '↪️ Uses "All"' : '❌ Off'), inline: true },
+                            { name: '🛡️ Moderation', value: serverLogs.moderation ? `<#${serverLogs.moderation}>` : (serverLogs.all ? '↪️ Uses "All"' : '❌ Off'), inline: true },
+                            { name: '⚙️ Server', value: serverLogs.server ? `<#${serverLogs.server}>` : (serverLogs.all ? '↪️ Uses "All"' : '❌ Off'), inline: true }
                         ])
-                        .setFooter({ text: '!logs <typ> #channel | !logs disable <typ> | !logs reset', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setFooter({ text: '!logs <type> #channel | !logs disable <type> | !logs reset', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
                     
                     return message.reply({ embeds: [embed] });
                 }
                 
-                // Channel setzen
+                // Set channel
                 if (validTypes.includes(type) && channel) {
                     if (!logChannels.has(message.guild.id)) {
                         logChannels.set(message.guild.id, {});
@@ -394,19 +296,19 @@ module.exports = {
                     logChannels.set(message.guild.id, serverLogs);
                     
                     const typeNames = {
-                        'all': 'ALLE Logs',
-                        'message': 'Nachrichten-Logs',
-                        'member': 'Mitglieder-Logs',
-                        'voice': 'Voice-Logs',
-                        'moderation': 'Moderations-Logs',
-                        'server': 'Server-Logs'
+                        'all': 'ALL Logs',
+                        'message': 'Message Logs',
+                        'member': 'Member Logs',
+                        'voice': 'Voice Logs',
+                        'moderation': 'Moderation Logs',
+                        'server': 'Server Logs'
                     };
                     
                     const embed = new EmbedBuilder()
                         .setColor(0x57F287)
                         .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                        .setTitle('✅ Log-Channel gesetzt')
-                        .setDescription(`${channel} ist jetzt der Channel für **${typeNames[type]}**!`)
+                        .setTitle('✅ Log Channel Set')
+                        .setDescription(`${channel} is now the channel for **${typeNames[type]}**!`)
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
                     
@@ -416,8 +318,8 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0xED4245)
                     .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('❌ Falsche Nutzung')
-                    .setDescription('!logs <all/message/member/voice/moderation/server> #channel\n!logs disable <typ>\n!logs reset')
+                    .setTitle('❌ Invalid Usage')
+                    .setDescription('!logs <all/message/member/voice/moderation/server> #channel\n!logs disable <type>\n!logs reset')
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -428,7 +330,7 @@ module.exports = {
         'logs-disable': {
             aliases: ['logsoff', 'disablelog'],
             permissions: 'Administrator',
-            description: 'Deaktiviert Logs für einen Typ / Disables logs for a type',
+            description: 'Disables logs for a type',
             category: 'Logs',
             async execute(message, args) {
                 const type = args[0]?.toLowerCase();
@@ -438,7 +340,7 @@ module.exports = {
                     const embed = new EmbedBuilder()
                         .setColor(0xED4245)
                         .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                        .setTitle('❌ Ungültiger Typ')
+                        .setTitle('❌ Invalid Type')
                         .setDescription(`!logs-disable <${validTypes.join('/')}>`)
                         .setTimestamp();
                     
@@ -457,8 +359,8 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x57F287)
                     .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('✅ Logging deaktiviert')
-                    .setDescription(`Logging für **${type}** wurde deaktiviert.`)
+                    .setTitle('✅ Logging Disabled')
+                    .setDescription(`Logging for **${type}** has been disabled.`)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
@@ -470,7 +372,7 @@ module.exports = {
         'logs-reset': {
             aliases: ['logreset', 'resetlogs'],
             permissions: 'Administrator',
-            description: 'Setzt ALLE Log-Einstellungen zurück / Resets ALL log settings',
+            description: 'Resets ALL log settings',
             category: 'Logs',
             async execute(message) {
                 logChannels.delete(message.guild.id);
@@ -478,8 +380,8 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0x57F287)
                     .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('✅ Logs zurückgesetzt')
-                    .setDescription('Alle Log-Einstellungen wurden gelöscht.')
+                    .setTitle('✅ Logs Reset')
+                    .setDescription('All log settings have been deleted.')
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
@@ -636,7 +538,7 @@ module.exports.logEvent = {
     
     // ⚙️ SERVER LOGS
     channelCreate: async (channel) => {
-        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Kategorie';
+        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Category';
         await sendLog(channel.guild, 'server', 'channel_created', 'channel_created', 'create', [], {
             name: channel.name,
             type: type,
@@ -645,7 +547,7 @@ module.exports.logEvent = {
     },
     
     channelDelete: async (channel) => {
-        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Kategorie';
+        const type = channel.type === 0 ? 'Text' : channel.type === 2 ? 'Voice' : 'Category';
         await sendLog(channel.guild, 'server', 'channel_deleted', 'channel_deleted', 'delete', [], {
             name: channel.name,
             type: type

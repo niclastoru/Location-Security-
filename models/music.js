@@ -22,7 +22,7 @@ function getQueue(guildId) {
             connection: null,
             channel: null,
             loop: false,
-            volume: 0.5,
+            volume: 1.0, // 🔴 Standard auf 100% (nicht 0.5)
             nowPlaying: null
         });
     }
@@ -72,7 +72,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     const descriptions = {
         en: {
             no_vc: 'You must be in a voice channel!',
-            no_song_query: '!play <Spotify/YouTube/SoundCloud/Search>',
+            no_song_query: '!play <YouTube/SoundCloud URL or Search>',
             searching: '🔍 Searching for song...',
             loading_spotify: '🎵 Loading Spotify Playlist...',
             playlist_error: 'Could not load playlist!',
@@ -182,7 +182,7 @@ async function searchSong(query) {
     }
 }
 
-// ⭐ Play song
+// ⭐ Play song (FIXED - with proper volume and stream handling)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     const lang = client?.languages?.get(guild.id) || 'en';
@@ -195,16 +195,21 @@ async function playSong(guild, channel, song, client) {
             throw new Error('No URL provided');
         }
         
-        // Get stream
+        // Get stream with proper options
         let stream;
         try {
-            stream = await play.stream(song.url);
+            stream = await play.stream(song.url, {
+                discordPlayerCompatibility: true, // Wichtig für Discord!
+                quality: 2 // Beste Qualität
+            });
         } catch (streamError) {
             console.error('Stream error:', streamError);
             // Try alternative method for YouTube
             if (song.platform === 'youtube') {
                 const videoInfo = await play.video_basic_info(song.url);
-                stream = await play.stream_from_info(videoInfo);
+                stream = await play.stream_from_info(videoInfo, {
+                    discordPlayerCompatibility: true
+                });
             } else {
                 throw streamError;
             }
@@ -214,25 +219,37 @@ async function playSong(guild, channel, song, client) {
             throw new Error('No stream available');
         }
         
+        // Create resource with proper options
         const resource = createAudioResource(stream.stream, { 
             inputType: stream.type,
             inlineVolume: true 
         });
-        resource.volume.setVolume(queue.volume);
         
+        // Volume setzen (1.0 = 100%)
+        resource.volume.setVolume(queue.volume);
+        console.log(`🎵 Volume set to: ${queue.volume * 100}%`);
+        
+        // Player events cleanup
+        queue.player.removeAllListeners();
+        
+        // Play the resource
         queue.player.play(resource);
         queue.nowPlaying = song;
         queue.channel = channel;
+        
+        // Debug: Check player status
+        console.log(`🎵 Player status: ${queue.player.state.status}`);
         
         // Send now playing embed
         const embed = new EmbedBuilder()
             .setColor(song.platform === 'youtube' ? 0xFF0000 : song.platform === 'soundcloud' ? 0xFF5500 : 0x1DB954)
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-            .setTitle(lang === 'en' ? '🎵 Now Playing' : '🎵 Now Playing')
+            .setTitle('🎵 Now Playing')
             .setDescription(`[${song.title}](${song.url})`)
             .addFields([
-                { name: lang === 'en' ? '👤 Requested by' : '👤 Requested by', value: song.requestedBy, inline: true },
-                { name: lang === 'en' ? '⏱️ Duration' : '⏱️ Duration', value: song.duration || 'Unknown', inline: true }
+                { name: '👤 Requested by', value: song.requestedBy, inline: true },
+                { name: '⏱️ Duration', value: song.duration || 'Unknown', inline: true },
+                { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
             ])
             .setFooter({ text: song.requestedBy })
             .setTimestamp();
@@ -245,6 +262,7 @@ async function playSong(guild, channel, song, client) {
         
         // Handle next song
         queue.player.once(AudioPlayerStatus.Idle, () => {
+            console.log('🎵 Player became idle, moving to next song...');
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push({ ...queue.nowPlaying });
             }
@@ -253,13 +271,14 @@ async function playSong(guild, channel, song, client) {
                 playSong(guild, channel, queue.songs[0], client);
             } else {
                 queue.nowPlaying = null;
+                console.log('🎵 Queue is empty, stopping playback');
             }
         });
         
         queue.player.on('error', (error) => {
-            console.error('Player error:', error);
+            console.error('❌ Player error:', error);
             channel.send({ 
-                embeds: [buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error')] 
+                embeds: [await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error')] 
             });
             queue.songs.shift();
             if (queue.songs.length > 0) {
@@ -268,7 +287,7 @@ async function playSong(guild, channel, song, client) {
         });
         
     } catch (error) {
-        console.error('Play error:', error);
+        console.error('❌ Play error:', error);
         channel.send({ 
             embeds: [await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error')] 
         });
@@ -291,7 +310,7 @@ module.exports = {
     category: 'Music',
     subCommands: {
         
-        // ========== PLAY ==========
+        // ========== PLAY (FIXED - with selfMute: false) ==========
         play: {
             aliases: ['p', 'add'],
             description: 'Plays music (YouTube/SoundCloud)',
@@ -399,12 +418,18 @@ module.exports = {
                     
                     if (queue.songs.length === 1) {
                         if (!queue.connection) {
+                            // ⚠️ WICHTIG: selfMute: false und selfDeaf: false - sonst hört man nichts!
                             queue.connection = joinVoiceChannel({
                                 channelId: voiceChannel.id,
                                 guildId: message.guild.id,
-                                adapterCreator: message.guild.voiceAdapterCreator
+                                adapterCreator: message.guild.voiceAdapterCreator,
+                                selfMute: false,   // 🔴 Bot NICHT stumm schalten!
+                                selfDeaf: false    // 🔴 Bot NICHT taub schalten!
                             });
                             queue.connection.subscribe(queue.player);
+                            
+                            console.log(`✅ Bot joined ${voiceChannel.name} (ID: ${voiceChannel.id})`);
+                            console.log(`   selfMute: false, selfDeaf: false`);
                         }
                         playSong(message.guild, message.channel, song, client);
                     }
@@ -425,7 +450,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (!queue.nowPlaying) {
                     return message.reply({ 
@@ -447,7 +471,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 queue.songs = [];
                 queue.loop = false;
@@ -471,7 +494,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (!queue.nowPlaying) {
                     return message.reply({ 
@@ -493,7 +515,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (!queue.nowPlaying) {
                     return message.reply({ 
@@ -516,7 +537,6 @@ module.exports = {
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
                 const volume = parseInt(args[0]);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (isNaN(volume) || volume < 0 || volume > 200) {
                     return message.reply({ 
@@ -542,7 +562,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (queue.songs.length === 0) {
                     return message.reply({ 
@@ -581,7 +600,7 @@ module.exports = {
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
                 
-                message.reply({ embeds: [embed] });
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -592,7 +611,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (!queue.nowPlaying) {
                     return message.reply({ 
@@ -616,7 +634,7 @@ module.exports = {
                 
                 if (song.thumbnail) embed.setThumbnail(song.thumbnail);
                 
-                message.reply({ embeds: [embed] });
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -627,7 +645,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 queue.loop = !queue.loop;
                 return message.reply({ 
@@ -643,7 +660,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (queue.songs.length < 2) {
                     return message.reply({ 
@@ -672,7 +688,6 @@ module.exports = {
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
                 const index = parseInt(args[0]) - 1;
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 
                 if (isNaN(index) || index < 0 || index >= queue.songs.length) {
                     return message.reply({ 
@@ -694,7 +709,6 @@ module.exports = {
             category: 'Music',
             async execute(message, args, { client }) {
                 const queue = getQueue(message.guild.id);
-                const lang = client?.languages?.get(message.guild.id) || 'en';
                 const current = queue.songs[0];
                 queue.songs = current ? [current] : [];
                 
@@ -710,8 +724,6 @@ module.exports = {
             description: 'Shows all music commands',
             category: 'Music',
             async execute(message, args, { client }) {
-                const lang = client?.languages?.get(message.guild.id) || 'en';
-                
                 const embed = new EmbedBuilder()
                     .setColor(0x1DB954)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })

@@ -1,10 +1,9 @@
-cat > starboard.js << 'EOF'
 const { EmbedBuilder } = require('discord.js');
 
 // Starboard Settings Cache
 const starboardSettings = new Map();
 
-// ⭐ Load settings from database
+// Load settings from database
 async function loadStarboardSettings(guildId, supabase) {
     if (starboardSettings.has(guildId)) {
         return starboardSettings.get(guildId);
@@ -30,7 +29,7 @@ async function loadStarboardSettings(guildId, supabase) {
     return settings;
 }
 
-// ⭐ Save settings to database
+// Save settings to database
 async function saveStarboardSettings(guildId, settings, supabase) {
     const { error } = await supabase
         .from('starboard_settings')
@@ -52,7 +51,7 @@ async function saveStarboardSettings(guildId, settings, supabase) {
     return !error;
 }
 
-// ⭐ Create starboard embed
+// Create starboard embed
 function createStarboardEmbed(message, starCount, author, content, imageUrl, jumpUrl) {
     const embed = new EmbedBuilder()
         .setColor(0xFFAC33)
@@ -76,7 +75,7 @@ function createStarboardEmbed(message, starCount, author, content, imageUrl, jum
     return embed;
 }
 
-// ⭐ Handle star reaction
+// Handle star reaction
 async function handleStarReaction(reaction, user, supabase, client, added) {
     if (user.bot) return;
     
@@ -190,7 +189,7 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
     }
 }
 
-// ⭐ Clean up starboard when message is deleted
+// Clean up starboard when message is deleted
 async function handleMessageDelete(message, supabase) {
     if (!message.guild) return;
     
@@ -217,7 +216,7 @@ async function handleMessageDelete(message, supabase) {
     }
 }
 
-// ⭐ Get starboard stats for a user
+// Get starboard stats for a user
 async function getUserStarStats(guildId, userId, supabase) {
     const { data } = await supabase
         .from('starboard')
@@ -233,7 +232,7 @@ async function getUserStarStats(guildId, userId, supabase) {
     return { totalStars, messages: data.length };
 }
 
-// ⭐ Get top starboard messages
+// Get top starboard messages
 async function getTopStarredMessages(guildId, limit = 10, supabase) {
     const { data } = await supabase
         .from('starboard')
@@ -245,7 +244,7 @@ async function getTopStarredMessages(guildId, limit = 10, supabase) {
     return data || [];
 }
 
-// ⭐ Starboard Stats Command
+// Starboard Stats Command
 async function starboardStats(message, args, { client, supabase }) {
     const target = message.mentions.users.first() || message.author;
     const stats = await getUserStarStats(message.guild.id, target.id, supabase);
@@ -265,7 +264,7 @@ async function starboardStats(message, args, { client, supabase }) {
     return { embeds: [embed] };
 }
 
-// ⭐ Starboard Top Command
+// Starboard Top Command
 async function starboardTop(message, args, { client, supabase }) {
     const limit = Math.min(parseInt(args[0]) || 10, 25);
     const topMessages = await getTopStarredMessages(message.guild.id, limit, supabase);
@@ -298,7 +297,7 @@ async function starboardTop(message, args, { client, supabase }) {
     return { embeds: [embed] };
 }
 
-// ⭐ Starboard Setup Command
+// Starboard Setup Command
 async function starboardSetup(message, args, { client, supabase }) {
     const channel = message.mentions.channels.first();
     
@@ -336,7 +335,7 @@ async function starboardSetup(message, args, { client, supabase }) {
     return { embeds: [embed] };
 }
 
-// ⭐ Starboard Config Command
+// Starboard Config Command
 async function starboardConfig(message, args, { client, supabase }) {
     const settings = await loadStarboardSettings(message.guild.id, supabase);
     
@@ -458,4 +457,3 @@ module.exports = {
     starboardSetup,
     starboardConfig
 };
-EOF

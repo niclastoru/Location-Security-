@@ -1,5 +1,6 @@
 // Minimal starboard.js - verhindert Abstürze
 const { EmbedBuilder } = require('discord.js');
+const { starboardStats, starboardTop, starboardSetup, starboardConfig } = require('./models/starboard.js');
 
 async function starboardStats(message, args, { client, supabase }) {
     const embed = new EmbedBuilder()

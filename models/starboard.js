@@ -1,4 +1,3 @@
-cat > /opt/render/project/src/models/starboard.js << 'EOF'
 const { EmbedBuilder } = require('discord.js');
 
 // Starboard Settings Cache

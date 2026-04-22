@@ -17,6 +17,7 @@ const { handleLevelingMessage } = require('./models/leveling');
 const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
 const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
+const { handleStarReaction, handleMessageDelete } = require('./models/starboard');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -378,6 +379,17 @@ client.on('messageReactionRemove', async (reaction, user) => {
     await handleGiveawayReaction(reaction, user, client, supabase, false);
 });
 
+// ========== STARBOARD REACTION HANDLER ==========
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+    await handleStarReaction(reaction, user, supabase, client, true);
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot) return;
+    await handleStarReaction(reaction, user, supabase, client, false);
+});
+
 // ========== LOGGING LISTENERS ==========
 client.on('messageDelete', async (message) => {
     if (!message.author?.bot || message.content || message.attachments.size) {
@@ -394,6 +406,7 @@ client.on('messageDelete', async (message) => {
     }
     
     await logEvent.messageDelete(message);
+    await handleMessageDelete(message, supabase);
 });
 
 client.on('messageUpdate', async (oldMessage, newMessage) => {

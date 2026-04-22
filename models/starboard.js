@@ -1,3 +1,4 @@
+cat > starboard.js << 'EOF'
 const { EmbedBuilder } = require('discord.js');
 
 // Starboard Settings Cache
@@ -77,10 +78,8 @@ function createStarboardEmbed(message, starCount, author, content, imageUrl, jum
 
 // ⭐ Handle star reaction
 async function handleStarReaction(reaction, user, supabase, client, added) {
-    // Ignore bot reactions
     if (user.bot) return;
     
-    // Fetch full reaction if partial
     if (reaction.partial) {
         try {
             await reaction.fetch();
@@ -95,25 +94,15 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
     
     if (!guild) return;
     
-    // Load settings
     const settings = await loadStarboardSettings(guild.id, supabase);
     
-    // Check if starboard is enabled
     if (!settings.enabled || !settings.channel_id) return;
-    
-    // Check if correct emoji
     if (reaction.emoji.name !== settings.emoji) return;
-    
-    // Check self-star rule
     if (!settings.self_star && message.author.id === user.id) return;
-    
-    // Check bot-star rule
     if (!settings.bot_star && message.author.bot) return;
     
-    // Get star count
     let starCount = reaction.count || 1;
     
-    // Check if message already in starboard
     const { data: existing } = await supabase
         .from('starboard')
         .select('*')
@@ -124,7 +113,6 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
     const starboardChannel = guild.channels.cache.get(settings.channel_id);
     if (!starboardChannel) return;
     
-    // Get image URL from attachments
     let imageUrl = null;
     if (message.attachments.size > 0) {
         const attachment = message.attachments.first();
@@ -133,10 +121,8 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
         }
     }
     
-    // If message already in starboard
     if (existing) {
         if (added && starCount >= settings.threshold) {
-            // Update existing starboard message
             if (existing.starboard_message_id) {
                 try {
                     const starboardMsg = await starboardChannel.messages.fetch(existing.starboard_message_id);
@@ -148,7 +134,6 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
                     );
                     await starboardMsg.edit({ embeds: [embed] });
                     
-                    // Update database
                     await supabase
                         .from('starboard')
                         .update({ 
@@ -162,7 +147,6 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
                 }
             }
         } else if (!added && starCount < settings.threshold) {
-            // Remove from starboard if below threshold
             if (existing.starboard_message_id) {
                 try {
                     const starboardMsg = await starboardChannel.messages.fetch(existing.starboard_message_id);
@@ -178,9 +162,7 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
         return;
     }
     
-    // New message - check if it reached threshold
     if (added && starCount >= settings.threshold) {
-        // Create starboard embed
         const embed = createStarboardEmbed(
             message, starCount, message.author,
             message.content,
@@ -188,10 +170,8 @@ async function handleStarReaction(reaction, user, supabase, client, added) {
             message.url
         );
         
-        // Send to starboard channel
         const starboardMsg = await starboardChannel.send({ embeds: [embed] });
         
-        // Save to database
         await supabase
             .from('starboard')
             .insert({
@@ -465,23 +445,17 @@ async function starboardConfig(message, args, { client, supabase }) {
 }
 
 module.exports = {
-    // Cache und Settings
     starboardSettings,
     loadStarboardSettings,
     saveStarboardSettings,
-    
-    // Core Functions
     createStarboardEmbed,
     handleStarReaction,
     handleMessageDelete,
-    
-    // Stats Functions
     getUserStarStats,
     getTopStarredMessages,
-    
-    // Command Functions
     starboardStats,
     starboardTop,
     starboardSetup,
     starboardConfig
 };
+EOF

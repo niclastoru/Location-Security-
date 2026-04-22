@@ -1,46 +1,46 @@
-// Minimal starboard.js - verhindert Abstürze
+cat > starboard.js << 'EOF'
 const { EmbedBuilder } = require('discord.js');
-const { starboardStats, starboardTop, starboardSetup, starboardConfig } = require('./models/starboard.js');
 
-async function starboardStats(message, args, { client, supabase }) {
+// Simple placeholder functions
+const starboardStats = async (message, args, { client, supabase }) => {
     const embed = new EmbedBuilder()
         .setColor(0xFFAC33)
         .setDescription('⭐ Starboard feature coming soon!')
         .setTimestamp();
     return { embeds: [embed] };
-}
+};
 
-async function starboardTop(message, args, { client, supabase }) {
+const starboardTop = async (message, args, { client, supabase }) => {
     const embed = new EmbedBuilder()
         .setColor(0xFFAC33)
         .setDescription('⭐ Starboard feature coming soon!')
         .setTimestamp();
     return { embeds: [embed] };
-}
+};
 
-async function starboardSetup(message, args, { client, supabase }) {
+const starboardSetup = async (message, args, { client, supabase }) => {
     const embed = new EmbedBuilder()
         .setColor(0xFFAC33)
-        .setDescription('⭐ Starboard feature coming soon!\n\nUse `,help` for available commands.')
+        .setDescription('⭐ Starboard feature coming soon!\n\nUse ,help for available commands.')
         .setTimestamp();
     return { embeds: [embed] };
-}
+};
 
-async function starboardConfig(message, args, { client, supabase }) {
+const starboardConfig = async (message, args, { client, supabase }) => {
     const embed = new EmbedBuilder()
         .setColor(0xFFAC33)
         .setDescription('⭐ Starboard feature coming soon!')
         .setTimestamp();
     return { embeds: [embed] };
-}
+};
 
-async function handleStarReaction(reaction, user, supabase, client, added) {
-    // Do nothing - feature coming soon
-}
+const handleStarReaction = async (reaction, user, supabase, client, added) => {
+    // Placeholder - do nothing
+};
 
-async function handleMessageDelete(message, supabase) {
-    // Do nothing - feature coming soon
-}
+const handleMessageDelete = async (message, supabase) => {
+    // Placeholder - do nothing
+};
 
 module.exports = {
     starboardStats,
@@ -50,3 +50,4 @@ module.exports = {
     handleStarReaction,
     handleMessageDelete
 };
+EOF

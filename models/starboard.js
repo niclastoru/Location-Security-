@@ -1,4 +1,4 @@
-cat > starboard.js << 'EOF'
+
 const { EmbedBuilder } = require('discord.js');
 
 // Simple placeholder functions

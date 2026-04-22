@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { starboardStats, starboardTop, starboardSetup, starboardConfig } = require('./models/starboard');
 
 // ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
@@ -47,6 +48,10 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             welcome_test: 'Welcome Test',
             test_sent: 'Test Sent',
             welcome_help: 'Welcome Commands',
+            starboard: 'Starboard',
+            starboard_set: 'Starboard Set',
+            starboard_stats: 'Starboard Stats',
+            starboard_top: 'Starboard Top',
             error: 'Error',
             success: 'Success',
             info: 'Info',
@@ -464,7 +469,7 @@ module.exports = {
             }
         },
         
-        // ========== WELCOME-ADD (KORRIGIERT) ==========
+        // ========== WELCOME-ADD ==========
         'welcome-add': {
             aliases: ['welcome-set', 'setwelcome'],
             permissions: 'Administrator',
@@ -472,24 +477,10 @@ module.exports = {
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
-                
-                // Nachricht extrahieren (alles nach dem Channel)
                 let welcomeMessage = args.slice(1).join(' ');
-                
-                // Entferne Anführungszeichen am Anfang und Ende
                 welcomeMessage = welcomeMessage.replace(/^["']|["']$/g, '');
                 
-                console.log('=== WELCOME ADD ===');
-                console.log('Channel:', channel?.id);
-                console.log('Message:', welcomeMessage);
-                
-                if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
-                    });
-                }
-                
-                if (!welcomeMessage) {
+                if (!channel || !welcomeMessage) {
                     return message.reply({ 
                         embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
                     });
@@ -520,14 +511,10 @@ module.exports = {
                             });
                     }
                     
-                    console.log('✅ Welcome saved!');
-                    
                     return message.reply({ 
                         embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
                     });
-                    
                 } catch (err) {
-                    console.error('❌ Welcome Error:', err);
                     return message.reply({ 
                         embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message)] 
                     });
@@ -691,6 +678,52 @@ module.exports = {
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
                 });
+            }
+        },
+        
+        // ========== STARBOARD ==========
+        starboard: {
+            aliases: ['sb', 'starboard-setup'],
+            permissions: 'Administrator',
+            description: 'Setup starboard channel',
+            category: 'Server',
+            async execute(message, args, { client, supabase }) {
+                const result = await starboardSetup(message, args, { client, supabase });
+                return message.reply(result);
+            }
+        },
+        
+        // ========== STARBOARD CONFIG ==========
+        starboardconfig: {
+            aliases: ['sbconfig'],
+            permissions: 'Administrator',
+            description: 'Configure starboard settings',
+            category: 'Server',
+            async execute(message, args, { client, supabase }) {
+                const result = await starboardConfig(message, args, { client, supabase });
+                return message.reply(result);
+            }
+        },
+        
+        // ========== STARBOARD STATS ==========
+        starboardstats: {
+            aliases: ['sbstats', 'sbstat'],
+            description: 'Show starboard stats for a user',
+            category: 'Server',
+            async execute(message, args, { client, supabase }) {
+                const result = await starboardStats(message, args, { client, supabase });
+                return message.reply(result);
+            }
+        },
+        
+        // ========== STARBOARD TOP ==========
+        starboardtop: {
+            aliases: ['sbtop', 'sbleaderboard'],
+            description: 'Show top starred messages',
+            category: 'Server',
+            async execute(message, args, { client, supabase }) {
+                const result = await starboardTop(message, args, { client, supabase });
+                return message.reply(result);
             }
         }
     }

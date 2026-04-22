@@ -138,12 +138,10 @@ async function starboardConfig(message, args, { client, supabase }) {
 }
 
 async function handleStarReaction(reaction, user, supabase, client, added) {
-    // Will be implemented later
     return;
 }
 
 async function handleMessageDelete(message, supabase) {
-    // Will be implemented later
     return;
 }
 
@@ -158,4 +156,3 @@ module.exports = {
     handleStarReaction,
     handleMessageDelete
 };
-EOF

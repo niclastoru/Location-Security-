@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { starboardStats, starboardTop, starboardSetup, starboardConfig } = require('./models/starboard');
+const { starboardStats, starboardTop, starboardSetup, starboardConfig } = require('./starboard');
 
 // ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {

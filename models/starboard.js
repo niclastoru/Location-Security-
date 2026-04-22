@@ -265,7 +265,7 @@ async function getTopStarredMessages(guildId, limit = 10, supabase) {
     return data || [];
 }
 
-// ⭐ Starboard Stats Command (wird in server.js verwendet)
+// ⭐ Starboard Stats Command
 async function starboardStats(message, args, { client, supabase }) {
     const target = message.mentions.users.first() || message.author;
     const stats = await getUserStarStats(message.guild.id, target.id, supabase);
@@ -318,7 +318,7 @@ async function starboardTop(message, args, { client, supabase }) {
     return { embeds: [embed] };
 }
 
-// ⭐ Starboard Setup Command (wird in server.js verwendet)
+// ⭐ Starboard Setup Command
 async function starboardSetup(message, args, { client, supabase }) {
     const channel = message.mentions.channels.first();
     

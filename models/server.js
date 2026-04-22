@@ -2,7 +2,6 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 // ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    // Fallback wenn client undefined ist
     if (!client) {
         const embed = new EmbedBuilder()
             .setColor(0x5865F2)
@@ -82,8 +81,8 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             vanity_removed: 'Vanity-Role has been disabled.',
             vanity_current: (role) => `Current Vanity-Role: <@&${role}>\n\n**Usage:**\n!vanity-role set @Role\n!vanity-role remove`,
             vanity_none: 'No Vanity-Role set.\n\n**Usage:**\n!vanity-role set @Role',
-            welcome_add_usage: '!welcome-add #channel <Message>\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
-            welcome_added: (channel, msg) => `Message in ${channel}:\n${msg}`,
+            welcome_add_usage: '!welcome-add #channel "Message"\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
+            welcome_added: (channel, msg) => `Welcome message in ${channel}:\n${msg}`,
             welcome_remove_usage: '!welcome-remove #channel',
             welcome_removed: (channel) => `Welcome message in ${channel} has been removed.`,
             welcome_not_found: 'No welcome message found in this channel.',
@@ -92,7 +91,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             welcome_test_none: 'No welcome messages configured!',
             welcome_test_sent: 'Welcome messages have been sent as a test!',
             welcome_test_title: '🧪 Welcome Test',
-            welcome_help_text: '**!welcome-add** #channel <Message>\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
+            welcome_help_text: '**!welcome-add** #channel "Message"\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
             added_by: 'added by'
         }
     };
@@ -245,7 +244,7 @@ module.exports = {
             }
         },
         
-        // ========== PREFIX (KORRIGIERT) ==========
+        // ========== PREFIX ==========
         prefix: {
             aliases: ['setprefix', 'newprefix'],
             permissions: 'Administrator',
@@ -254,47 +253,45 @@ module.exports = {
             async execute(message, args, { client, supabase }) {
                 const newPrefix = args[0];
                 
-                // Wenn kein Prefix angegeben, zeige aktuellen an
                 if (!newPrefix) {
                     const currentPrefix = client.prefixes.get(message.guild.id) || '!';
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [currentPrefix]);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [currentPrefix])] 
+                    });
                 }
                 
-                // Prefix Länge prüfen
                 if (newPrefix.length > 5) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long')] 
+                    });
                 }
                 
                 try {
-                    console.log(`📝 Saving prefix: ${newPrefix} for Guild: ${message.guild.id}`);
-                    
-                    // In Supabase speichern
                     const { error } = await supabase
                         .from('custom_prefixes')
                         .upsert({
                             guild_id: message.guild.id,
                             prefix: newPrefix
-                        }, { onConflict: 'guild_id' });
+                        });
                     
                     if (error) {
                         console.error('❌ Prefix Save Error:', error);
-                        const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'Could not save prefix!');
-                        return message.reply({ embeds: [embed] });
+                        return message.reply({ 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'Could not save prefix!')] 
+                        });
                     }
                     
-                    // Im Cache speichern
                     client.prefixes.set(message.guild.id, newPrefix);
                     console.log(`✅ Prefix saved: ${newPrefix}`);
                     
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix]);
-                    return message.reply({ embeds: [embed] });
-                    
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
+                    });
                 } catch (err) {
                     console.error('❌ Prefix Error:', err);
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message)] 
+                    });
                 }
             }
         },
@@ -310,12 +307,13 @@ module.exports = {
                     await supabase.from('custom_prefixes').delete().eq('guild_id', message.guild.id);
                     client.prefixes.set(message.guild.id, '!');
                     
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset')] 
+                    });
                 } catch (err) {
-                    console.error('❌ Prefix Remove Error:', err);
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message)] 
+                    });
                 }
             }
         },
@@ -327,8 +325,9 @@ module.exports = {
             category: 'Server',
             async execute(message, args, { client }) {
                 const prefix = client.prefixes.get(message.guild.id) || '!';
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix]);
-                return message.reply({ embeds: [embed] });
+                return message.reply({ 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix])] 
+                });
             }
         },
         
@@ -373,14 +372,16 @@ module.exports = {
                         support_role_id: supportRole?.id || null
                     });
                     
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()]);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()])] 
+                    });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('ticket_panels').delete().eq('guild_id', message.guild.id);
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed')] 
+                    });
                 }
                 
                 if (action === 'info' || !action) {
@@ -391,8 +392,9 @@ module.exports = {
                         .single();
                     
                     if (!data) {
-                        const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel');
-                        return message.reply({ embeds: [embed] });
+                        return message.reply({ 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel')] 
+                        });
                     }
                     
                     const embed = new EmbedBuilder()
@@ -410,8 +412,9 @@ module.exports = {
                     return message.reply({ embeds: [embed] });
                 }
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage');
-                return message.reply({ embeds: [embed] });
+                return message.reply({ 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage')] 
+                });
             }
         },
         
@@ -431,14 +434,16 @@ module.exports = {
                         role_id: role.id
                     });
                     
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()]);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()])] 
+                    });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('vanity_role').delete().eq('guild_id', message.guild.id);
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed')] 
+                    });
                 }
                 
                 const { data } = await supabase
@@ -448,16 +453,18 @@ module.exports = {
                     .single();
                 
                 if (data) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id]);
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id])] 
+                    });
                 } else {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none')] 
+                    });
                 }
             }
         },
         
-        // ========== WELCOME-ADD ==========
+        // ========== WELCOME-ADD (KORRIGIERT) ==========
         'welcome-add': {
             aliases: ['welcome-set', 'setwelcome'],
             permissions: 'Administrator',
@@ -465,49 +472,66 @@ module.exports = {
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
-                const welcomeMessage = args.slice(1).join(' ');
                 
-                if (!channel || !welcomeMessage) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage');
-                    return message.reply({ embeds: [embed] });
+                // Nachricht extrahieren (alles nach dem Channel)
+                let welcomeMessage = args.slice(1).join(' ');
+                
+                // Entferne Anführungszeichen am Anfang und Ende
+                welcomeMessage = welcomeMessage.replace(/^["']|["']$/g, '');
+                
+                console.log('=== WELCOME ADD ===');
+                console.log('Channel:', channel?.id);
+                console.log('Message:', welcomeMessage);
+                
+                if (!channel) {
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
+                    });
                 }
                 
-                console.log(`📝 Welcome Add: Channel=${channel.id} (${channel.name}), Message=${welcomeMessage}`);
+                if (!welcomeMessage) {
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
+                    });
+                }
                 
-                const { data: existing } = await supabase
-                    .from('welcome_messages')
-                    .select('id')
-                    .eq('guild_id', message.guild.id)
-                    .eq('channel_id', channel.id)
-                    .maybeSingle();
-                
-                let result;
-                if (existing) {
-                    result = await supabase
+                try {
+                    const { data: existing } = await supabase
                         .from('welcome_messages')
-                        .update({ message: welcomeMessage })
+                        .select('id')
                         .eq('guild_id', message.guild.id)
-                        .eq('channel_id', channel.id);
-                } else {
-                    result = await supabase
-                        .from('welcome_messages')
-                        .insert({
-                            guild_id: message.guild.id,
-                            channel_id: channel.id,
-                            message: welcomeMessage,
-                            embed_color: '#00FF00'
-                        });
+                        .eq('channel_id', channel.id)
+                        .maybeSingle();
+                    
+                    if (existing) {
+                        await supabase
+                            .from('welcome_messages')
+                            .update({ message: welcomeMessage })
+                            .eq('guild_id', message.guild.id)
+                            .eq('channel_id', channel.id);
+                    } else {
+                        await supabase
+                            .from('welcome_messages')
+                            .insert({
+                                guild_id: message.guild.id,
+                                channel_id: channel.id,
+                                message: welcomeMessage,
+                                embed_color: '#00FF00'
+                            });
+                    }
+                    
+                    console.log('✅ Welcome saved!');
+                    
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
+                    });
+                    
+                } catch (err) {
+                    console.error('❌ Welcome Error:', err);
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', err.message)] 
+                    });
                 }
-                
-                if (result.error) {
-                    console.error('❌ Welcome Save Error:', result.error);
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found');
-                    return message.reply({ embeds: [embed] });
-                }
-                
-                console.log('✅ Welcome saved!');
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage]);
-                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -521,8 +545,9 @@ module.exports = {
                 const channel = message.mentions.channels.first();
                 
                 if (!channel) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                    });
                 }
                 
                 const { error } = await supabase
@@ -532,12 +557,14 @@ module.exports = {
                     .eq('channel_id', channel.id);
                 
                 if (error) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                    });
                 }
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()]);
-                return message.reply({ embeds: [embed] });
+                return message.reply({ 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()])] 
+                });
             }
         },
         
@@ -553,12 +580,10 @@ module.exports = {
                     .select('*')
                     .eq('guild_id', message.guild.id);
                 
-                console.log('Welcome Data:', data);
-                if (error) console.error('Welcome Error:', error);
-                
-                if (!data || data.length === 0) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty');
-                    return message.reply({ embeds: [embed] });
+                if (error || !data || data.length === 0) {
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty')] 
+                    });
                 }
                 
                 const list = data.map(w => `📝 <#${w.channel_id}>\n${w.message.substring(0, 100)}${w.message.length > 100 ? '...' : ''}`).join('\n\n');
@@ -585,8 +610,9 @@ module.exports = {
                 const channel = message.mentions.channels.first();
                 
                 if (!channel) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                    });
                 }
                 
                 const { data, error } = await supabase
@@ -596,12 +622,10 @@ module.exports = {
                     .eq('channel_id', channel.id)
                     .single();
                 
-                console.log('Welcome View Data:', data);
-                if (error) console.error('Welcome View Error:', error);
-                
-                if (!data) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()]);
-                    return message.reply({ embeds: [embed] });
+                if (error || !data) {
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()])] 
+                    });
                 }
                 
                 const embed = new EmbedBuilder()
@@ -634,8 +658,9 @@ module.exports = {
                         .eq('guild_id', message.guild.id);
                     
                     if (!data || data.length === 0) {
-                        const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none');
-                        return message.reply({ embeds: [embed] });
+                        return message.reply({ 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none')] 
+                        });
                     }
                     
                     for (const w of data) {
@@ -658,12 +683,14 @@ module.exports = {
                         }
                     }
                     
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent');
-                    return message.reply({ embeds: [embed] });
+                    return message.reply({ 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent')] 
+                    });
                 }
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text');
-                return message.reply({ embeds: [embed] });
+                return message.reply({ 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
+                });
             }
         }
     }

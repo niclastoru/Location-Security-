@@ -1,4 +1,3 @@
-
 const { EmbedBuilder } = require('discord.js');
 
 // Simple placeholder functions

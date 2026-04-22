@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 // ⭐ HELPER: Build nice embeds with language support
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
-    const lang = client.languages?.get(guildId) || 'en';
+    const lang = client?.languages?.get(guildId) || 'en';
     
     const colors = {
         success: 0x57F287,
@@ -92,10 +92,14 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     let description = descriptions[lang]?.[descKey] || descKey;
     
     if (typeof description === 'function') {
-        if (Array.isArray(fields)) {
+        if (Array.isArray(fields) && fields.length > 0) {
             description = description(...fields);
+        } else if (fields.length === 1 && typeof fields[0] !== 'object') {
+            description = description(fields[0]);
+        } else if (fields.length === 2) {
+            description = description(fields[0], fields[1]);
         } else {
-            description = description(fields);
+            description = description();
         }
     } else {
         for (const [key, value] of Object.entries(replacements)) {
@@ -105,21 +109,21 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     
     const embed = new EmbedBuilder()
         .setColor(type === 'welcome' ? 0x00FF00 : type === 'server' ? 0x0099FF : (colors[type] || 0x5865F2))
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
+        .setAuthor({ name: client?.user?.username || 'Bot', iconURL: client?.user?.displayAvatarURL() });
     
     const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '🌐';
     embed.setTitle(`${emoji} ${title}`);
     embed.setDescription(description);
     
     if (userId) {
-        const user = client.users.cache.get(userId) || await client.users.fetch(userId).catch(() => null);
+        const user = client?.users?.cache?.get(userId) || await client?.users?.fetch(userId).catch(() => null);
         if (user) {
             embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
         }
     }
     embed.setTimestamp();
     
-    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object') {
+    if (Array.isArray(fields) && fields.length > 0 && fields[0] && typeof fields[0] === 'object' && !fields[0].name) {
         embed.addFields(fields);
     }
     
@@ -147,14 +151,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'autorole_set', 'autorole_set', [role.toString()])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'autorole_set', 'autorole_set', [role.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('autorole').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'autorole_removed', 'autorole_removed')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'autorole_removed', 'autorole_removed')] 
                     });
                 }
                 
@@ -166,11 +170,11 @@ module.exports = {
                 
                 if (data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_current', [data.role_id])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_current', [data.role_id])] 
                     });
                 } else {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_none')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'autorole', 'autorole_none')] 
                     });
                 }
             }
@@ -193,14 +197,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_added', [targetGuildId])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_added', [targetGuildId])] 
                     });
                 }
                 
                 if (action === 'remove' && targetGuildId) {
                     await supabase.from('guild_whitelist').delete().eq('guild_id', targetGuildId);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_removed', [targetGuildId])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'whitelist', 'whitelist_removed', [targetGuildId])] 
                     });
                 }
                 
@@ -209,7 +213,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'guild_whitelist', 'whitelist_empty')] 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'guild_whitelist', 'whitelist_empty')] 
                         });
                     }
                     
@@ -227,7 +231,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'whitelist_usage')] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'whitelist_usage')] 
                 });
             }
         },
@@ -243,13 +247,13 @@ module.exports = {
                 
                 if (!newPrefix) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_no_prefix')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_no_prefix')] 
                     });
                 }
                 
                 if (newPrefix.length > 5) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'prefix', 'prefix_too_long')] 
                     });
                 }
                 
@@ -265,7 +269,7 @@ module.exports = {
                 if (error) {
                     console.error('❌ Prefix Save Error:', error);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'prefix_no_prefix')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'prefix_no_prefix')] 
                     });
                 }
                 
@@ -273,7 +277,7 @@ module.exports = {
                 console.log(`✅ Prefix saved: ${newPrefix}`);
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_changed', 'prefix_changed', [newPrefix])] 
                 });
             }
         },
@@ -289,7 +293,7 @@ module.exports = {
                 client.prefixes.set(message.guild.id, '!');
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset')] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'prefix_reset', 'prefix_reset')] 
                 });
             }
         },
@@ -303,7 +307,7 @@ module.exports = {
                 const prefix = client.prefixes.get(message.guild.id) || '!';
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix])] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'current_prefix', 'current_prefix', [prefix])] 
                 });
             }
         },
@@ -350,14 +354,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_created', 'ticket_created', [channel.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('ticket_panels').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'ticket_removed', 'ticket_removed')] 
                     });
                 }
                 
@@ -370,7 +374,7 @@ module.exports = {
                     
                     if (!data) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel')] 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'ticket_panel', 'ticket_no_panel')] 
                         });
                     }
                     
@@ -390,7 +394,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage')] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'ticket_usage')] 
                 });
             }
         },
@@ -412,14 +416,14 @@ module.exports = {
                     });
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_set', 'vanity_set', [role.toString()])] 
                     });
                 }
                 
                 if (action === 'remove' || action === 'delete') {
                     await supabase.from('vanity_role').delete().eq('guild_id', message.guild.id);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'vanity_removed', 'vanity_removed')] 
                     });
                 }
                 
@@ -431,11 +435,11 @@ module.exports = {
                 
                 if (data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_current', [data.role_id])] 
                     });
                 } else {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'vanity_role', 'vanity_none')] 
                     });
                 }
             }
@@ -453,7 +457,7 @@ module.exports = {
                 
                 if (!channel || !welcomeMessage) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_add_usage')] 
                     });
                 }
                 
@@ -487,14 +491,14 @@ module.exports = {
                 if (result.error) {
                     console.error('❌ Welcome Save Error:', result.error);
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
                     });
                 }
                 
                 console.log('✅ Welcome saved!');
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
                 });
             }
         },
@@ -510,7 +514,7 @@ module.exports = {
                 
                 if (!channel) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
                     });
                 }
                 
@@ -522,12 +526,12 @@ module.exports = {
                 
                 if (error) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'welcome_not_found')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()])] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_removed', 'welcome_removed', [channel.toString()])] 
                 });
             }
         },
@@ -549,7 +553,7 @@ module.exports = {
                 
                 if (!data || data.length === 0) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_list', 'welcome_empty')] 
                     });
                 }
                 
@@ -578,7 +582,7 @@ module.exports = {
                 
                 if (!channel) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_usage', 'welcome_remove_usage')] 
                     });
                 }
                 
@@ -594,7 +598,7 @@ module.exports = {
                 
                 if (!data) {
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_view', 'welcome_view_empty', [channel.toString()])] 
                     });
                 }
                 
@@ -629,7 +633,7 @@ module.exports = {
                     
                     if (!data || data.length === 0) {
                         return message.reply({ 
-                            embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none')] 
+                            embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'welcome', 'welcome_test_none')] 
                         });
                     }
                     
@@ -654,12 +658,12 @@ module.exports = {
                     }
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent')] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'test_sent', 'welcome_test_sent')] 
                     });
                 }
                 
                 return message.reply({ 
-                    embeds: [await buildEmbed(message.client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
+                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'welcome_help', 'welcome_help_text')] 
                 });
             }
         }

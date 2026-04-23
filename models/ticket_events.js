@@ -1,9 +1,10 @@
-const { ChannelType, PermissionFlagsBits } = require('discord.js');
+const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 async function handleTicketButton(interaction, client, supabase) {
     const { customId, member, guild } = interaction;
     
     if (!customId.startsWith('ticket_')) return false;
+    if (customId === 'ticket_close' || customId === 'ticket_claim') return false;
     
     await interaction.deferReply({ ephemeral: true });
     
@@ -32,13 +33,13 @@ async function handleTicketButton(interaction, client, supabase) {
     }
     
     // Get next ticket number
-    const { data: counter } = await supabase
+    const { data: counterData } = await supabase
         .from('ticket_counter')
         .select('counter')
         .eq('guild_id', guild.id)
         .single();
     
-    const ticketNumber = (counter?.counter || 1);
+    const ticketNumber = (counterData?.counter || 1);
     const ticketId = `${typeNames[ticketType].substring(0, 3)}-${ticketNumber}`.toUpperCase();
     
     // Update counter
@@ -99,7 +100,7 @@ async function handleTicketButton(interaction, client, supabase) {
     }
     
     // Save ticket to database
-    await supabase.from('tickets').insert({
+    const { error: insertError } = await supabase.from('tickets').insert({
         guild_id: guild.id,
         ticket_id: ticketId,
         channel_id: channel.id,
@@ -110,9 +111,16 @@ async function handleTicketButton(interaction, client, supabase) {
         created_at: new Date().toISOString()
     });
     
-    // Send welcome message in ticket
-    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    if (insertError) {
+        console.error('Error saving ticket:', insertError);
+        await interaction.editReply({ 
+            content: `❌ Error creating ticket: ${insertError.message}`,
+            ephemeral: true 
+        });
+        return true;
+    }
     
+    // Send welcome message in ticket
     const welcomeEmbed = new EmbedBuilder()
         .setColor(0x5865F2)
         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
@@ -155,20 +163,31 @@ async function handleTicketCloseButton(interaction, client, supabase) {
     await interaction.deferReply();
     
     const channel = interaction.channel;
+    const guild = channel.guild;
     
-    // Get ticket from database
-    const { data: ticket } = await supabase
+    console.log('Closing ticket in channel:', channel.id);
+    console.log('Channel name:', channel.name);
+    
+    // Get ticket from database by channel_id
+    const { data: ticket, error } = await supabase
         .from('tickets')
         .select('*')
         .eq('channel_id', channel.id)
         .single();
     
-    if (!ticket) {
-        await interaction.editReply({ content: '❌ Ticket not found!' });
+    console.log('Ticket found:', ticket);
+    console.log('Error:', error);
+    
+    if (error || !ticket) {
+        console.log('Ticket not found in database');
+        await interaction.editReply({ 
+            content: '❌ Ticket not found in database! Please close manually or contact an admin.',
+            ephemeral: true 
+        });
         return true;
     }
     
-    // Create transcript (simplified)
+    // Create transcript
     const messages = [];
     let lastId = null;
     
@@ -212,11 +231,11 @@ async function handleTicketCloseButton(interaction, client, supabase) {
     const { data: settings } = await supabase
         .from('ticket_settings')
         .select('log_channel_id')
-        .eq('guild_id', channel.guild.id)
+        .eq('guild_id', guild.id)
         .single();
     
     if (settings?.log_channel_id) {
-        const logChannel = channel.guild.channels.cache.get(settings.log_channel_id);
+        const logChannel = guild.channels.cache.get(settings.log_channel_id);
         if (logChannel) {
             const transcriptEmbed = new EmbedBuilder()
                 .setColor(0x57F287)
@@ -224,7 +243,8 @@ async function handleTicketCloseButton(interaction, client, supabase) {
                 .addFields([
                     { name: 'Ticket', value: ticket.ticket_id, inline: true },
                     { name: 'Closed by', value: interaction.user.tag, inline: true },
-                    { name: 'Created by', value: ticket.creator_tag, inline: true }
+                    { name: 'Created by', value: ticket.creator_tag, inline: true },
+                    { name: 'Channel', value: channel.name, inline: true }
                 ])
                 .setTimestamp();
             
@@ -235,10 +255,17 @@ async function handleTicketCloseButton(interaction, client, supabase) {
         }
     }
     
-    // Delete the channel
+    // Send closing message
     await interaction.editReply({ content: '✅ Ticket will be closed in 5 seconds...' });
+    
+    // Delete the channel after 5 seconds
     setTimeout(async () => {
-        await channel.delete();
+        try {
+            await channel.delete();
+            console.log(`Ticket channel ${channel.id} deleted`);
+        } catch (err) {
+            console.error('Error deleting channel:', err);
+        }
     }, 5000);
     
     return true;
@@ -249,6 +276,27 @@ async function handleTicketClaimButton(interaction, client, supabase) {
     
     await interaction.deferReply();
     
+    const channel = interaction.channel;
+    
+    // Get ticket from database
+    const { data: ticket } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('channel_id', channel.id)
+        .single();
+    
+    if (!ticket) {
+        await interaction.editReply({ content: '❌ Ticket not found!' });
+        return true;
+    }
+    
+    // Check if already claimed
+    if (ticket.claimed_by) {
+        await interaction.editReply({ content: `❌ This ticket is already claimed by ${ticket.claimed_by_tag}!` });
+        return true;
+    }
+    
+    // Update ticket
     await supabase
         .from('tickets')
         .update({ 
@@ -256,7 +304,7 @@ async function handleTicketClaimButton(interaction, client, supabase) {
             claimed_by_tag: interaction.user.tag,
             claimed_at: new Date().toISOString()
         })
-        .eq('channel_id', interaction.channel.id);
+        .eq('id', ticket.id);
     
     const embed = new EmbedBuilder()
         .setColor(0x57F287)
@@ -265,6 +313,11 @@ async function handleTicketClaimButton(interaction, client, supabase) {
     
     await interaction.channel.send({ embeds: [embed] });
     await interaction.editReply({ content: '✅ You have claimed this ticket!' });
+    
+    // Try to rename channel
+    try {
+        await interaction.channel.setName(`${interaction.channel.name}-claimed`);
+    } catch (e) {}
     
     return true;
 }

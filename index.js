@@ -18,6 +18,7 @@ const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
 const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
 const { handleStarReaction, handleMessageDelete } = require('./models/starboard');
+const { handleTicketButton, handleTicketCloseButton, handleTicketClaimButton } = require('./models/ticket_events');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -256,11 +257,30 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ========== INTERACTION HANDLER ==========
+// ========== INTERACTION HANDLER (MIT TICKET BUTTONS) ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
+        // VoiceMaster Buttons
         if (interaction.customId.startsWith('vm_')) {
             return handleVoiceMasterButton(interaction, client, supabase);
+        }
+        
+        // Ticket Creation Buttons (support, report, application)
+        if (interaction.customId.startsWith('ticket_') && !interaction.customId.includes('close') && !interaction.customId.includes('claim')) {
+            const handled = await handleTicketButton(interaction, client, supabase);
+            if (handled) return;
+        }
+        
+        // Ticket Close Button
+        if (interaction.customId === 'ticket_close') {
+            await handleTicketCloseButton(interaction, client, supabase);
+            return;
+        }
+        
+        // Ticket Claim Button
+        if (interaction.customId === 'ticket_claim') {
+            await handleTicketClaimButton(interaction, client, supabase);
+            return;
         }
     }
 });

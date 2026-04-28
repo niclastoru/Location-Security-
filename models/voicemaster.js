@@ -313,24 +313,23 @@ module.exports = {
                     .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
                 
-                // Row 1: Lock, Unlock, Hide, Reveal, Claim
+                // ALL BUTTONS with Secondary style (gray) - exactly like in the image
                 const row1 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_lock').setLabel('Lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
                         new ButtonBuilder().setCustomId('vm_unlock').setLabel('Unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓'),
                         new ButtonBuilder().setCustomId('vm_hide').setLabel('Hide').setStyle(ButtonStyle.Secondary).setEmoji('👻'),
                         new ButtonBuilder().setCustomId('vm_reveal').setLabel('Reveal').setStyle(ButtonStyle.Secondary).setEmoji('👁️'),
-                        new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📋')
+                        new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Secondary).setEmoji('📋')
                     );
                 
-                // Row 2: Disconnect, Activity, Info, Limit+, Limit-
                 const row2 = new ActionRowBuilder()
                     .addComponents(
-                        new ButtonBuilder().setCustomId('vm_disconnect').setLabel('Disconnect').setStyle(ButtonStyle.Danger).setEmoji('👢'),
-                        new ButtonBuilder().setCustomId('vm_activity').setLabel('Activity').setStyle(ButtonStyle.Success).setEmoji('🎮'),
-                        new ButtonBuilder().setCustomId('vm_info').setLabel('Info').setStyle(ButtonStyle.Primary).setEmoji('ℹ️'),
-                        new ButtonBuilder().setCustomId('vm_limit_plus').setLabel('Limit+').setStyle(ButtonStyle.Success).setEmoji('⬆️'),
-                        new ButtonBuilder().setCustomId('vm_limit_minus').setLabel('Limit-').setStyle(ButtonStyle.Danger).setEmoji('⬇️')
+                        new ButtonBuilder().setCustomId('vm_disconnect').setLabel('Disconnect').setStyle(ButtonStyle.Secondary).setEmoji('👢'),
+                        new ButtonBuilder().setCustomId('vm_activity').setLabel('Activity').setStyle(ButtonStyle.Secondary).setEmoji('🎮'),
+                        new ButtonBuilder().setCustomId('vm_info').setLabel('Info').setStyle(ButtonStyle.Secondary).setEmoji('ℹ️'),
+                        new ButtonBuilder().setCustomId('vm_limit_plus').setLabel('Limit+').setStyle(ButtonStyle.Secondary).setEmoji('⬆️'),
+                        new ButtonBuilder().setCustomId('vm_limit_minus').setLabel('Limit-').setStyle(ButtonStyle.Secondary).setEmoji('⬇️')
                     );
                 
                 await interfaceChannel.send({ embeds: [panelEmbed], components: [row1, row2] });

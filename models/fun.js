@@ -29,69 +29,69 @@ function createEmbed(message, type, title, description, fields = []) {
     return embed;
 }
 
-// ⭐ Generate ship image with avatars and percentage bar
-async function generateShipImage(user1, user2, percentage) {
-    const width = 600;
-    const height = 300;
+// ⭐ Generate ship image like in the screenshot
+async function generateShipImage(user1, user2) {
+    const width = 500;
+    const height = 250;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Background
+    // Background - dark theme
     ctx.fillStyle = '#1a1b1e';
     ctx.fillRect(0, 0, width, height);
     
-    // Border
+    // Get avatars
+    const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 256 }));
+    const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 256 }));
+    
+    // Create clipping circles for avatars
+    // Avatar 1 (left side, slightly mixed with right)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(180, 125, 60, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatar1, 120, 65, 120, 120);
+    ctx.restore();
+    
+    // Avatar 2 (right side, slightly mixed with left)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(320, 125, 60, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatar2, 260, 65, 120, 120);
+    ctx.restore();
+    
+    // Draw overlapping effect (semi-transparent overlay for mixing)
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(26, 27, 30, 0.3)';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw heart in the middle
+    ctx.font = '50px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#FF69B4';
+    ctx.fillText('❤️', 225, 140);
+    
+    // Draw border
     ctx.strokeStyle = '#2c2f33';
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, width - 20, height - 20);
     
-    // Get avatars
-    const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 128 }));
-    const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 128 }));
+    // Draw mixed name at the bottom
+    const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
+                         user2.username.slice(Math.floor(user2.username.length / 2));
     
-    // Draw avatar 1 (left)
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(100, 150, 45, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar1, 55, 105, 90, 90);
-    ctx.restore();
-    
-    // Draw avatar 2 (right)
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(500, 150, 45, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar2, 455, 105, 90, 90);
-    ctx.restore();
-    
-    // Draw heart in middle
-    ctx.font = '40px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = percentage >= 50 ? '#FF69B4' : '#808080';
-    ctx.fillText('❤️', 280, 165);
-    
-    // Draw percentage bar background
-    ctx.fillStyle = '#2c2f33';
-    ctx.fillRect(100, 230, 400, 20);
-    
-    // Draw percentage bar
-    const barWidth = (percentage / 100) * 400;
-    const barColor = percentage < 30 ? '#ED4245' : percentage < 70 ? '#FEE75C' : '#57F287';
-    ctx.fillStyle = barColor;
-    ctx.fillRect(100, 230, barWidth, 20);
-    
-    // Draw percentage text
-    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
+    ctx.font = 'bold 22px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(`${percentage}%`, 280, 220);
+    ctx.textAlign = 'center';
+    ctx.fillText(combinedName, width / 2, 210);
     
-    // Draw usernames
-    ctx.font = '14px "Segoe UI", "Arial", sans-serif';
+    // Draw usernames above avatars
+    ctx.font = '12px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(user1.username, 100 - ctx.measureText(user1.username).width / 2, 200);
-    ctx.fillText(user2.username, 500 - ctx.measureText(user2.username).width / 2, 200);
+    ctx.fillText(user1.username, 180, 45);
+    ctx.fillText(user2.username, 320, 45);
     
     return canvas.toBuffer('image/png');
 }
@@ -110,6 +110,7 @@ module.exports = {
                     let user1 = message.mentions.users.first();
                     let user2 = message.mentions.users.last();
                     
+                    // If only one mention or none, use author as first
                     if (!user1 && args[0]) {
                         try {
                             user1 = await message.client.users.fetch(args[0]);
@@ -120,8 +121,9 @@ module.exports = {
                         user1 = message.author;
                     }
                     
+                    // If only one user or same user, get random second user
                     if (user1 === message.author && (!user2 || user2 === message.author)) {
-                        const randomMember = message.guild.members.cache.filter(m => !m.user.bot).random();
+                        const randomMember = message.guild.members.cache.filter(m => !m.user.bot && m.user.id !== user1.id).random();
                         if (randomMember) user2 = randomMember.user;
                     }
                     
@@ -129,34 +131,26 @@ module.exports = {
                         user2 = message.guild.members.cache.filter(m => !m.user.bot && m.user.id !== user1.id).random()?.user || message.client.user;
                     }
                     
-                    const percentage = Math.floor(Math.random() * 101);
-                    
-                    let rating = '';
-                    if (percentage < 20) rating = 'No chance...';
-                    else if (percentage < 40) rating = 'Difficult...';
-                    else if (percentage < 60) rating = 'Could work!';
-                    else if (percentage < 80) rating = 'Good combo!';
-                    else rating = 'Perfect match!';
-                    
-                    const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
-                                        user2.username.slice(Math.floor(user2.username.length / 2));
-                    
-                    const imageBuffer = await generateShipImage(user1, user2, percentage);
+                    // Generate ship image
+                    const imageBuffer = await generateShipImage(user1, user2);
                     const attachment = { attachment: imageBuffer, name: 'ship.png' };
                     
+                    // Send as embed with image
                     const embed = new EmbedBuilder()
                         .setColor(0x2B2D31)
                         .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
                         .setTitle(`${user1.username} ❤️ ${user2.username}`)
-                        .setDescription(`**${combinedName}**\n\n**${percentage}%** - ${rating}`)
                         .setImage('attachment://ship.png')
                         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                         .setTimestamp();
                     
                     return message.reply({ embeds: [embed], files: [attachment] });
+                    
                 } catch (error) {
                     console.error('Ship error:', error);
-                    return message.reply({ embeds: [createEmbed(message, 'error', 'Error', 'Could not generate ship image!')] });
+                    return message.reply({ 
+                        embeds: [createEmbed(message, 'error', 'Error', 'Could not generate ship image!')] 
+                    });
                 }
             }
         },
@@ -376,6 +370,7 @@ module.exports = {
                 if (marriage) {
                     status = 'Married';
                     partner = await client.users.fetch(marriage.partner_id).catch(() => null);
+                    marriedAt = marriage.married_at;
                 }
                 
                 const embed = createEmbed(message, 'info', 'Relationship Status', `**${target.username}** is **${status}**.`)
@@ -383,7 +378,8 @@ module.exports = {
                 
                 if (partner) {
                     embed.addFields([
-                        { name: 'Partner', value: partner.username, inline: true }
+                        { name: 'Partner', value: partner.username, inline: true },
+                        { name: 'Married Since', value: `<t:${Math.floor(new Date(marriedAt).getTime() / 1000)}:D>`, inline: true }
                     ]);
                 }
                 
@@ -638,7 +634,7 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)]
+                    embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)] 
                 });
             }
         },

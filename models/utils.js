@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, version } = require('discord.js');
 
 // ⭐ HELPER: Modern clean embed
 function createEmbed(message, type, title, description, fields = []) {
@@ -10,7 +10,8 @@ function createEmbed(message, type, title, description, fields = []) {
         info: 0x2B2D31,
         warn: 0xFEE75C,
         utility: 0x2B2D31,
-        booster: 0xFF73FA
+        booster: 0xFF73FA,
+        status: 0x00FF00
     };
     
     const embed = new EmbedBuilder()
@@ -161,6 +162,44 @@ module.exports = {
                 } catch (error) {
                     console.error('boosters error:', error);
                     return message.reply({ embeds: [createEmbed(message, 'error', 'Error', 'Could not fetch boosters!')] });
+                }
+            }
+        },
+        
+        // ========== BOTSTATUS ==========
+        botstatus: {
+            aliases: ['bs', 'status'],
+            description: 'Show bot status',
+            category: 'Utility',
+            async execute(message) {
+                try {
+                    const client = message.client;
+                    const uptime = client.uptime;
+                    const days = Math.floor(uptime / 86400000);
+                    const hours = Math.floor(uptime / 3600000) % 24;
+                    const minutes = Math.floor(uptime / 60000) % 60;
+                    const seconds = Math.floor(uptime / 1000) % 60;
+                    
+                    const embed = infoEmbed(message, '🤖 Bot Status', ' ')
+                        .setColor(0x00FF00)
+                        .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                        .addFields([
+                            { name: '📛 Name', value: client.user.tag, inline: true },
+                            { name: '🆔 ID', value: client.user.id, inline: true },
+                            { name: '📅 Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:D>`, inline: true },
+                            { name: '🌐 Servers', value: `${client.guilds.cache.size}`, inline: true },
+                            { name: '👥 Users', value: `${client.users.cache.size}`, inline: true },
+                            { name: '📊 Channels', value: `${client.channels.cache.size}`, inline: true },
+                            { name: '⏰ Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: false },
+                            { name: '📦 Discord.js', value: `v${version}`, inline: true },
+                            { name: '💻 Node.js', value: `${process.version}`, inline: true },
+                            { name: '💾 Memory', value: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`, inline: true }
+                        ]);
+                    
+                    return message.reply({ embeds: [embed] });
+                } catch (error) {
+                    console.error('botstatus error:', error);
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'Error', 'Could not fetch bot status!')] });
                 }
             }
         },
@@ -371,6 +410,35 @@ module.exports = {
             }
         },
         
+        // ========== PING ==========
+        ping: {
+            aliases: ['ms', 'latency'],
+            description: 'Check bot latency',
+            category: 'Utility',
+            async execute(message) {
+                try {
+                    const start = Date.now();
+                    const msg = await message.reply('🏓 Pinging...');
+                    const end = Date.now();
+                    const ping = end - start;
+                    const apiPing = Math.round(message.client.ws.ping);
+                    
+                    const embed = new EmbedBuilder()
+                        .setColor(ping < 100 ? 0x57F287 : ping < 200 ? 0xFEE75C : 0xED4245)
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle('🏓 Pong!')
+                        .setDescription(`**took ${ping}ms to ping Ur mother**\n\n📡 **API Latency:** ${apiPing}ms\n🖥️ **Bot Latency:** ${ping}ms`)
+                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setTimestamp();
+                    
+                    await msg.edit({ embeds: [embed] });
+                } catch (error) {
+                    console.error('ping error:', error);
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'Error', 'Could not ping!')] });
+                }
+            }
+        },
+        
         // ========== REMIND ==========
         remind: {
             aliases: ['reminder'],
@@ -417,10 +485,10 @@ module.exports = {
             }
         },
         
-        // ========== SAV ==========
+        // ========== SAV (NUR AVATAR - KEINE EXTRA INFOS) ==========
         sav: {
             aliases: ['serverav', 'serveravatar', 'myavatar'],
-            description: 'Show your current server avatar',
+            description: 'Show your server avatar (just the image)',
             category: 'Utility',
             async execute(message) {
                 try {
@@ -428,18 +496,17 @@ module.exports = {
                         return message.reply({ embeds: [createEmbed(message, 'error', 'Error', 'This command can only be used in a server!')] });
                     }
                     
-                    const member = message.member;
-                    const user = member.user;
+                    const user = message.author;
+                    const avatarURL = user.displayAvatarURL({ dynamic: true, size: 1024 });
                     
-                    const embed = infoEmbed(message, `Your Server Avatar`, ' ')
-                        .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
-                        .addFields([
-                            { name: '👤 Username', value: user.tag, inline: true },
-                            { name: '📝 Nickname', value: member.nickname || 'None', inline: true },
-                            { name: '🆔 User ID', value: user.id, inline: true },
-                            { name: '📅 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>`, inline: true },
-                            { name: '🎭 Color', value: member.displayHexColor || 'Default', inline: true }
-                        ]);
+                    const embed = new EmbedBuilder()
+                        .setColor(0x2B2D31)
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle(`Your Server Avatar`)
+                        .setDescription(`[Download](${avatarURL})`)
+                        .setImage(avatarURL)
+                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setTimestamp();
                     
                     return message.reply({ embeds: [embed] });
                 } catch (error) {

@@ -1,22 +1,40 @@
 const { EmbedBuilder } = require('discord.js');
 
-// ⭐ HELPER: Create embed (ENGLISH ONLY)
+// ⭐ HELPER: Modern clean embed
 function createEmbed(message, type, title, description, fields = []) {
     const client = message.client;
     
     const colors = {
         success: 0x57F287,
         error: 0xED4245,
-        info: 0x5865F2,
+        info: 0x2B2D31,
         warn: 0xFEE75C,
-        utility: 0x0099FF,
+        utility: 0x2B2D31,
         booster: 0xFF73FA
     };
     
     const embed = new EmbedBuilder()
-        .setColor(type === 'utility' ? 0x0099FF : type === 'booster' ? 0xFF73FA : (colors[type] || 0x5865F2))
+        .setColor(colors[type] || 0x2B2D31)
         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `ℹ️ ${title}`)
+        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : title)
+        .setDescription(description)
+        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
+    
+    if (fields.length > 0) {
+        embed.addFields(fields);
+    }
+    
+    return embed;
+}
+
+// ⭐ Modern info embed without emoji prefix
+function infoEmbed(message, title, description, fields = []) {
+    const client = message.client;
+    const embed = new EmbedBuilder()
+        .setColor(0x2B2D31)
+        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+        .setTitle(title)
         .setDescription(description)
         .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
         .setTimestamp();
@@ -44,13 +62,8 @@ module.exports = {
                 
                 const avatarURL = target.displayAvatarURL({ dynamic: true, size: 1024 });
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`🖼️ ${target.username}`)
-                    .setImage(avatarURL)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, `${target.username}'s Avatar`, `[Download](${avatarURL})`)
+                    .setImage(avatarURL);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -67,7 +80,7 @@ module.exports = {
                 
                 if (!action || !text) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!base64 <encode/decode> <Text>')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '`!base64 encode/decode <text>`')] 
                     });
                 }
                 
@@ -106,13 +119,8 @@ module.exports = {
                 const boosters = message.guild.premiumSubscriptionCount || 0;
                 const boosterMembers = message.guild.members.cache.filter(m => m.premiumSince).map(m => m.user.tag);
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0xFF73FA)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('🚀 Server Boosts')
-                    .setDescription(`**${boosters}** Boosts (Level ${message.guild.premiumTier})`)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, 'Server Boosts', `**${boosters}** Boosts (Level ${message.guild.premiumTier})`)
+                    .setColor(0xFF73FA);
                 
                 if (boosterMembers.length > 0) {
                     embed.addFields([{
@@ -135,7 +143,7 @@ module.exports = {
                 
                 if (!text) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!chat <Message>')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '`!chat <message>`')] 
                     });
                 }
                 
@@ -150,27 +158,7 @@ module.exports = {
                 const response = responses[Math.floor(Math.random() * responses.length)];
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Chat', response)] 
-                });
-            }
-        },
-        
-        // ========== CHATGPT ==========
-        chatgpt: {
-            aliases: ['gpt', 'ai'],
-            description: 'Ask ChatGPT (Simulation)',
-            category: 'Utility',
-            async execute(message, args) {
-                const question = args.join(' ');
-                
-                if (!question) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!chatgpt <Question>')] 
-                    });
-                }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'ChatGPT', '🤖 *Simulation:* That\'s an interesting question! Unfortunately, the API is not configured.')] 
+                    embeds: [infoEmbed(message, 'Chat', response)] 
                 });
             }
         },
@@ -233,13 +221,8 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('🖼️ Server Banner')
-                    .setImage(banner)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, 'Server Banner', `[Download](${banner})`)
+                    .setImage(banner);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -259,13 +242,8 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('🖼️ Server Icon')
-                    .setImage(icon)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, 'Server Icon', `[Download](${icon})`)
+                    .setImage(icon);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -285,13 +263,8 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('🖼️ Server Splash')
-                    .setImage(splash)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, 'Server Splash', `[Download](${splash})`)
+                    .setImage(splash);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -309,18 +282,13 @@ module.exports = {
                 const bots = guild.members.cache.filter(m => m.user.bot).size;
                 const online = guild.members.cache.filter(m => m.presence?.status === 'online').size;
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`👥 Members of ${guild.name}`)
+                const embed = infoEmbed(message, `Members of ${guild.name}`, '')
                     .addFields([
                         { name: 'Total', value: `${total}`, inline: true },
                         { name: '👤 Humans', value: `${humans}`, inline: true },
                         { name: '🤖 Bots', value: `${bots}`, inline: true },
                         { name: '🟢 Online', value: `${online}`, inline: true }
-                    ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                    ]);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -337,7 +305,7 @@ module.exports = {
                 
                 if (!time || !reminder) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!remind <Time> <Message>\nExample: !remind 10m Get pizza')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '`!remind <time> <message>`\nExample: `!remind 10m Get pizza`')] 
                     });
                 }
                 
@@ -350,7 +318,7 @@ module.exports = {
                 
                 if (isNaN(ms) || ms <= 0) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Time', 'Use: 10s, 5m, 2h, 1d')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Time', 'Use: `10s`, `5m`, `2h`, `1d`')] 
                     });
                 }
                 
@@ -359,13 +327,7 @@ module.exports = {
                 });
                 
                 setTimeout(() => {
-                    const embed = new EmbedBuilder()
-                        .setColor(0x5865F2)
-                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                        .setTitle('⏰ Reminder')
-                        .setDescription(`**${reminder}**\nFrom: ${message.channel}`)
-                        .setTimestamp();
-                    
+                    const embed = infoEmbed(message, '⏰ Reminder', `**${reminder}**\nFrom: ${message.channel}`);
                     message.author.send({ embeds: [embed] }).catch(() => {
                         message.channel.send({ content: `${message.author}`, embeds: [embed] });
                     });
@@ -373,48 +335,10 @@ module.exports = {
             }
         },
         
-        // ========== REMINDERS ==========
-        reminders: {
-            aliases: ['reminds'],
-            description: 'Show active reminders',
-            category: 'Utility',
-            async execute(message) {
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Reminders', 'Active reminders are not stored persistently.')] 
-                });
-            }
-        },
-        
-        // ========== SCREENSHOT ==========
-        screenshot: {
-            aliases: ['ss', 'web'],
-            description: 'Take website screenshot',
-            category: 'Utility',
-            async execute(message, args) {
-                const url = args[0];
-                
-                if (!url) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!screenshot <https://...>')] 
-                    });
-                }
-                
-                if (!url.startsWith('http')) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid URL', 'URL must start with http:// or https://!')] 
-                    });
-                }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Screenshot', `🔗 Screenshot of ${url}\n*A real API is needed for actual screenshots.*`)] 
-                });
-            }
-        },
-        
         // ========== SAV (Server Avatar) ==========
         sav: {
             aliases: ['serverav', 'serveravatar'],
-            description: 'Server Avatar (alias for guildicon)',
+            description: 'Show server icon',
             category: 'Utility',
             async execute(message) {
                 const icon = message.guild.iconURL({ dynamic: true, size: 1024 });
@@ -425,13 +349,8 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle('🖼️ Server Icon')
-                    .setImage(icon)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, 'Server Icon', `[Download](${icon})`)
+                    .setImage(icon);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -456,19 +375,14 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`🖼️ Banner of ${target.username}`)
-                    .setImage(banner)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, `${target.username}'s Banner`, `[Download](${banner})`)
+                    .setImage(banner);
                 
                 return message.reply({ embeds: [embed] });
             }
         },
         
-        // ========== SERVERINFO ==========
+        // ========== SERVERINFO (FIXED) ==========
         serverinfo: {
             aliases: ['si', 'guildinfo'],
             description: 'Show server information',
@@ -477,23 +391,18 @@ module.exports = {
                 const guild = message.guild;
                 const owner = await guild.fetchOwner();
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`📊 ${guild.name}`)
-                    .setThumbnail(guild.iconURL({ dynamic: true }))
+                const embed = infoEmbed(message, guild.name, '')
+                    .setThumbnail(guild.iconURL({ dynamic: true, size: 512 }))
                     .addFields([
-                        { name: '👑 Owner', value: owner.user.tag, inline: true },
+                        { name: '👑 Owner', value: `<@${owner.id}>`, inline: true },
                         { name: '🆔 Server ID', value: guild.id, inline: true },
                         { name: '📅 Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true },
                         { name: '👥 Members', value: `${guild.memberCount}`, inline: true },
                         { name: '💬 Channels', value: `${guild.channels.cache.size}`, inline: true },
                         { name: '🎭 Roles', value: `${guild.roles.cache.size}`, inline: true },
                         { name: '🚀 Boosts', value: `${guild.premiumSubscriptionCount || 0} (Level ${guild.premiumTier})`, inline: true },
-                        { name: '🌍 Region', value: guild.preferredLocale, inline: true }
-                    ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                        { name: '🌍 Locale', value: guild.preferredLocale, inline: true }
+                    ]);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -515,7 +424,7 @@ module.exports = {
                 }
                 
                 const embed = new EmbedBuilder()
-                    .setColor(0xFEE75C)
+                    .setColor(0x2B2D31)
                     .setAuthor({ name: snipe.author, iconURL: snipe.avatar })
                     .setDescription(snipe.content || '*No text*')
                     .setFooter({ text: `Deleted at ${snipe.time}` })
@@ -548,7 +457,7 @@ module.exports = {
                 
                 if (!emojiName) {
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '!stealemoji <Name> <URL/Image>')] 
+                        embeds: [createEmbed(message, 'error', 'Invalid Usage', '`!stealemoji <name> <emoji/url>`')] 
                     });
                 }
                 
@@ -583,7 +492,7 @@ module.exports = {
         // ========== USERBANNER ==========
         userbanner: {
             aliases: ['ub'],
-            description: 'Show user banner (alias for banner)',
+            description: 'Show user banner',
             category: 'Utility',
             async execute(message, args) {
                 const target = message.mentions.users.first() || 
@@ -599,13 +508,8 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`🖼️ Banner of ${target.username}`)
-                    .setImage(banner)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                const embed = infoEmbed(message, `${target.username}'s Banner`, `[Download](${banner})`)
+                    .setImage(banner);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -624,19 +528,16 @@ module.exports = {
                 const user = target.user;
                 const roles = target.roles.cache.filter(r => r.id !== message.guild.id).sort((a, b) => b.position - a.position);
                 
-                const embed = new EmbedBuilder()
-                    .setColor(target.displayColor || 0x5865F2)
-                    .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL() })
-                    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+                const embed = infoEmbed(message, user.tag, '')
+                    .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
+                    .setColor(target.displayColor || 0x2B2D31)
                     .addFields([
                         { name: '🆔 User ID', value: user.id, inline: true },
-                        { name: '📅 Account Created', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
+                        { name: '📅 Account', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
                         { name: '📥 Joined', value: `<t:${Math.floor(target.joinedTimestamp / 1000)}:D>`, inline: true },
                         { name: `🎭 Roles [${roles.size}]`, value: roles.map(r => `${r}`).join(' ').slice(0, 1024) || 'None' },
                         { name: '🚀 Booster', value: target.premiumSince ? `Since <t:${Math.floor(target.premiumSinceTimestamp / 1000)}:D>` : 'No', inline: true }
-                    ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                    ]);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -659,18 +560,13 @@ module.exports = {
                 
                 const members = vc.members.map(m => m.user.tag);
                 
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                    .setTitle(`🔊 ${vc.name}`)
+                const embed = infoEmbed(message, vc.name, '')
                     .addFields([
                         { name: '📋 ID', value: vc.id, inline: true },
                         { name: '👥 Users', value: `${vc.members.size}`, inline: true },
                         { name: '📊 Bitrate', value: `${vc.bitrate / 1000} kbps`, inline: true },
                         { name: `👤 Members (${members.length})`, value: members.join('\n').slice(0, 1024) || 'None' }
-                    ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
+                    ]);
                 
                 return message.reply({ embeds: [embed] });
             }

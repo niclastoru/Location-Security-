@@ -136,7 +136,7 @@ module.exports = {
         // ========== CHAT ==========
         chat: {
             aliases: ['talk'],
-            description: 'Chat with the bot',
+            description: 'Chat with the bot (Simulation)',
             category: 'Utility',
             async execute(message, args) {
                 const text = args.join(' ');
@@ -335,22 +335,24 @@ module.exports = {
             }
         },
         
-        // ========== SAV (Server Avatar) ==========
+        // ========== SAV (Server Avatar - zeigt deinen eigenen Server-Nickname + Avatar) ==========
         sav: {
-            aliases: ['serverav', 'serveravatar'],
-            description: 'Show server icon',
+            aliases: ['serverav', 'serveravatar', 'myavatar'],
+            description: 'Show your current server avatar (nickname + avatar)',
             category: 'Utility',
             async execute(message) {
-                const icon = message.guild.iconURL({ dynamic: true, size: 1024 });
+                const member = message.member;
+                const user = member.user;
                 
-                if (!icon) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No Icon', 'This server has no icon!')] 
-                    });
-                }
-                
-                const embed = infoEmbed(message, 'Server Icon', `[Download](${icon})`)
-                    .setImage(icon);
+                const embed = infoEmbed(message, `Your Server Avatar`, '')
+                    .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
+                    .addFields([
+                        { name: '👤 Username', value: user.tag, inline: true },
+                        { name: '📝 Nickname', value: member.nickname || 'None', inline: true },
+                        { name: '🆔 User ID', value: user.id, inline: true },
+                        { name: '📅 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>`, inline: true },
+                        { name: '🎭 Color', value: member.displayHexColor || 'Default', inline: true }
+                    ]);
                 
                 return message.reply({ embeds: [embed] });
             }
@@ -382,7 +384,7 @@ module.exports = {
             }
         },
         
-        // ========== SERVERINFO (FIXED) ==========
+        // ========== SERVERINFO ==========
         serverinfo: {
             aliases: ['si', 'guildinfo'],
             description: 'Show server information',
@@ -515,10 +517,10 @@ module.exports = {
             }
         },
         
-        // ========== USERINFO ==========
+        // ========== USERINFO (ausführliche User-Info) ==========
         userinfo: {
-            aliases: ['ui', 'whois'],
-            description: 'Show user information',
+            aliases: ['ui'],
+            description: 'Show detailed user information',
             category: 'Utility',
             async execute(message, args) {
                 const target = message.mentions.members.first() || 
@@ -527,16 +529,47 @@ module.exports = {
                 
                 const user = target.user;
                 const roles = target.roles.cache.filter(r => r.id !== message.guild.id).sort((a, b) => b.position - a.position);
+                const status = target.presence?.status || 'offline';
+                const statusEmoji = status === 'online' ? '🟢' : status === 'idle' ? '🟡' : status === 'dnd' ? '🔴' : '⚫';
                 
-                const embed = infoEmbed(message, user.tag, '')
+                const embed = infoEmbed(message, `User Info: ${user.tag}`, '')
                     .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
                     .setColor(target.displayColor || 0x2B2D31)
                     .addFields([
                         { name: '🆔 User ID', value: user.id, inline: true },
+                        { name: `${statusEmoji} Status`, value: status, inline: true },
                         { name: '📅 Account', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
                         { name: '📥 Joined', value: `<t:${Math.floor(target.joinedTimestamp / 1000)}:D>`, inline: true },
-                        { name: `🎭 Roles [${roles.size}]`, value: roles.map(r => `${r}`).join(' ').slice(0, 1024) || 'None' },
-                        { name: '🚀 Booster', value: target.premiumSince ? `Since <t:${Math.floor(target.premiumSinceTimestamp / 1000)}:D>` : 'No', inline: true }
+                        { name: '📝 Nickname', value: target.nickname || 'None', inline: true },
+                        { name: '🚀 Booster', value: target.premiumSince ? `Since <t:${Math.floor(target.premiumSinceTimestamp / 1000)}:D>` : 'No', inline: true },
+                        { name: `🎭 Roles [${roles.size}]`, value: roles.map(r => `${r}`).join(' ').slice(0, 1024) || 'None' }
+                    ]);
+                
+                return message.reply({ embeds: [embed] });
+            }
+        },
+        
+        // ========== WHOIS (kurze User-Info) ==========
+        whois: {
+            aliases: ['who'],
+            description: 'Quick user information',
+            category: 'Utility',
+            async execute(message, args) {
+                const target = message.mentions.users.first() || 
+                               await message.client.users.fetch(args[0]).catch(() => null) || 
+                               message.author;
+                
+                const member = message.guild.members.cache.get(target.id);
+                const status = member?.presence?.status || 'offline';
+                const statusEmoji = status === 'online' ? '🟢' : status === 'idle' ? '🟡' : status === 'dnd' ? '🔴' : '⚫';
+                
+                const embed = infoEmbed(message, `${target.tag}`, '')
+                    .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 256 }))
+                    .addFields([
+                        { name: '🆔 ID', value: target.id, inline: true },
+                        { name: `${statusEmoji} Status`, value: status, inline: true },
+                        { name: '📅 Joined', value: member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>` : 'Not in server', inline: true },
+                        { name: '📅 Account', value: `<t:${Math.floor(target.createdTimestamp / 1000)}:D>`, inline: true }
                     ]);
                 
                 return message.reply({ embeds: [embed] });

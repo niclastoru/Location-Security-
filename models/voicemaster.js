@@ -46,153 +46,36 @@ async function isOwner(userId, channel, guildId, supabase) {
     return ownerId === userId;
 }
 
-// ⭐ HELPER: Build nice embeds
-async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = []) {
-    const lang = client.languages?.get(guildId) || 'en';
-    
-    const colors = {
-        success: 0x57F287,
-        error: 0xED4245,
-        info: 0x5865F2,
-        warn: 0xFEE75C
-    };
-    
-    const titles = {
-        en: {
-            no_vc: 'No VC',
-            no_vm_channel: 'No VM Channel',
-            no_setup: 'No Setup',
-            no_owner: 'No Owner',
-            already_claimed: 'Already Claimed',
-            locked: 'Locked',
-            unlocked: 'Unlocked',
-            hidden: 'Hidden',
-            revealed: 'Revealed',
-            claimed: 'Claimed',
-            disconnect: 'Disconnect',
-            activity: 'Activity',
-            error: 'Error',
-            info: 'Info',
-            limit_increased: 'Limit Increased',
-            limit_decreased: 'Limit Decreased',
-            setup: 'Setup',
-            reset: 'VoiceMaster Reset',
-            channel_locked: 'Channel Locked',
-            channel_unlocked: 'Channel Unlocked',
-            channel_hidden: 'Channel Hidden',
-            channel_revealed: 'Channel Revealed',
-            channel_claimed: 'Channel Claimed',
-            transfer: 'Transfer',
-            limit_set: 'Limit Set',
-            renamed: 'Renamed',
-            user_banned: 'User Banned',
-            user_unbanned: 'User Unbanned',
-            unlimited: 'Unlimited',
-            voice_master: 'VoiceMaster',
-            setup_complete: 'VoiceMaster Setup',
-            unknown: 'Unknown'
-        }
-    };
-    
-    const descriptions = {
-        en: {
-            no_vc: 'You are not in a voice channel!',
-            no_vm_channel: 'This is not a VoiceMaster channel!',
-            no_setup: 'VoiceMaster is not set up!',
-            no_owner: 'Only the channel owner can do that!',
-            already_claimed: 'This channel already has an owner!',
-            locked: 'Channel locked!',
-            unlocked: 'Channel unlocked!',
-            hidden: 'Channel is now hidden!',
-            revealed: 'Channel is now visible!',
-            claimed: (user) => `You are now the owner of ${user}!`,
-            disconnect: 'Use `!voice-kick @User` to kick someone.',
-            activity: (link) => `[Click here for YouTube Together](https://discord.gg/${link})`,
-            error_activity: 'Could not start activity!',
-            limit_increased: (limit) => `New limit: ${limit}`,
-            limit_decreased: (limit) => `New limit: ${limit === 0 ? 'Unlimited' : limit}`,
-            setup: '⏳ Creating VoiceMaster...',
-            reset: 'VoiceMaster has been reset.',
-            channel_locked: (channel) => `${channel} has been locked.`,
-            channel_unlocked: (channel) => `${channel} has been unlocked.`,
-            channel_hidden: (channel) => `${channel} is now hidden.`,
-            channel_revealed: (channel) => `${channel} is now visible.`,
-            channel_claimed: (channel) => `You are now the owner of ${channel}!`,
-            transfer: (user) => `Channel ownership transferred to ${user}!`,
-            limit_set: (limit) => `User limit: ${limit === 0 ? 'Unlimited' : limit}`,
-            renamed: (name) => `Channel renamed to **${name}**`,
-            user_banned: (user) => `${user} has been banned from the channel.`,
-            user_unbanned: (user) => `${user} has been unbanned.`,
-            invalid_limit: 'Limit must be between 0 and 99!',
-            no_name: '!voice-rename <Name>',
-            name_too_long: 'Name can be maximum 100 characters!',
-            no_user: '!voice-ban @User',
-            no_user_unban: '!voice-unban @User / ID',
-            self_ban: 'You cannot ban yourself!',
-            no_transfer_user: '!voice-transfer @User',
-            not_in_channel: (user) => `${user} is not in your channel!`,
-            setup_success: (jtc, iface) => `✅ **Join-to-Create:** ${jtc}\n✅ **Interface:** ${iface}\n\nUsers can now join the Join-to-Create channel!`,
-            unknown: 'This button is not configured.'
-        }
-    };
-    
-    const title = titles[lang]?.[titleKey] || titleKey;
-    let description = descriptions[lang]?.[descKey] || descKey;
-    
-    // Execute functions in descriptions
-    if (typeof description === 'function') {
-        if (fields.length > 0) {
-            description = description(...fields);
-        } else {
-            description = description();
-        }
-    }
-    
-    const embed = new EmbedBuilder()
-        .setColor(colors[type] || 0x5865F2)
-        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() });
-    
-    const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : 'ℹ️';
-    embed.setTitle(`${emoji} ${title}`);
-    embed.setDescription(description);
-    
-    // Footer with User
-    if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
-        }
-    }
-    embed.setTimestamp();
-    
-    return embed;
-}
-
 // ========== VOICEMASTER BUTTON HANDLER ==========
 async function handleVoiceMasterButton(interaction, client, supabase) {
     const { customId, member, guild } = interaction;
     const channel = member.voice.channel;
-    const lang = client.languages?.get(guild.id) || 'en';
     
     await interaction.deferReply({ ephemeral: true });
     
     if (!channel) {
-        return interaction.editReply({ 
-            embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_vc', 'no_vc')] 
-        });
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setDescription('❌ You are not in a voice channel!')
+            .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
     }
     
     if (!channel.name.includes('🎤')) {
-        return interaction.editReply({ 
-            embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_vm_channel', 'no_vm_channel')] 
-        });
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setDescription('❌ This is not a VoiceMaster channel!')
+            .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
     }
     
     const config = await loadConfig(guild.id, supabase);
     if (!config) {
-        return interaction.editReply({ 
-            embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_setup', 'no_setup')] 
-        });
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setDescription('❌ VoiceMaster is not set up!')
+            .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
     }
     
     const ownerCheck = config.voiceChannels.get(channel.id) === member.id;
@@ -200,53 +83,71 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
     switch (customId) {
         case 'vm_lock':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: false });
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'locked', 'locked')] 
-            });
+            const lockEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription('🔒 Channel locked!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [lockEmbed] });
             
         case 'vm_unlock':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: null });
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'unlocked', 'unlocked')] 
-            });
+            const unlockEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription('🔓 Channel unlocked!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [unlockEmbed] });
             
         case 'vm_hide':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'hidden', 'hidden')] 
-            });
+            const hideEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription('👻 Channel is now hidden!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [hideEmbed] });
             
         case 'vm_reveal':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: null });
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'revealed', 'revealed')] 
-            });
+            const revealEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription('👁️ Channel is now visible!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [revealEmbed] });
             
         case 'vm_claim':
             if (config.voiceChannels.has(channel.id)) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'already_claimed', 'already_claimed')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ This channel already has an owner!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             config.voiceChannels.set(channel.id, member.id);
             vmCache.set(guild.id, config);
@@ -258,25 +159,33 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
             });
             
             await channel.setName(`🎤 ${member.user.username}'s Channel`);
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'claimed', 'claimed', [channel.toString()])] 
-            });
+            const claimEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription(`📋 You are now the owner of ${channel}!`)
+                .setTimestamp();
+            return interaction.editReply({ embeds: [claimEmbed] });
             
         case 'vm_disconnect':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'info', 'disconnect', 'disconnect')] 
-            });
+            const disconnectEmbed = new EmbedBuilder()
+                .setColor(0x5865F2)
+                .setDescription('👢 Use `!voice-kick @User` to kick someone.')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [disconnectEmbed] });
             
         case 'vm_activity':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             try {
                 const invite = await channel.createInvite({
@@ -284,13 +193,17 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
                     targetType: 2,
                     maxAge: 300
                 });
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'activity', 'activity', [invite.code])] 
-                });
+                const activityEmbed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`🎮 [Click here for YouTube Together](https://discord.gg/${invite.code})`)
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [activityEmbed] });
             } catch {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'error', 'error_activity')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Could not start activity!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             
         case 'vm_info':
@@ -302,10 +215,10 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
                 .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                 .setTitle(`ℹ️ ${channel.name}`)
                 .addFields([
-                    { name: 'Owner', value: ownerUser?.username || 'None', inline: true },
-                    { name: 'Users', value: `${channel.members.size}`, inline: true },
-                    { name: 'User Limit', value: channel.userLimit === 0 ? 'Unlimited' : `${channel.userLimit}`, inline: true },
-                    { name: 'Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
+                    { name: '👑 Owner', value: ownerUser?.username || 'None', inline: true },
+                    { name: '👥 Users', value: `${channel.members.size}`, inline: true },
+                    { name: '🔢 User Limit', value: channel.userLimit === 0 ? 'Unlimited' : `${channel.userLimit}`, inline: true },
+                    { name: '🎵 Bitrate', value: `${channel.bitrate / 1000} kbps`, inline: true }
                 ])
                 .setFooter({ text: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
                 .setTimestamp();
@@ -314,32 +227,42 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
             
         case 'vm_limit_plus':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             const newLimit = Math.min((channel.userLimit || 0) + 1, 99);
             await channel.setUserLimit(newLimit);
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'limit_increased', 'limit_increased', [newLimit])] 
-            });
+            const plusEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription(`⬆️ User limit increased to **${newLimit}**`)
+                .setTimestamp();
+            return interaction.editReply({ embeds: [plusEmbed] });
             
         case 'vm_limit_minus':
             if (!ownerCheck) {
-                return interaction.editReply({ 
-                    embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'no_owner', 'no_owner')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setDescription('❌ Only the channel owner can do that!')
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
             }
             const decreasedLimit = Math.max((channel.userLimit || 0) - 1, 0);
             await channel.setUserLimit(decreasedLimit);
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'success', 'limit_decreased', 'limit_decreased', [decreasedLimit])] 
-            });
+            const minusEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setDescription(`⬇️ User limit decreased to **${decreasedLimit === 0 ? 'Unlimited' : decreasedLimit}**`)
+                .setTimestamp();
+            return interaction.editReply({ embeds: [minusEmbed] });
             
         default:
-            return interaction.editReply({ 
-                embeds: [await buildEmbed(client, guild.id, member.id, 'error', 'unknown', 'unknown')] 
-            });
+            const embed = new EmbedBuilder()
+                .setColor(0xED4245)
+                .setDescription('❌ This button is not configured!')
+                .setTimestamp();
+            return interaction.editReply({ embeds: [embed] });
     }
 }
 
@@ -354,11 +277,7 @@ module.exports = {
             description: 'Creates the VoiceMaster system',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
-                const lang = client.languages?.get(message.guild.id) || 'en';
-                
-                const loadingMsg = await message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'info', 'setup', 'setup')] 
-                });
+                const loadingMsg = await message.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription('⏳ Creating VoiceMaster...').setTimestamp()] });
                 
                 // Delete old config if exists
                 const existing = await loadConfig(message.guild.id, supabase);
@@ -387,10 +306,10 @@ module.exports = {
                     ]
                 });
                 
+                // New Interface Panel Embed - Like in the image
                 const panelEmbed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle('🎛️ VoiceMaster Interface')
+                    .setColor(0x2B2D31)
+                    .setAuthor({ name: 'VoiceMaster Interface', iconURL: client.user.displayAvatarURL() })
                     .setDescription('Use the buttons below to control your voice channel.\n\n*Responses are only visible to you!*')
                     .addFields(
                         { name: '🔒 Lock', value: 'Locks the channel', inline: true },
@@ -404,9 +323,10 @@ module.exports = {
                         { name: '⬆️ Limit+', value: 'Increases user limit', inline: true },
                         { name: '⬇️ Limit-', value: 'Decreases user limit', inline: true }
                     )
-                    .setFooter({ text: message.guild.name })
+                    .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
                 
+                // Row 1: Lock, Unlock, Hide, Reveal, Claim
                 const row1 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_lock').setLabel('Lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
@@ -416,6 +336,7 @@ module.exports = {
                         new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📋')
                     );
                 
+                // Row 2: Disconnect, Activity, Info, Limit+, Limit-
                 const row2 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_disconnect').setLabel('Disconnect').setStyle(ButtonStyle.Danger).setEmoji('👢'),
@@ -442,7 +363,7 @@ module.exports = {
                 const successEmbed = new EmbedBuilder()
                     .setColor(0x57F287)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle('✅ VoiceMaster Setup')
+                    .setTitle('✅ VoiceMaster Setup Complete')
                     .setDescription(`✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}\n\nUsers can now join the Join-to-Create channel!`)
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -477,9 +398,12 @@ module.exports = {
                     vmCache.delete(message.guild.id);
                 }
                 
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'reset', 'reset')] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription('✅ VoiceMaster has been reset.')
+                    .setTimestamp();
+                
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -492,21 +416,27 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { Connect: false });
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'channel_locked', 'channel_locked', [channel.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`🔒 ${channel} has been locked.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -519,21 +449,27 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { Connect: null });
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'channel_unlocked', 'channel_unlocked', [channel.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`🔓 ${channel} has been unlocked.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -546,21 +482,27 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: false });
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'channel_hidden', 'channel_hidden', [channel.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`👻 ${channel} is now hidden.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -573,21 +515,27 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: null });
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'channel_revealed', 'channel_revealed', [channel.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`👁️ ${channel} is now visible.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -600,22 +548,28 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const config = await loadConfig(message.guild.id, supabase);
                 if (!config) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_setup', 'no_setup')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ VoiceMaster is not set up!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!channel.name.includes('🎤')) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vm_channel', 'no_vm_channel')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ This is not a VoiceMaster channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 config.voiceChannels.set(channel.id, message.author.id);
@@ -629,9 +583,11 @@ module.exports = {
                 
                 await channel.setName(`🎤 ${message.author.username}'s Channel`);
                 
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'channel_claimed', 'channel_claimed', [channel.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`📋 You are now the owner of ${channel}!`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -644,28 +600,36 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const target = message.mentions.members.first();
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'no_transfer_user')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Please mention a user to transfer ownership to!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!target.voice.channel || target.voice.channel.id !== channel.id) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'not_in_channel', 'not_in_channel', [target.toString()])] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription(`❌ ${target} is not in your channel!`)
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const config = await loadConfig(message.guild.id, supabase);
@@ -682,9 +646,11 @@ module.exports = {
                 
                 await channel.setName(`🎤 ${target.user.username}'s Channel`);
                 
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'transfer', 'transfer', [target.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`✅ Channel ownership transferred to ${target}!`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -697,28 +663,36 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const limit = parseInt(args[0]);
                 if (isNaN(limit) || limit < 0 || limit > 99) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'invalid_limit', 'invalid_limit')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Limit must be between 0 and 99!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.setUserLimit(limit);
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'limit_set', 'limit_set', [limit])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`✅ User limit set to **${limit === 0 ? 'Unlimited' : limit}**`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -731,34 +705,44 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const name = args.join(' ');
                 if (!name) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_name', 'no_name')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Please provide a name!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (name.length > 100) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'name_too_long', 'name_too_long')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Name can be maximum 100 characters!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.setName(`🎤 ${name}`);
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'renamed', 'renamed', [name])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`✅ Channel renamed to **${name}**`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -771,28 +755,36 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const target = message.mentions.members.first();
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'no_user')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Please mention a user to ban!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (target.id === message.author.id) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'self_ban', 'self_ban')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You cannot ban yourself!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.create(target.id, { Connect: false });
@@ -801,9 +793,11 @@ module.exports = {
                     await target.voice.disconnect();
                 }
                 
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'user_banned', 'user_banned', [target.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`✅ ${target} has been banned from the channel.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         },
         
@@ -816,29 +810,37 @@ module.exports = {
                 const channel = message.member.voice.channel;
                 
                 if (!channel) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_vc', 'no_vc')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ You are not in a voice channel!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_owner', 'no_owner')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Only the channel owner can do that!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 const target = message.mentions.users.first() || await message.client.users.fetch(args[0]).catch(() => null);
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_user', 'no_user_unban')] 
-                    });
+                    const embed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setDescription('❌ Please provide a user to unban!')
+                        .setTimestamp();
+                    return message.reply({ embeds: [embed] });
                 }
                 
                 await channel.permissionOverwrites.delete(target.id).catch(() => {});
                 
-                return message.reply({ 
-                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'user_unbanned', 'user_unbanned', [target.toString()])] 
-                });
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`✅ ${target} has been unbanned from the channel.`)
+                    .setTimestamp();
+                return message.reply({ embeds: [embed] });
             }
         }
     }

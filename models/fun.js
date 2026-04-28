@@ -85,7 +85,7 @@ async function generateShipImage(user1, user2, percentage) {
     // Draw percentage text
     ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(`${percentage}%`, 280 - 20, 220);
+    ctx.fillText(`${percentage}%`, 280, 220);
     
     // Draw usernames
     ctx.font = '14px "Segoe UI", "Arial", sans-serif';
@@ -376,16 +376,14 @@ module.exports = {
                 if (marriage) {
                     status = 'Married';
                     partner = await client.users.fetch(marriage.partner_id).catch(() => null);
-                    marriedAt = marriage.married_at;
                 }
                 
-                const embed = createEmbed(message, 'info', `Relationship Status`, `**${target.username}** is **${status}**.`)
+                const embed = createEmbed(message, 'info', 'Relationship Status', `**${target.username}** is **${status}**.`)
                     .setThumbnail(target.displayAvatarURL({ dynamic: true }));
                 
                 if (partner) {
                     embed.addFields([
-                        { name: 'Partner', value: partner.username, inline: true },
-                        { name: 'Married Since', value: `<t:${Math.floor(new Date(marriedAt).getTime() / 1000)}:D>`, inline: true }
+                        { name: 'Partner', value: partner.username, inline: true }
                     ]);
                 }
                 
@@ -434,8 +432,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Kiss', `**${message.author.username}** kisses **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Kiss', `**${message.author.username}** kisses **${target.username}**.`)] 
+                });
             }
         },
         
@@ -468,8 +466,8 @@ module.exports = {
             category: 'Fun',
             async execute(message) {
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cry', `**${message.author.username}** is crying.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Cry', `**${message.author.username}** is crying.`)] 
+                });
             }
         },
         
@@ -494,8 +492,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Blowjob', `**${message.author.username}** gives **${target.username}** a blowjob.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Blowjob', `**${message.author.username}** gives **${target.username}** a blowjob.`)] 
+                });
             }
         },
         
@@ -520,8 +518,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Slap', `**${message.author.username}** slaps **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Slap', `**${message.author.username}** slaps **${target.username}**.`)] 
+                });
             }
         },
         
@@ -540,8 +538,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Wink', `**${message.author.username}** winks at **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Wink', `**${message.author.username}** winks at **${target.username}**.`)] 
+                });
             }
         },
         
@@ -560,8 +558,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cuddle', `**${message.author.username}** cuddles with **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Cuddle', `**${message.author.username}** cuddles with **${target.username}**.`)] 
+                });
             }
         },
         
@@ -580,8 +578,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Handhold', `**${message.author.username}** holds hands with **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Handhold', `**${message.author.username}** holds hands with **${target.username}**.`)] 
+                });
             }
         },
         
@@ -600,8 +598,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Highfive', `**${message.author.username}** high-fives **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Highfive', `**${message.author.username}** high-fives **${target.username}**.`)] 
+                });
             }
         },
         
@@ -620,8 +618,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Lick', `**${message.author.username}** licks **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Lick', `**${message.author.username}** licks **${target.username}**.`)] 
+                });
             }
         },
         
@@ -640,8 +638,8 @@ module.exports = {
                 }
                 
                 return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)]]);
-                }
+                    embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)]
+                });
             }
         },
         

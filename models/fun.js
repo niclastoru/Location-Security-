@@ -44,8 +44,7 @@ async function generateShipImage(user1, user2) {
     const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 256 }));
     const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 256 }));
     
-    // Create clipping circles for avatars
-    // Avatar 1 (left side, slightly mixed with right)
+    // Avatar 1 (left)
     ctx.save();
     ctx.beginPath();
     ctx.arc(180, 125, 60, 0, Math.PI * 2);
@@ -54,7 +53,7 @@ async function generateShipImage(user1, user2) {
     ctx.drawImage(avatar1, 120, 65, 120, 120);
     ctx.restore();
     
-    // Avatar 2 (right side, slightly mixed with left)
+    // Avatar 2 (right)
     ctx.save();
     ctx.beginPath();
     ctx.arc(320, 125, 60, 0, Math.PI * 2);
@@ -62,11 +61,6 @@ async function generateShipImage(user1, user2) {
     ctx.clip();
     ctx.drawImage(avatar2, 260, 65, 120, 120);
     ctx.restore();
-    
-    // Draw overlapping effect (semi-transparent overlay for mixing)
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(26, 27, 30, 0.3)';
-    ctx.fillRect(0, 0, width, height);
     
     // Draw heart in the middle
     ctx.font = '50px "Segoe UI", "Arial", sans-serif';
@@ -135,16 +129,8 @@ module.exports = {
                     const imageBuffer = await generateShipImage(user1, user2);
                     const attachment = { attachment: imageBuffer, name: 'ship.png' };
                     
-                    // Send as embed with image
-                    const embed = new EmbedBuilder()
-                        .setColor(0x2B2D31)
-                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
-                        .setTitle(`${user1.username} ❤️ ${user2.username}`)
-                        .setImage('attachment://ship.png')
-                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                        .setTimestamp();
-                    
-                    return message.reply({ embeds: [embed], files: [attachment] });
+                    // Send ONLY the image - no embed, exactly like the screenshot
+                    return message.reply({ files: [attachment] });
                     
                 } catch (error) {
                     console.error('Ship error:', error);

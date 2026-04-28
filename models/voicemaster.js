@@ -306,23 +306,10 @@ module.exports = {
                     ]
                 });
                 
-                // New Interface Panel Embed - Like in the image
+                // SIMPLE EMBED - exactly like in the image
                 const panelEmbed = new EmbedBuilder()
                     .setColor(0x2B2D31)
-                    .setAuthor({ name: 'VoiceMaster Interface', iconURL: client.user.displayAvatarURL() })
                     .setDescription('Use the buttons below to control your voice channel.\n\n*Responses are only visible to you!*')
-                    .addFields(
-                        { name: '🔒 Lock', value: 'Locks the channel', inline: true },
-                        { name: '🔓 Unlock', value: 'Unlocks the channel', inline: true },
-                        { name: '👻 Hide', value: 'Hides the channel', inline: true },
-                        { name: '👁️ Reveal', value: 'Reveals the channel', inline: true },
-                        { name: '📋 Claim', value: 'Claims the channel', inline: true },
-                        { name: '👢 Disconnect', value: 'Kicks a user', inline: true },
-                        { name: '🎮 Activity', value: 'Starts an activity', inline: true },
-                        { name: 'ℹ️ Info', value: 'Channel information', inline: true },
-                        { name: '⬆️ Limit+', value: 'Increases user limit', inline: true },
-                        { name: '⬇️ Limit-', value: 'Decreases user limit', inline: true }
-                    )
                     .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
                 

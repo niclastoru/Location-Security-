@@ -88,8 +88,8 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             vanity_removed: 'Vanity-Role has been disabled.',
             vanity_current: (role) => `Current Vanity-Role: <@&${role}>\n\n**Usage:**\n!vanity-role set @Role\n!vanity-role remove`,
             vanity_none: 'No Vanity-Role set.\n\n**Usage:**\n!vanity-role set @Role',
-            welcome_add_usage: '!welcome-add #channel "Message"\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
-            welcome_added: (channel, msg) => `Welcome message in ${channel}:\n${msg}`,
+            welcome_add_usage: '!welcome-add #channel <Message> [embed]\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}\n\n**Add `embed` at the end to send as embed.**',
+            welcome_added: (channel, msg, isEmbed) => `Welcome message in ${channel}:\n${msg}\n\n**Type:** ${isEmbed ? 'Embed' : 'Normal Message'}`,
             welcome_remove_usage: '!welcome-remove #channel',
             welcome_removed: (channel) => `Welcome message in ${channel} has been removed.`,
             welcome_not_found: 'No welcome message found in this channel.',
@@ -98,7 +98,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             welcome_test_none: 'No welcome messages configured!',
             welcome_test_sent: 'Welcome messages have been sent as a test!',
             welcome_test_title: '🧪 Welcome Test',
-            welcome_help_text: '**!welcome-add** #channel "Message"\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}',
+            welcome_help_text: '**!welcome-add** #channel <Message> [embed]\n**!welcome-remove** #channel\n**!welcome-list**\n**!welcome-view** #channel\n**!welcome test**\n\n**Placeholders:** {user}, {user.mention}, {server}, {membercount}\n\n**Add `embed` at the end to send as embed.**',
             added_by: 'added by'
         }
     };
@@ -474,15 +474,27 @@ module.exports = {
             }
         },
         
-        // ========== WELCOME-ADD ==========
+        // ========== WELCOME-ADD (ÜBERARBEITET) ==========
         'welcome-add': {
             aliases: ['welcome-set', 'setwelcome'],
             permissions: 'Administrator',
-            description: 'Adds welcome message',
+            description: 'Adds welcome message (normal text or embed)',
             category: 'Server',
             async execute(message, args, { client, supabase }) {
                 const channel = message.mentions.channels.first();
                 let welcomeMessage = args.slice(1).join(' ');
+                
+                // Check if last word is "embed" (send as embed)
+                const words = welcomeMessage.trim().split(/\s+/);
+                const sendAsEmbed = words[words.length - 1]?.toLowerCase() === 'embed';
+                
+                if (sendAsEmbed) {
+                    // Remove "embed" from the message
+                    words.pop();
+                    welcomeMessage = words.join(' ');
+                }
+                
+                // Remove quotes
                 welcomeMessage = welcomeMessage.replace(/^["']|["']$/g, '');
                 
                 if (!channel || !welcomeMessage) {
@@ -502,7 +514,10 @@ module.exports = {
                     if (existing) {
                         await supabase
                             .from('welcome_messages')
-                            .update({ message: welcomeMessage })
+                            .update({ 
+                                message: welcomeMessage,
+                                send_as_embed: sendAsEmbed
+                            })
                             .eq('guild_id', message.guild.id)
                             .eq('channel_id', channel.id);
                     } else {
@@ -512,12 +527,13 @@ module.exports = {
                                 guild_id: message.guild.id,
                                 channel_id: channel.id,
                                 message: welcomeMessage,
-                                embed_color: '#00FF00'
+                                embed_color: '#00FF00',
+                                send_as_embed: sendAsEmbed
                             });
                     }
                     
                     return message.reply({ 
-                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage])] 
+                        embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'welcome_added', 'welcome_added', [channel.toString(), welcomeMessage, sendAsEmbed])] 
                     });
                 } catch (err) {
                     return message.reply({ 
@@ -578,7 +594,7 @@ module.exports = {
                     });
                 }
                 
-                const list = data.map(w => `📝 <#${w.channel_id}>\n${w.message.substring(0, 100)}${w.message.length > 100 ? '...' : ''}`).join('\n\n');
+                const list = data.map(w => `📝 <#${w.channel_id}>\n${w.message.substring(0, 100)}${w.message.length > 100 ? '...' : ''}\n┗ **Type:** ${w.send_as_embed ? 'Embed' : 'Normal Message'}`).join('\n\n');
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x00FF00)
@@ -620,17 +636,20 @@ module.exports = {
                     });
                 }
                 
-                const embed = new EmbedBuilder()
-                    .setColor(parseInt(data.embed_color?.replace('#', '') || '00FF00', 16))
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(`👋 Welcome to ${channel.name}`)
-                    .setDescription(data.message)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                    .setTimestamp();
-                
-                if (data.image_url) embed.setImage(data.image_url);
-                
-                return message.reply({ embeds: [embed] });
+                if (data.send_as_embed) {
+                    const embed = new EmbedBuilder()
+                        .setColor(parseInt(data.embed_color?.replace('#', '') || '00FF00', 16))
+                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                        .setTitle(`👋 Welcome to ${channel.name}`)
+                        .setDescription(data.message)
+                        .setFooter({ text: `Type: Embed • ${message.author.tag}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setTimestamp();
+                    
+                    if (data.image_url) embed.setImage(data.image_url);
+                    return message.reply({ embeds: [embed] });
+                } else {
+                    return message.reply({ content: `📝 **Welcome Message in ${channel}**\n\n${data.message}\n\n*Type: Normal Message*` });
+                }
             }
         },
         
@@ -646,7 +665,7 @@ module.exports = {
                 if (action === 'test') {
                     const { data } = await supabase
                         .from('welcome_messages')
-                        .select('channel_id, message')
+                        .select('channel_id, message, send_as_embed, embed_color, image_url')
                         .eq('guild_id', message.guild.id);
                     
                     if (!data || data.length === 0) {
@@ -658,20 +677,25 @@ module.exports = {
                     for (const w of data) {
                         const channel = message.guild.channels.cache.get(w.channel_id);
                         if (channel) {
-                            const testMessage = w.message
+                            const welcomeMsg = w.message
                                 .replace(/{user}/g, message.author.username)
                                 .replace(/{user.mention}/g, message.author.toString())
                                 .replace(/{server}/g, message.guild.name)
                                 .replace(/{membercount}/g, message.guild.memberCount);
                             
-                            const embed = new EmbedBuilder()
-                                .setColor(0x00FF00)
-                                .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                                .setTitle('🧪 Welcome Test')
-                                .setDescription(testMessage)
-                                .setTimestamp();
-                            
-                            await channel.send({ embeds: [embed] });
+                            if (w.send_as_embed) {
+                                const embed = new EmbedBuilder()
+                                    .setColor(parseInt(w.embed_color?.replace('#', '') || '00FF00', 16))
+                                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                                    .setTitle('🧪 Welcome Test')
+                                    .setDescription(welcomeMsg)
+                                    .setTimestamp();
+                                
+                                if (w.image_url) embed.setImage(w.image_url);
+                                await channel.send({ embeds: [embed] });
+                            } else {
+                                await channel.send(welcomeMsg);
+                            }
                         }
                     }
                     

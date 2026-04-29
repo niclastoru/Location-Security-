@@ -177,7 +177,6 @@ client.once('ready', async () => {
     console.log(`✅ ${client.user.tag} ist online!`);
     console.log(`🌐 ${client.guilds.cache.size} Server verbunden`);
     
-    // ⭐ Alle Sprachen aus Supabase laden
     const { data: languages } = await supabase.from('server_languages').select('*');
     if (languages) {
         for (const l of languages) {
@@ -186,7 +185,6 @@ client.once('ready', async () => {
         console.log(`🌍 ${languages.length} Sprachen geladen`);
     }
     
-    // ⭐ Alle Prefixes aus Supabase laden
     const { data: prefixes } = await supabase.from('custom_prefixes').select('*');
     if (prefixes) {
         for (const p of prefixes) {
@@ -195,7 +193,6 @@ client.once('ready', async () => {
         console.log(`📝 ${prefixes.length} Custom Prefixes geladen`);
     }
     
-    // ⭐ Alle VoiceMaster Configs aus Supabase laden
     const { data: configs } = await supabase.from('voicemaster_config').select('*');
     if (configs) {
         for (const cfg of configs) {
@@ -258,11 +255,8 @@ client.on('messageCreate', async (message) => {
 
 // ========== TICKET BUTTON HANDLER ==========
 async function handleTicketButton(interaction, client, supabase) {
-    const customId = interaction.customId;
-    
-    // Extrahiere Typ und Kategorie aus customId (Format: ticket_type_categoryId)
-    const parts = customId.split('_');
-    const type = parts[1]; // support, admin, owner
+    const parts = interaction.customId.split('_');
+    const type = parts[1];
     const categoryId = parts[2];
     
     const category = interaction.guild.channels.cache.get(categoryId);
@@ -271,7 +265,6 @@ async function handleTicketButton(interaction, client, supabase) {
         return interaction.reply({ content: '❌ Category not found! Please contact an admin.', ephemeral: true });
     }
     
-    // Get next ticket number
     const { data: counterData } = await supabase
         .from('ticket_counter')
         .select('counter')
@@ -280,46 +273,29 @@ async function handleTicketButton(interaction, client, supabase) {
     
     const ticketNumber = (counterData?.counter || 1);
     
-    // Update counter
     await supabase
         .from('ticket_counter')
         .upsert({ guild_id: interaction.guild.id, counter: ticketNumber + 1 });
     
     const ticketName = `ticket-${type}-${ticketNumber}`;
     
-    // Create ticket channel
     const ticketChannel = await interaction.guild.channels.create({
         name: ticketName,
         type: ChannelType.GuildText,
         parent: category.id,
         permissionOverwrites: [
-            {
-                id: interaction.guild.id,
-                deny: [PermissionFlagsBits.ViewChannel]
-            },
+            { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
             {
                 id: interaction.user.id,
-                allow: [
-                    PermissionFlagsBits.ViewChannel,
-                    PermissionFlagsBits.SendMessages,
-                    PermissionFlagsBits.ReadMessageHistory,
-                    PermissionFlagsBits.AttachFiles,
-                    PermissionFlagsBits.EmbedLinks
-                ]
+                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks]
             },
             {
                 id: interaction.client.user.id,
-                allow: [
-                    PermissionFlagsBits.ViewChannel,
-                    PermissionFlagsBits.SendMessages,
-                    PermissionFlagsBits.ReadMessageHistory,
-                    PermissionFlagsBits.ManageChannels
-                ]
+                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels]
             }
         ]
     });
     
-    // Save to database
     await supabase.from('tickets').insert({
         guild_id: interaction.guild.id,
         channel_id: ticketChannel.id,
@@ -331,7 +307,6 @@ async function handleTicketButton(interaction, client, supabase) {
         created_at: new Date().toISOString()
     });
     
-    // Send welcome message in ticket
     const embed = new EmbedBuilder()
         .setColor(0x57F287)
         .setAuthor({ name: interaction.client.user.username, iconURL: interaction.client.user.displayAvatarURL() })
@@ -347,26 +322,22 @@ async function handleTicketButton(interaction, client, supabase) {
     
     const row = new ActionRowBuilder()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('ticket_close')
-                .setLabel('Close Ticket')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('🔒'),
-            new ButtonBuilder()
-                .setCustomId('ticket_claim')
-                .setLabel('Claim')
-                .setStyle(ButtonStyle.Primary)
-                .setEmoji('📋')
+            new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+            new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📋')
         );
     
     await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
-    
     await interaction.reply({ content: `✅ Ticket created! Please go to ${ticketChannel}`, ephemeral: true });
 }
 
-// ========== TICKET CLOSE BUTTON HANDLER ==========
-async function handleTicketCloseButton(interaction, client, supabase) {
+// ========== TICKET CLOSE HANDLER (DIREKT, OHNE COMMAND) ==========
+async function handleTicketClose(interaction, client, supabase) {
     const channel = interaction.channel;
+    const transcriptsDir = path.join(__dirname, 'transcripts');
+    
+    if (!fs.existsSync(transcriptsDir)) {
+        fs.mkdirSync(transcriptsDir, { recursive: true });
+    }
     
     if (!channel.name?.startsWith('ticket-')) {
         return interaction.reply({ content: '❌ This is not a ticket channel!', ephemeral: true });
@@ -374,24 +345,115 @@ async function handleTicketCloseButton(interaction, client, supabase) {
     
     await interaction.reply({ content: '🔒 Closing ticket...', ephemeral: true });
     
-    // Get close command and execute
-    const closeCommand = client.commands.get('close');
-    if (closeCommand) {
-        await closeCommand.execute(interaction, [], { client, supabase });
-    } else {
+    try {
+        const { data: ticket } = await supabase
+            .from('tickets')
+            .select('*')
+            .eq('channel_id', channel.id)
+            .single();
+        
+        if (ticket) {
+            // Fetch all messages for transcript
+            const messages = [];
+            let lastId = null;
+            while (true) {
+                const fetched = await channel.messages.fetch({ limit: 100, before: lastId });
+                if (fetched.size === 0) break;
+                messages.push(...fetched.values());
+                lastId = fetched.last().id;
+            }
+            messages.reverse();
+            
+            // Create HTML transcript
+            const html = `<!DOCTYPE html>
+            <html>
+            <head><meta charset="UTF-8"><title>Ticket Transcript - ${ticket.ticket_id}</title>
+            <style>
+                body { font-family: Arial, sans-serif; background: #1a1b1e; color: #dcddde; padding: 20px; }
+                .message { background: #2f3136; margin-bottom: 10px; padding: 10px; border-radius: 5px; border-left: 3px solid #5865f2; }
+                .author { font-weight: bold; color: #fff; }
+                .timestamp { font-size: 11px; color: #72767d; margin-left: 10px; }
+                .content { margin-top: 5px; }
+            </style>
+            </head>
+            <body>
+            <h1>Ticket Transcript: ${ticket.ticket_id}</h1>
+            <p><strong>Created by:</strong> ${ticket.creator_tag}</p>
+            <p><strong>Created at:</strong> ${new Date(ticket.created_at).toLocaleString()}</p>
+            <p><strong>Type:</strong> ${ticket.type}</p>
+            <hr>
+            ${messages.map(msg => `
+                <div class="message">
+                    <div class="author">${msg.author.tag}<span class="timestamp">${new Date(msg.createdTimestamp).toLocaleString()}</span></div>
+                    <div class="content">${msg.content || '*No content*'}</div>
+                </div>
+            `).join('')}
+            </body>
+            </html>`;
+            
+            const filename = `transcript_${ticket.ticket_id}_${Date.now()}.html`;
+            const filepath = path.join(transcriptsDir, filename);
+            fs.writeFileSync(filepath, html);
+            
+            await supabase
+                .from('tickets')
+                .update({ 
+                    status: 'closed', 
+                    closed_at: new Date().toISOString(),
+                    closed_by: interaction.user.id,
+                    closed_by_tag: interaction.user.tag,
+                    transcript: filename
+                })
+                .eq('id', ticket.id);
+            
+            // Send transcript to log channel
+            const { data: settings } = await supabase
+                .from('ticket_settings')
+                .select('log_channel_id')
+                .eq('guild_id', interaction.guild.id)
+                .single();
+            
+            if (settings?.log_channel_id) {
+                const logChannel = interaction.guild.channels.cache.get(settings.log_channel_id);
+                if (logChannel) {
+                    const transcriptEmbed = new EmbedBuilder()
+                        .setColor(0x57F287)
+                        .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                        .setTitle('Ticket Closed')
+                        .setDescription(`Ticket **${ticket.ticket_id}** has been closed.`)
+                        .addFields([
+                            { name: 'Closed by', value: interaction.user.tag, inline: true },
+                            { name: 'Created by', value: ticket.creator_tag, inline: true },
+                            { name: 'Type', value: ticket.type, inline: true }
+                        ])
+                        .setTimestamp();
+                    
+                    await logChannel.send({ 
+                        embeds: [transcriptEmbed],
+                        files: [{ attachment: filepath, name: filename }]
+                    });
+                }
+            }
+            
+            fs.unlinkSync(filepath);
+        }
+        
         await channel.delete();
+        
+    } catch (error) {
+        console.error('Close error:', error);
+        await interaction.followUp({ content: '❌ Error closing ticket!', ephemeral: true });
     }
 }
 
-// ========== TICKET CLAIM BUTTON HANDLER ==========
-async function handleTicketClaimButton(interaction, client, supabase) {
+// ========== TICKET CLAIM HANDLER ==========
+async function handleTicketClaim(interaction, client, supabase) {
     const channel = interaction.channel;
     
     if (!channel.name?.startsWith('ticket-')) {
         return interaction.reply({ content: '❌ This is not a ticket channel!', ephemeral: true });
     }
     
-    // Check if user is staff
     const member = interaction.member;
     const isStaffMember = member.permissions.has(PermissionFlagsBits.Administrator) || 
                           member.permissions.has(PermissionFlagsBits.ManageChannels);
@@ -400,7 +462,6 @@ async function handleTicketClaimButton(interaction, client, supabase) {
         return interaction.reply({ content: '❌ Only staff members can claim tickets!', ephemeral: true });
     }
     
-    // Check if already claimed
     const { data: ticket } = await supabase
         .from('tickets')
         .select('claimed_by')
@@ -420,7 +481,7 @@ async function handleTicketClaimButton(interaction, client, supabase) {
         })
         .eq('channel_id', channel.id);
     
-    await interaction.reply({ content: `✅ ${interaction.user} has claimed this ticket!`, ephemeral: false });
+    await interaction.reply({ content: `✅ ${interaction.user} has claimed this ticket!` });
     
     try {
         if (!channel.name.includes('-claimed')) {
@@ -429,7 +490,7 @@ async function handleTicketClaimButton(interaction, client, supabase) {
     } catch (e) {}
 }
 
-// ========== INTERACTION HANDLER (MIT TICKET BUTTONS) ==========
+// ========== INTERACTION HANDLER ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
         // VoiceMaster Buttons
@@ -437,19 +498,19 @@ client.on('interactionCreate', async (interaction) => {
             return handleVoiceMasterButton(interaction, client, supabase);
         }
         
-        // Ticket Creation Buttons (support, admin, owner)
+        // Ticket Creation Buttons
         if (interaction.customId.startsWith('ticket_') && !interaction.customId.includes('close') && !interaction.customId.includes('claim')) {
             return handleTicketButton(interaction, client, supabase);
         }
         
         // Ticket Close Button
         if (interaction.customId === 'ticket_close') {
-            return handleTicketCloseButton(interaction, client, supabase);
+            return handleTicketClose(interaction, client, supabase);
         }
         
         // Ticket Claim Button
         if (interaction.customId === 'ticket_claim') {
-            return handleTicketClaimButton(interaction, client, supabase);
+            return handleTicketClaim(interaction, client, supabase);
         }
     }
 });
@@ -606,7 +667,7 @@ client.on('messageDeleteBulk', async (messages, channel) => {
     await logEvent.messageDeleteBulk(messages, channel);
 });
 
-// ========== MEMBER JOIN (WELCOME + AUTO-ROLE) ==========
+// ========== MEMBER JOIN ==========
 client.on('guildMemberAdd', async (member) => {
     await logEvent.memberJoin(member);
     
@@ -617,13 +678,9 @@ client.on('guildMemberAdd', async (member) => {
         .select('channel_id, message, embed_color, image_url')
         .eq('guild_id', member.guild.id);
     
-    console.log(`📨 Welcomes gefunden: ${welcomes?.length || 0}`);
-    if (error) console.error('❌ Welcome Error:', error);
-    
     if (welcomes && welcomes.length > 0) {
         for (const w of welcomes) {
             const channel = member.guild.channels.cache.get(w.channel_id);
-            
             if (channel) {
                 const welcomeMsg = w.message
                     .replace(/{user}/g, member.user.username)
@@ -640,12 +697,7 @@ client.on('guildMemberAdd', async (member) => {
                     .setTimestamp();
                 
                 if (w.image_url) embed.setImage(w.image_url);
-                
-                await channel.send({ embeds: [embed] })
-                    .then(() => console.log(`✅ Welcome gesendet in ${channel.name}`))
-                    .catch(err => console.error(`❌ Welcome Fehler in ${channel.name}:`, err));
-            } else {
-                console.log(`⚠️ Channel nicht gefunden: ${w.channel_id}`);
+                await channel.send({ embeds: [embed] });
             }
         }
     }
@@ -660,7 +712,6 @@ client.on('guildMemberAdd', async (member) => {
         const role = member.guild.roles.cache.get(autorole.role_id);
         if (role) {
             await member.roles.add(role).catch(err => console.error('❌ Auto-Role Fehler:', err));
-            console.log(`✅ Auto-Role ${role.name} an ${member.user.tag} vergeben`);
         }
     }
 });

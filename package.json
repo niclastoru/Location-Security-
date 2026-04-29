@@ -8,12 +8,13 @@
   },
   "dependencies": {
     "@discordjs/voice": "^0.16.0",
-    "@distube/ytdl-core": "^4.13.5",
     "@supabase/supabase-js": "^2.38.0",
     "canvas": "^2.11.2",
     "discord.js": "^14.14.0",
     "dotenv": "^16.3.1",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "yt-search": "^2.10.3",
+    "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -1,4 +1,4 @@
- const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 
 // Embed sessions cache
 const embedSessions = new Map();
@@ -430,7 +430,6 @@ async function showFieldsMenu(interaction, sessionId) {
     
     const rows = [];
     
-    // Add Field button
     const addRow = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
@@ -446,7 +445,6 @@ async function showFieldsMenu(interaction, sessionId) {
         );
     rows.push(addRow);
     
-    // Remove buttons for each field (max 5 per row)
     let currentRow = new ActionRowBuilder();
     let buttonCount = 0;
     
@@ -517,7 +515,6 @@ async function showEmbedCode(interaction, sessionId) {
     const session = embedSessions.get(sessionId);
     const code = getEmbedCode(session);
     
-    // Split code if too long (Discord limit 2000 chars)
     if (code.length > 1900) {
         const parts = code.match(/(.|[\r\n]){1,1900}/g);
         for (let i = 0; i < parts.length; i++) {

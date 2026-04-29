@@ -41,10 +41,8 @@ async function buildEmbed(client, guildId, userId, type, title, description, fie
 
 // Helper: Check if user is staff
 async function isStaff(member, supabase) {
-    // Admin has always access
     if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
     
-    // Check for staff roles in database
     const { data: staffRoles } = await supabase
         .from('staff_roles')
         .select('role_id')
@@ -55,7 +53,6 @@ async function isStaff(member, supabase) {
         if (hasStaffRole) return true;
     }
     
-    // Check for manage channels permission
     if (member.permissions.has(PermissionFlagsBits.ManageChannels)) return true;
     
     return false;
@@ -64,7 +61,6 @@ async function isStaff(member, supabase) {
 // Ticket Counter Cache
 const ticketCounters = new Map();
 
-// Get next ticket number
 async function getNextTicketNumber(guildId, supabase) {
     if (!ticketCounters.has(guildId)) {
         const { data } = await supabase
@@ -86,7 +82,6 @@ async function getNextTicketNumber(guildId, supabase) {
     return number;
 }
 
-// Create transcript
 async function createTranscript(channel, ticketData, messages) {
     const html = `<!DOCTYPE html>
     <html>
@@ -150,13 +145,34 @@ module.exports = {
     category: 'Tickets',
     subCommands: {
         
-        // ========== CREATE TICKET PANEL ==========
+        // ========== CREATE TICKET PANEL (MIT KATEGORIE AUSWAHL) ==========
         newticket: {
             aliases: ['ticketpanel', 'createpanel'],
             permissions: 'Administrator',
-            description: 'Create a new ticket panel',
+            description: 'Create a new ticket panel in a specific category',
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
+                // Kategorie auslesen (erwähnte Kategorie oder nach ID/Name)
+                let category = message.mentions.channels.find(c => c.type === ChannelType.GuildCategory);
+                
+                if (!category && args[0]) {
+                    // Versuche nach ID
+                    category = message.guild.channels.cache.get(args[0]);
+                    // Versuche nach Namen
+                    if (!category) {
+                        category = message.guild.channels.cache.find(c => 
+                            c.type === ChannelType.GuildCategory && 
+                            c.name.toLowerCase() === args[0].toLowerCase()
+                        );
+                    }
+                }
+                
+                if (!category) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No Category', 
+                        'Please mention a category where tickets should be created!\n\nUsage: `!newticket #Kategorie`\nExample: `!newticket #Tickets`');
+                    return message.reply({ embeds: [embed] });
+                }
+                
                 const channel = message.mentions.channels.first() || message.channel;
                 
                 const panelEmbed = new EmbedBuilder()
@@ -166,8 +182,8 @@ module.exports = {
                     .setDescription('Need help? Click a button below to open a ticket.\nOur support team will assist you as soon as possible.')
                     .addFields([
                         { name: '📞 Support', value: 'General help and questions', inline: true },
-                        { name: '📝 Report', value: 'Report a user or issue', inline: true },
-                        { name: '💼 Application', value: 'Apply for something', inline: true }
+                        { name: '👑 Admin', value: 'Admin-related issues', inline: true },
+                        { name: '👥 Owner', value: 'Owner/Server management', inline: true }
                     ])
                     .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
@@ -175,20 +191,20 @@ module.exports = {
                 const row = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
-                            .setCustomId('ticket_support')
+                            .setCustomId(`ticket_support_${category.id}`)
                             .setLabel('Support')
                             .setStyle(ButtonStyle.Secondary)
                             .setEmoji('📞'),
                         new ButtonBuilder()
-                            .setCustomId('ticket_report')
-                            .setLabel('Report')
+                            .setCustomId(`ticket_admin_${category.id}`)
+                            .setLabel('Admin')
                             .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('📝'),
+                            .setEmoji('👑'),
                         new ButtonBuilder()
-                            .setCustomId('ticket_application')
-                            .setLabel('Application')
+                            .setCustomId(`ticket_owner_${category.id}`)
+                            .setLabel('Owner')
                             .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('💼')
+                            .setEmoji('👥')
                     );
                 
                 const msg = await channel.send({ embeds: [panelEmbed], components: [row] });
@@ -196,10 +212,12 @@ module.exports = {
                 await supabase.from('ticket_panels_v2').insert({
                     guild_id: message.guild.id,
                     channel_id: channel.id,
-                    message_id: msg.id
+                    message_id: msg.id,
+                    category_id: category.id
                 });
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Panel Created', `Ticket panel has been created in ${channel}`);
+                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Panel Created', 
+                    `Ticket panel has been created in ${channel}\nTickets will be created in category: **${category.name}**`);
                 return message.reply({ embeds: [embed] });
             }
         },
@@ -231,7 +249,6 @@ module.exports = {
                     return message.reply({ embeds: [embed] });
                 }
                 
-                // Fetch all messages for transcript
                 const messages = [];
                 let lastId = null;
                 while (true) {
@@ -242,10 +259,8 @@ module.exports = {
                 }
                 messages.reverse();
                 
-                // Create transcript
                 const transcript = await createTranscript(message.channel, ticket, messages);
                 
-                // Update ticket status
                 await supabase
                     .from('tickets')
                     .update({ 
@@ -257,7 +272,6 @@ module.exports = {
                     })
                     .eq('id', ticket.id);
                 
-                // Send transcript to log channel
                 const { data: settings } = await supabase
                     .from('ticket_settings')
                     .select('log_channel_id')
@@ -286,15 +300,12 @@ module.exports = {
                     }
                 }
                 
-                // Delete the channel
                 await message.channel.delete();
-                
-                // Clean up transcript file
                 fs.unlinkSync(transcript.filepath);
             }
         },
         
-        // ========== ADD USER TO TICKET ==========
+        // ========== ADD USER ==========
         add: {
             aliases: ['ticketadd', 'adduser'],
             description: 'Add a user to the current ticket',
@@ -332,7 +343,7 @@ module.exports = {
             }
         },
         
-        // ========== REMOVE USER FROM TICKET ==========
+        // ========== REMOVE USER ==========
         remove: {
             aliases: ['ticketremove', 'removeuser'],
             description: 'Remove a user from the current ticket',
@@ -364,7 +375,7 @@ module.exports = {
             }
         },
         
-        // ========== CLAIM TICKET (STAFF ONLY) ==========
+        // ========== CLAIM ==========
         claim: {
             aliases: ['claimticket', 'take'],
             description: 'Claim the current ticket (Staff only)',
@@ -375,7 +386,6 @@ module.exports = {
                     return message.reply({ embeds: [embed] });
                 }
                 
-                // Staff check
                 if (!await isStaff(message.member, supabase)) {
                     const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members can claim tickets.');
                     return message.reply({ embeds: [embed] });
@@ -407,7 +417,6 @@ module.exports = {
                     .setTimestamp();
                 await message.channel.send({ embeds: [embed] });
                 
-                // Try to rename channel
                 try {
                     const currentName = message.channel.name;
                     if (!currentName.includes('-claimed')) {
@@ -439,7 +448,6 @@ module.exports = {
                     return message.reply({ embeds: [embed] });
                 }
                 
-                // Save note to database
                 await supabase.from('ticket_notes').insert({
                     ticket_id: message.channel.id,
                     author_id: message.author.id,
@@ -459,7 +467,7 @@ module.exports = {
             }
         },
         
-        // ========== SNIPPET / QUICK REPLY ==========
+        // ========== SNIPPET ==========
         snippet: {
             aliases: ['quickreply', 'qr'],
             description: 'Send a quick reply from saved snippets',
@@ -473,7 +481,6 @@ module.exports = {
                 const snippetName = args[0]?.toLowerCase();
                 
                 if (!snippetName) {
-                    // Show available snippets
                     const { data: snippets } = await supabase
                         .from('ticket_snippets')
                         .select('*')
@@ -613,7 +620,7 @@ module.exports = {
                     .setTitle('Ticket Panel Configuration')
                     .setDescription('Use the buttons below to configure the ticket system.')
                     .addFields([
-                        { name: '📋 Create Panel', value: 'Create a new ticket panel in this channel', inline: true },
+                        { name: '📋 Create Panel', value: 'Create a new ticket panel', inline: true },
                         { name: '📊 Log Channel', value: 'Set where ticket logs are sent', inline: true },
                         { name: '👥 Staff Roles', value: 'Configure which roles can manage tickets', inline: true }
                     ])

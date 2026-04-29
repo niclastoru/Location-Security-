@@ -8,20 +8,20 @@ if (!fs.existsSync(transcriptsDir)) {
     fs.mkdirSync(transcriptsDir, { recursive: true });
 }
 
-// Helper: Build embed
+// Helper: Build modern embed
 async function buildEmbed(client, guildId, userId, type, title, description, fields = []) {
     const colors = {
         success: 0x57F287,
         error: 0xED4245,
         info: 0x5865F2,
         warn: 0xFEE75C,
-        ticket: 0x00FF00
+        ticket: 0x2B2D31
     };
     
     const embed = new EmbedBuilder()
-        .setColor(colors[type] || 0x5865F2)
+        .setColor(colors[type] || 0x2B2D31)
         .setAuthor({ name: client.user?.username || 'Bot', iconURL: client.user?.displayAvatarURL() })
-        .setTitle(type === 'success' ? `✅ ${title}` : type === 'error' ? `❌ ${title}` : type === 'warn' ? `⚠️ ${title}` : `🎫 ${title}`)
+        .setTitle(title)
         .setDescription(description)
         .setTimestamp();
     
@@ -37,6 +37,28 @@ async function buildEmbed(client, guildId, userId, type, title, description, fie
     }
     
     return embed;
+}
+
+// Helper: Check if user is staff
+async function isStaff(member, supabase) {
+    // Admin has always access
+    if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    
+    // Check for staff roles in database
+    const { data: staffRoles } = await supabase
+        .from('staff_roles')
+        .select('role_id')
+        .eq('guild_id', member.guild.id);
+    
+    if (staffRoles && staffRoles.length > 0) {
+        const hasStaffRole = member.roles.cache.some(r => staffRoles.some(sr => sr.role_id === r.id));
+        if (hasStaffRole) return true;
+    }
+    
+    // Check for manage channels permission
+    if (member.permissions.has(PermissionFlagsBits.ManageChannels)) return true;
+    
+    return false;
 }
 
 // Ticket Counter Cache
@@ -65,51 +87,55 @@ async function getNextTicketNumber(guildId, supabase) {
 }
 
 // Create transcript
-async function createTranscript(channel, ticketData) {
-    const messages = [];
-    let lastId = null;
-    
-    // Fetch all messages
-    while (true) {
-        const fetched = await channel.messages.fetch({ limit: 100, before: lastId });
-        if (fetched.size === 0) break;
-        messages.push(...fetched.values());
-        lastId = fetched.last().id;
-    }
-    
-    messages.reverse();
-    
-    // Generate HTML
+async function createTranscript(channel, ticketData, messages) {
     const html = `<!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
         <title>Ticket Transcript - ${ticketData.ticket_id}</title>
         <style>
-            body { font-family: Arial, sans-serif; background: #36393f; color: #dcddde; padding: 20px; }
-            .message { margin-bottom: 20px; padding: 10px; border-left: 3px solid #5865f2; background: #2f3136; border-radius: 5px; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1b1e; color: #dcddde; padding: 20px; }
+            .container { max-width: 1000px; margin: 0 auto; }
+            .header { background: #2c2f33; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #5865f2; }
+            .header h1 { color: #fff; margin-bottom: 10px; }
+            .header p { color: #b9bbbe; margin: 5px 0; }
+            .message { background: #2f3136; margin-bottom: 15px; padding: 15px; border-radius: 8px; border-left: 3px solid #5865f2; }
+            .message:hover { background: #383a40; }
             .author { font-weight: bold; color: #fff; }
             .timestamp { font-size: 11px; color: #72767d; margin-left: 10px; }
-            .content { margin-top: 5px; }
-            .embed { background: #2b2d31; padding: 10px; margin-top: 5px; border-radius: 5px; }
-            .attachment { margin-top: 5px; color: #00b0f4; }
+            .content { margin-top: 8px; color: #dcddde; }
+            .embed { background: #2b2d31; padding: 10px; margin-top: 8px; border-radius: 5px; border-left: 3px solid #57F287; }
+            .attachment { margin-top: 8px; color: #00b0f4; }
+            hr { border-color: #40444b; margin: 20px 0; }
+            .footer { text-align: center; color: #72767d; font-size: 12px; margin-top: 30px; }
         </style>
     </head>
     <body>
-        <h1>Ticket Transcript: ${ticketData.ticket_id}</h1>
-        <p><strong>Created by:</strong> ${ticketData.creator_tag}</p>
-        <p><strong>Created at:</strong> ${new Date(ticketData.created_at).toLocaleString()}</p>
-        <p><strong>Type:</strong> ${ticketData.type}</p>
-        <hr>
-        ${messages.map(msg => `
-            <div class="message">
-                <div class="author">${msg.author.tag}</div>
-                <div class="timestamp">${new Date(msg.createdTimestamp).toLocaleString()}</div>
-                <div class="content">${msg.content || '*No content*'}</div>
-                ${msg.attachments.size > 0 ? `<div class="attachment">📎 Attachments: ${msg.attachments.map(a => a.url).join(', ')}</div>` : ''}
-                ${msg.embeds.length > 0 ? '<div class="embed">📦 Embed content</div>' : ''}
+        <div class="container">
+            <div class="header">
+                <h1>📄 Ticket Transcript</h1>
+                <p><strong>Ticket ID:</strong> ${ticketData.ticket_id}</p>
+                <p><strong>Created by:</strong> ${ticketData.creator_tag}</p>
+                <p><strong>Created at:</strong> ${new Date(ticketData.created_at).toLocaleString()}</p>
+                <p><strong>Type:</strong> ${ticketData.type}</p>
+                ${ticketData.claimed_by_tag ? `<p><strong>Claimed by:</strong> ${ticketData.claimed_by_tag}</p>` : ''}
+                ${ticketData.closed_by_tag ? `<p><strong>Closed by:</strong> ${ticketData.closed_by_tag}</p>` : ''}
             </div>
-        `).join('')}
+            <hr>
+            ${messages.map(msg => `
+                <div class="message">
+                    <div class="author">${msg.author.tag}</div>
+                    <div class="timestamp">${new Date(msg.createdTimestamp).toLocaleString()}</div>
+                    <div class="content">${msg.content || '*No content*'}</div>
+                    ${msg.attachments.size > 0 ? `<div class="attachment">📎 ${msg.attachments.map(a => `<a href="${a.url}" style="color:#00b0f4;">${a.name}</a>`).join(', ')}</div>` : ''}
+                    ${msg.embeds.length > 0 ? '<div class="embed">📦 Embed content was removed</div>' : ''}
+                </div>
+            `).join('')}
+            <div class="footer">
+                Generated by ${ticketData.guild_name} • ${new Date().toLocaleString()}
+            </div>
+        </div>
     </body>
     </html>`;
     
@@ -134,11 +160,16 @@ module.exports = {
                 const channel = message.mentions.channels.first() || message.channel;
                 
                 const panelEmbed = new EmbedBuilder()
-                    .setColor(0x5865F2)
+                    .setColor(0x2B2D31)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle('🎫 Ticket System')
-                    .setDescription('Select a ticket type below to open a ticket:\n\n**Support** - For general help\n**Report** - To report a user\n**Application** - To apply for something')
-                    .setFooter({ text: message.guild.name })
+                    .setTitle('Support Ticket')
+                    .setDescription('Need help? Click a button below to open a ticket.\nOur support team will assist you as soon as possible.')
+                    .addFields([
+                        { name: '📞 Support', value: 'General help and questions', inline: true },
+                        { name: '📝 Report', value: 'Report a user or issue', inline: true },
+                        { name: '💼 Application', value: 'Apply for something', inline: true }
+                    ])
+                    .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
                 
                 const row = new ActionRowBuilder()
@@ -146,17 +177,17 @@ module.exports = {
                         new ButtonBuilder()
                             .setCustomId('ticket_support')
                             .setLabel('Support')
-                            .setStyle(ButtonStyle.Primary)
+                            .setStyle(ButtonStyle.Secondary)
                             .setEmoji('📞'),
                         new ButtonBuilder()
                             .setCustomId('ticket_report')
                             .setLabel('Report')
-                            .setStyle(ButtonStyle.Danger)
+                            .setStyle(ButtonStyle.Secondary)
                             .setEmoji('📝'),
                         new ButtonBuilder()
                             .setCustomId('ticket_application')
                             .setLabel('Application')
-                            .setStyle(ButtonStyle.Success)
+                            .setStyle(ButtonStyle.Secondary)
                             .setEmoji('💼')
                     );
                 
@@ -168,7 +199,7 @@ module.exports = {
                     message_id: msg.id
                 });
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Ticket Panel Created', `Panel created in ${channel}`);
+                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Panel Created', `Ticket panel has been created in ${channel}`);
                 return message.reply({ embeds: [embed] });
             }
         },
@@ -180,7 +211,12 @@ module.exports = {
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                if (!await isStaff(message.member, supabase) && message.author.id !== message.channel.topic?.split('|')[0]) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members or the ticket creator can close this ticket.');
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -191,12 +227,23 @@ module.exports = {
                     .single();
                 
                 if (!ticket) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not Found', 'Ticket not found in database!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not Found', 'Ticket not found in database.');
                     return message.reply({ embeds: [embed] });
                 }
                 
+                // Fetch all messages for transcript
+                const messages = [];
+                let lastId = null;
+                while (true) {
+                    const fetched = await message.channel.messages.fetch({ limit: 100, before: lastId });
+                    if (fetched.size === 0) break;
+                    messages.push(...fetched.values());
+                    lastId = fetched.last().id;
+                }
+                messages.reverse();
+                
                 // Create transcript
-                const transcript = await createTranscript(message.channel, ticket);
+                const transcript = await createTranscript(message.channel, ticket, messages);
                 
                 // Update ticket status
                 await supabase
@@ -223,11 +270,12 @@ module.exports = {
                         const transcriptEmbed = new EmbedBuilder()
                             .setColor(0x57F287)
                             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                            .setTitle('📄 Ticket Closed')
+                            .setTitle('Ticket Closed')
+                            .setDescription(`Ticket **${ticket.ticket_id}** has been closed.`)
                             .addFields([
-                                { name: 'Ticket', value: ticket.ticket_id, inline: true },
                                 { name: 'Closed by', value: message.author.tag, inline: true },
-                                { name: 'Created by', value: ticket.creator_tag, inline: true }
+                                { name: 'Created by', value: ticket.creator_tag, inline: true },
+                                { name: 'Type', value: ticket.type, inline: true }
                             ])
                             .setTimestamp();
                         
@@ -253,13 +301,18 @@ module.exports = {
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                if (!await isStaff(message.member, supabase)) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members can add users to tickets.');
                     return message.reply({ embeds: [embed] });
                 }
                 
                 const target = message.mentions.members.first();
                 if (!target) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No User', 'Please mention a user to add!\nUsage: `!add @user`');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No User', 'Please mention a user to add.\nUsage: `!add @user`');
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -271,15 +324,11 @@ module.exports = {
                     EmbedLinks: true
                 });
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'User Added', `${target} has been added to this ticket!`);
-                await message.reply({ embeds: [embed] });
-                
-                // Log to ticket
-                const logEmbed = new EmbedBuilder()
+                const embed = new EmbedBuilder()
                     .setColor(0x57F287)
-                    .setDescription(`👤 ${message.author} added ${target} to the ticket`)
+                    .setDescription(`✅ ${target} has been added to this ticket by ${message.author}`)
                     .setTimestamp();
-                await message.channel.send({ embeds: [logEmbed] });
+                await message.channel.send({ embeds: [embed] });
             }
         },
         
@@ -290,38 +339,56 @@ module.exports = {
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                if (!await isStaff(message.member, supabase)) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members can remove users from tickets.');
                     return message.reply({ embeds: [embed] });
                 }
                 
                 const target = message.mentions.members.first();
                 if (!target) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No User', 'Please mention a user to remove!\nUsage: `!remove @user`');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No User', 'Please mention a user to remove.\nUsage: `!remove @user`');
                     return message.reply({ embeds: [embed] });
                 }
                 
                 await message.channel.permissionOverwrites.delete(target.id);
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'User Removed', `${target} has been removed from this ticket!`);
-                await message.reply({ embeds: [embed] });
-                
-                // Log to ticket
-                const logEmbed = new EmbedBuilder()
+                const embed = new EmbedBuilder()
                     .setColor(0xED4245)
-                    .setDescription(`👤 ${message.author} removed ${target} from the ticket`)
+                    .setDescription(`❌ ${target} has been removed from this ticket by ${message.author}`)
                     .setTimestamp();
-                await message.channel.send({ embeds: [logEmbed] });
+                await message.channel.send({ embeds: [embed] });
             }
         },
         
-        // ========== CLAIM TICKET ==========
+        // ========== CLAIM TICKET (STAFF ONLY) ==========
         claim: {
             aliases: ['claimticket', 'take'],
-            description: 'Claim the current ticket',
+            description: 'Claim the current ticket (Staff only)',
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                // Staff check
+                if (!await isStaff(message.member, supabase)) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members can claim tickets.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                const { data: ticket } = await supabase
+                    .from('tickets')
+                    .select('claimed_by')
+                    .eq('channel_id', message.channel.id)
+                    .single();
+                
+                if (ticket?.claimed_by) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'warn', 'Already Claimed', `This ticket has already been claimed by <@${ticket.claimed_by}>.`);
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -336,13 +403,16 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0x57F287)
-                    .setDescription(`✅ ${message.author} has claimed this ticket!`)
+                    .setDescription(`🎫 ${message.author} has claimed this ticket and will now handle it.`)
                     .setTimestamp();
                 await message.channel.send({ embeds: [embed] });
                 
                 // Try to rename channel
                 try {
-                    await message.channel.setName(`${message.channel.name}-claimed`);
+                    const currentName = message.channel.name;
+                    if (!currentName.includes('-claimed')) {
+                        await message.channel.setName(`${currentName}-claimed`);
+                    }
                 } catch (e) {}
             }
         },
@@ -354,13 +424,18 @@ module.exports = {
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
+                    return message.reply({ embeds: [embed] });
+                }
+                
+                if (!await isStaff(message.member, supabase)) {
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Permission Denied', 'Only staff members can add internal notes.');
                     return message.reply({ embeds: [embed] });
                 }
                 
                 const note = args.join(' ');
                 if (!note) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No Note', 'Please provide a note!\nUsage: `!note This user is VIP`');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'No Note', 'Please provide a note.\nUsage: `!note This user is VIP`');
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -375,12 +450,11 @@ module.exports = {
                 
                 const embed = new EmbedBuilder()
                     .setColor(0xFEE75C)
-                    .setAuthor({ name: '📝 Internal Note', iconURL: message.author.displayAvatarURL() })
-                    .setDescription(note)
+                    .setAuthor({ name: 'Internal Note', iconURL: message.author.displayAvatarURL() })
+                    .setDescription(`📝 ${note}`)
                     .setFooter({ text: `Added by ${message.author.tag}` })
                     .setTimestamp();
                 
-                // Send as ephemeral? No, but we can make it look like staff-only
                 await message.channel.send({ embeds: [embed] });
             }
         },
@@ -392,7 +466,7 @@ module.exports = {
             category: 'Tickets',
             async execute(message, args, { client, supabase }) {
                 if (!message.channel.name?.startsWith('ticket-')) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not a Ticket', 'This command can only be used in ticket channels!');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Channel', 'This command can only be used in ticket channels.');
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -406,12 +480,12 @@ module.exports = {
                         .eq('guild_id', message.guild.id);
                     
                     if (!snippets || snippets.length === 0) {
-                        const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'No Snippets', 'No snippets configured. Create one with `!addsnippet name message`');
+                        const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'No Snippets', 'No snippets configured yet. Create one with `!addsnippet <name> <message>`');
                         return message.reply({ embeds: [embed] });
                     }
                     
-                    const list = snippets.map(s => `**!snippet ${s.name}** - ${s.description || s.content.substring(0, 50)}...`).join('\n');
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'Available Snippets', list);
+                    const list = snippets.map(s => `**!snippet ${s.name}** - ${(s.description || s.content).substring(0, 60)}...`).join('\n');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'info', 'Quick Replies', list);
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -423,7 +497,7 @@ module.exports = {
                     .single();
                 
                 if (!snippet) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Snippet Not Found', `Snippet "${snippetName}" not found!`);
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Not Found', `Quick reply **${snippetName}** not found.`);
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -442,7 +516,7 @@ module.exports = {
                 const content = args.slice(1).join(' ');
                 
                 if (!name || !content) {
-                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Usage', 'Usage: `!addsnippet name Content of the snippet`');
+                    const embed = await buildEmbed(client, message.guild.id, message.author.id, 'error', 'Invalid Usage', 'Usage: `!addsnippet <name> <content>`\nExample: `!addsnippet thankyou Thank you for contacting support!`');
                     return message.reply({ embeds: [embed] });
                 }
                 
@@ -450,10 +524,12 @@ module.exports = {
                     guild_id: message.guild.id,
                     name: name,
                     content: content,
-                    created_by: message.author.id
+                    created_by: message.author.id,
+                    created_by_tag: message.author.tag,
+                    created_at: new Date().toISOString()
                 });
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Snippet Added', `Snippet **${name}** has been added!\nUse \`!snippet ${name}\` to use it.`);
+                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Snippet Added', `Quick reply **${name}** has been added.\nUse \`!snippet ${name}\` to use it.`);
                 return message.reply({ embeds: [embed] });
             }
         },
@@ -482,14 +558,16 @@ module.exports = {
                 const closedTickets = tickets?.filter(t => t.status === 'closed').length || 0;
                 
                 const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
+                    .setColor(0x2B2D31)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(`📊 Ticket Stats for ${target.username}`)
+                    .setTitle(`Ticket Statistics`)
+                    .setThumbnail(target.displayAvatarURL())
                     .addFields([
+                        { name: 'User', value: target.tag, inline: true },
                         { name: 'Total Tickets', value: `${tickets?.length || 0}`, inline: true },
-                        { name: 'Open Tickets', value: `${openTickets}`, inline: true },
-                        { name: 'Closed Tickets', value: `${closedTickets}`, inline: true },
-                        { name: 'Claimed Tickets', value: `${claimed?.length || 0}`, inline: true }
+                        { name: 'Open', value: `${openTickets}`, inline: true },
+                        { name: 'Closed', value: `${closedTickets}`, inline: true },
+                        { name: 'Claimed', value: `${claimed?.length || 0}`, inline: true }
                     ])
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();
@@ -517,8 +595,51 @@ module.exports = {
                     log_channel_id: channel.id
                 });
                 
-                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Log Channel Set', `Ticket log channel set to ${channel}`);
+                const embed = await buildEmbed(client, message.guild.id, message.author.id, 'success', 'Log Channel Set', `Ticket logs will be sent to ${channel}`);
                 return message.reply({ embeds: [embed] });
+            }
+        },
+        
+        // ========== TICKET PANEL SETTINGS ==========
+        ticketpanel: {
+            aliases: ['panel'],
+            permissions: 'Administrator',
+            description: 'Configure the ticket panel',
+            category: 'Tickets',
+            async execute(message, args, { client, supabase }) {
+                const embed = new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
+                    .setTitle('Ticket Panel Configuration')
+                    .setDescription('Use the buttons below to configure the ticket system.')
+                    .addFields([
+                        { name: '📋 Create Panel', value: 'Create a new ticket panel in this channel', inline: true },
+                        { name: '📊 Log Channel', value: 'Set where ticket logs are sent', inline: true },
+                        { name: '👥 Staff Roles', value: 'Configure which roles can manage tickets', inline: true }
+                    ])
+                    .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
+                    .setTimestamp();
+                
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('ticket_create_panel')
+                            .setLabel('Create Panel')
+                            .setStyle(ButtonStyle.Primary)
+                            .setEmoji('📋'),
+                        new ButtonBuilder()
+                            .setCustomId('ticket_set_log')
+                            .setLabel('Log Channel')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('📊'),
+                        new ButtonBuilder()
+                            .setCustomId('ticket_staff_roles')
+                            .setLabel('Staff Roles')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('👥')
+                    );
+                
+                return message.reply({ embeds: [embed], components: [row] });
             }
         }
     }

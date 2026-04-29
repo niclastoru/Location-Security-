@@ -118,11 +118,12 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Search YouTube
+// ⭐ Search YouTube using ytsearch
 async function searchYouTube(query) {
     try {
         // For direct URL
         if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
+            console.log(`🎵 Direct URL: ${query}`);
             const info = await ytdl.getInfo(query);
             return {
                 title: info.videoDetails.title,
@@ -132,9 +133,17 @@ async function searchYouTube(query) {
             };
         }
         
-        // For search query - use ytdl-core's search
+        // For search query - using ytsearch
+        console.log(`🔍 Searching: ${query}`);
         const searchQuery = `ytsearch:${query}`;
         const info = await ytdl.getInfo(searchQuery);
+        
+        if (!info || !info.videoDetails) {
+            console.log('❌ No results found');
+            return null;
+        }
+        
+        console.log(`✅ Found: ${info.videoDetails.title}`);
         return {
             title: info.videoDetails.title,
             url: info.videoDetails.video_url,
@@ -208,6 +217,8 @@ async function playSong(guild, channel, song, client) {
         
     } catch (error) {
         console.error('Play error:', error);
+        const errorEmbed = await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error');
+        channel.send({ embeds: [errorEmbed] }).catch(() => {});
         queue.songs.shift();
         if (queue.songs.length > 0) {
             playSong(guild, channel, queue.songs[0], client);
@@ -298,6 +309,7 @@ module.exports = {
                                 selfDeaf: false
                             });
                             queue.connection.subscribe(queue.player);
+                            console.log(`✅ Bot joined ${voiceChannel.name}`);
                         }
                         playSong(message.guild, message.channel, song, client);
                     }

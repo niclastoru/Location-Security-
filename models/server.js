@@ -144,7 +144,10 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ========== EMBED BUILDER HELPER FUNCTIONS ==========
+// ========== EMBED BUILDER ==========
+
+// Embed builder sessions cache
+const embedSessions = new Map();
 
 // Helper: Create embed from data
 function createEmbedFromData(data) {
@@ -164,30 +167,10 @@ function createEmbedFromData(data) {
         text: data.footer_text, 
         iconURL: data.footer_icon || null 
     });
-    if (data.timestamp) embed.setTimestamp();
+    if (data.timestamp !== false) embed.setTimestamp();
     
     return embed;
 }
-
-// Helper: Create input modal
-function createInputModal(customId, title, label, placeholder, required = true, style = TextInputStyle.Short) {
-    const modal = new ModalBuilder()
-        .setCustomId(customId)
-        .setTitle(title);
-    
-    const input = new TextInputBuilder()
-        .setCustomId('input')
-        .setLabel(label)
-        .setPlaceholder(placeholder)
-        .setRequired(required)
-        .setStyle(style);
-    
-    modal.addComponents(new ActionRowBuilder().addComponents(input));
-    return modal;
-}
-
-// Embed builder sessions cache
-const embedSessions = new Map();
 
 // Main embed builder function
 async function embedBuilder(message, client, supabase) {
@@ -211,36 +194,58 @@ async function embedBuilder(message, client, supabase) {
         fields: []
     });
     
-    // Create dropdown menu
+    // Create dropdown menu with ALL options visible
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId(`embed_menu_${sessionId}`)
-        .setPlaceholder('Select an option to edit...')
+        .setPlaceholder('📋 Select an option to edit...')
         .addOptions([
             { label: '📝 Title', value: 'title', description: 'Set the embed title', emoji: '📝' },
             { label: '📄 Description', value: 'description', description: 'Set the embed description', emoji: '📄' },
-            { label: '🎨 Color', value: 'color', description: 'Set the embed color (hex)', emoji: '🎨' },
-            { label: '👤 Author', value: 'author', description: 'Set the author name/icon/url', emoji: '👤' },
-            { label: '🖼️ Thumbnail', value: 'thumbnail', description: 'Set a thumbnail image URL', emoji: '🖼️' },
-            { label: '📷 Image', value: 'image', description: 'Set a main image URL', emoji: '📷' },
-            { label: '📌 Footer', value: 'footer', description: 'Set the footer text/icon', emoji: '📌' },
-            { label: '⏰ Timestamp', value: 'timestamp', description: 'Toggle timestamp', emoji: '⏰' },
+            { label: '🎨 Color', value: 'color', description: 'Set the embed color (Hex)', emoji: '🎨' },
+            { label: '👤 Author', value: 'author', description: 'Set author name/icon/url', emoji: '👤' },
+            { label: '🖼️ Thumbnail', value: 'thumbnail', description: 'Set a thumbnail image', emoji: '🖼️' },
+            { label: '📷 Image', value: 'image', description: 'Set a main image', emoji: '📷' },
+            { label: '📌 Footer', value: 'footer', description: 'Set footer text/icon', emoji: '📌' },
+            { label: '⏰ Timestamp', value: 'timestamp', description: 'Toggle timestamp on/off', emoji: '⏰' },
             { label: '📋 Fields', value: 'fields', description: 'Manage embed fields', emoji: '📋' },
-            { label: '📤 Send', value: 'send', description: 'Send the embed', emoji: '📤' },
-            { label: '🗑️ Cancel', value: 'cancel', description: 'Cancel editing', emoji: '🗑️' }
+            { label: '💾 Save as Template', value: 'save', description: 'Save this embed as a template', emoji: '💾' },
+            { label: '📤 Send', value: 'send', description: 'Send the embed to this channel', emoji: '📤' },
+            { label: '❌ Cancel', value: 'cancel', description: 'Cancel editing', emoji: '❌' }
         ]);
     
     const row = new ActionRowBuilder().addComponents(selectMenu);
     
-    // Preview embed
+    // Create LIST of current settings
+    const session = embedSessions.get(sessionId);
+    const settingsList = [
+        `**📝 Title:** ${session.title || '❌ Not set'}`,
+        `**📄 Description:** ${session.description ? session.description.substring(0, 50) + '...' : '❌ Not set'}`,
+        `**🎨 Color:** ${session.color}`,
+        `**👤 Author:** ${session.author_name || '❌ Not set'}`,
+        `**🖼️ Thumbnail:** ${session.thumbnail_url ? '✅ Set' : '❌ Not set'}`,
+        `**📷 Image:** ${session.image_url ? '✅ Set' : '❌ Not set'}`,
+        `**📌 Footer:** ${session.footer_text || '❌ Not set'}`,
+        `**⏰ Timestamp:** ${session.timestamp ? '✅ Enabled' : '❌ Disabled'}`,
+        `**📋 Fields:** ${session.fields.length} fields`
+    ].join('\n');
+    
     const previewEmbed = new EmbedBuilder()
         .setColor(0x2B2D31)
         .setTitle('🎨 Embed Builder')
-        .setDescription('Use the dropdown menu below to build your embed.\n\n**Current settings:**\n• Title: Not set\n• Description: Not set\n• Color: #2B2D31\n• Timestamp: Enabled\n• Fields: 0')
-        .setFooter({ text: 'Select an option to start building' })
+        .setDescription(`### 📋 Settings\n${settingsList}\n\n---\n### 👇 Action\nSelect an option from the dropdown menu below.`)
+        .setFooter({ text: 'Select an option from the dropdown menu' })
         .setTimestamp();
     
+    // Live preview of the embed being built
+    const liveEmbed = createEmbedFromData(session);
+    if (session.fields.length > 0) {
+        liveEmbed.addFields(session.fields);
+    } else {
+        liveEmbed.addFields({ name: 'ℹ️ No Fields', value: 'Add fields using the dropdown menu', inline: false });
+    }
+    
     const embedMsg = await message.reply({
-        embeds: [previewEmbed],
+        embeds: [previewEmbed, liveEmbed],
         components: [row]
     });
     
@@ -257,17 +262,50 @@ async function embedBuilder(message, client, supabase) {
             
             switch (value) {
                 case 'title':
-                    const titleModal = createInputModal(`embed_title_${sessionId}`, 'Set Title', 'Title', 'Enter a title for your embed...');
+                    const titleModal = new ModalBuilder()
+                        .setCustomId(`embed_title_${sessionId}`)
+                        .setTitle('Set Title');
+                    
+                    const titleInput = new TextInputBuilder()
+                        .setCustomId('input')
+                        .setLabel('Title')
+                        .setPlaceholder('Enter a title for your embed...')
+                        .setRequired(true)
+                        .setStyle(TextInputStyle.Short);
+                    
+                    titleModal.addComponents(new ActionRowBuilder().addComponents(titleInput));
                     await interaction.followUp({ modals: [titleModal], ephemeral: true });
                     break;
                     
                 case 'description':
-                    const descModal = createInputModal(`embed_desc_${sessionId}`, 'Set Description', 'Description', 'Enter a description...', true, TextInputStyle.Paragraph);
+                    const descModal = new ModalBuilder()
+                        .setCustomId(`embed_desc_${sessionId}`)
+                        .setTitle('Set Description');
+                    
+                    const descInput = new TextInputBuilder()
+                        .setCustomId('input')
+                        .setLabel('Description')
+                        .setPlaceholder('Enter a description for your embed...')
+                        .setRequired(true)
+                        .setStyle(TextInputStyle.Paragraph);
+                    
+                    descModal.addComponents(new ActionRowBuilder().addComponents(descInput));
                     await interaction.followUp({ modals: [descModal], ephemeral: true });
                     break;
                     
                 case 'color':
-                    const colorModal = createInputModal(`embed_color_${sessionId}`, 'Set Color', 'Hex Color', '#2B2D31 or FF5733');
+                    const colorModal = new ModalBuilder()
+                        .setCustomId(`embed_color_${sessionId}`)
+                        .setTitle('Set Color');
+                    
+                    const colorInput = new TextInputBuilder()
+                        .setCustomId('input')
+                        .setLabel('Hex Color')
+                        .setPlaceholder('#2B2D31 or FF5733')
+                        .setRequired(true)
+                        .setStyle(TextInputStyle.Short);
+                    
+                    colorModal.addComponents(new ActionRowBuilder().addComponents(colorInput));
                     await interaction.followUp({ modals: [colorModal], ephemeral: true });
                     break;
                     
@@ -279,7 +317,7 @@ async function embedBuilder(message, client, supabase) {
                     const nameInput = new TextInputBuilder()
                         .setCustomId('name')
                         .setLabel('Author Name')
-                        .setPlaceholder('John Doe')
+                        .setPlaceholder('e.g., John Doe')
                         .setRequired(false)
                         .setStyle(TextInputStyle.Short);
                     
@@ -307,12 +345,34 @@ async function embedBuilder(message, client, supabase) {
                     break;
                     
                 case 'thumbnail':
-                    const thumbModal = createInputModal(`embed_thumbnail_${sessionId}`, 'Set Thumbnail', 'Thumbnail URL', 'https://...');
+                    const thumbModal = new ModalBuilder()
+                        .setCustomId(`embed_thumbnail_${sessionId}`)
+                        .setTitle('Set Thumbnail');
+                    
+                    const thumbInput = new TextInputBuilder()
+                        .setCustomId('input')
+                        .setLabel('Thumbnail URL')
+                        .setPlaceholder('https://...')
+                        .setRequired(false)
+                        .setStyle(TextInputStyle.Short);
+                    
+                    thumbModal.addComponents(new ActionRowBuilder().addComponents(thumbInput));
                     await interaction.followUp({ modals: [thumbModal], ephemeral: true });
                     break;
                     
                 case 'image':
-                    const imageModal = createInputModal(`embed_image_${sessionId}`, 'Set Image', 'Image URL', 'https://...');
+                    const imageModal = new ModalBuilder()
+                        .setCustomId(`embed_image_${sessionId}`)
+                        .setTitle('Set Image');
+                    
+                    const imageInput = new TextInputBuilder()
+                        .setCustomId('input')
+                        .setLabel('Image URL')
+                        .setPlaceholder('https://...')
+                        .setRequired(false)
+                        .setStyle(TextInputStyle.Short);
+                    
+                    imageModal.addComponents(new ActionRowBuilder().addComponents(imageInput));
                     await interaction.followUp({ modals: [imageModal], ephemeral: true });
                     break;
                     
@@ -324,7 +384,7 @@ async function embedBuilder(message, client, supabase) {
                     const textInput = new TextInputBuilder()
                         .setCustomId('text')
                         .setLabel('Footer Text')
-                        .setPlaceholder('Powered by Bot')
+                        .setPlaceholder('e.g., Powered by Bot')
                         .setRequired(false)
                         .setStyle(TextInputStyle.Short);
                     
@@ -346,11 +406,15 @@ async function embedBuilder(message, client, supabase) {
                 case 'timestamp':
                     session.timestamp = !session.timestamp;
                     embedSessions.set(sessionId, session);
-                    await updateEmbedPreview(interaction, sessionId, message, embedMsg);
+                    await updateEmbedPreview(interaction, sessionId, embedMsg);
                     break;
                     
                 case 'fields':
-                    await showFieldMenu(interaction, sessionId, message, embedMsg);
+                    await showFieldMenu(interaction, sessionId, embedMsg);
+                    break;
+                    
+                case 'save':
+                    await saveTemplate(interaction, sessionId, message, supabase);
                     break;
                     
                 case 'send':
@@ -380,7 +444,7 @@ async function embedBuilder(message, client, supabase) {
                 const nameField = new TextInputBuilder()
                     .setCustomId('name')
                     .setLabel('Field Name')
-                    .setPlaceholder('Example: Information')
+                    .setPlaceholder('e.g., Information')
                     .setRequired(true)
                     .setStyle(TextInputStyle.Short);
                 
@@ -408,14 +472,14 @@ async function embedBuilder(message, client, supabase) {
             } else if (value === 'clear') {
                 session.fields = [];
                 embedSessions.set(sessionId, session);
-                await updateEmbedPreview(interaction, sessionId, message, embedMsg);
-                await showFieldMenu(interaction, sessionId, message, embedMsg);
+                await updateEmbedPreview(interaction, sessionId, embedMsg);
+                await showFieldMenu(interaction, sessionId, embedMsg);
             } else if (value.startsWith('remove_')) {
                 const fieldId = parseInt(value.split('_')[1]);
                 session.fields = session.fields.filter((_, i) => i !== fieldId);
                 embedSessions.set(sessionId, session);
-                await updateEmbedPreview(interaction, sessionId, message, embedMsg);
-                await showFieldMenu(interaction, sessionId, message, embedMsg);
+                await updateEmbedPreview(interaction, sessionId, embedMsg);
+                await showFieldMenu(interaction, sessionId, embedMsg);
             }
         }
     });
@@ -431,18 +495,16 @@ async function embedBuilder(message, client, supabase) {
         const modalId = modalInteraction.customId;
         
         if (modalId.startsWith('embed_title_')) {
-            const title = modalInteraction.fields.getTextInputValue('input');
-            session.title = title;
+            session.title = modalInteraction.fields.getTextInputValue('input');
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
         else if (modalId.startsWith('embed_desc_')) {
-            const description = modalInteraction.fields.getTextInputValue('input');
-            session.description = description;
+            session.description = modalInteraction.fields.getTextInputValue('input');
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
@@ -452,7 +514,7 @@ async function embedBuilder(message, client, supabase) {
             if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#2B2D31';
             session.color = color;
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
@@ -461,21 +523,21 @@ async function embedBuilder(message, client, supabase) {
             session.author_icon = modalInteraction.fields.getTextInputValue('icon') || null;
             session.author_url = modalInteraction.fields.getTextInputValue('url') || null;
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
         else if (modalId.startsWith('embed_thumbnail_')) {
             session.thumbnail_url = modalInteraction.fields.getTextInputValue('input') || null;
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
         else if (modalId.startsWith('embed_image_')) {
             session.image_url = modalInteraction.fields.getTextInputValue('input') || null;
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
@@ -483,7 +545,7 @@ async function embedBuilder(message, client, supabase) {
             session.footer_text = modalInteraction.fields.getTextInputValue('text') || null;
             session.footer_icon = modalInteraction.fields.getTextInputValue('icon') || null;
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
         }
         
@@ -495,62 +557,45 @@ async function embedBuilder(message, client, supabase) {
             
             session.fields.push({ name, value, inline });
             embedSessions.set(sessionId, session);
-            await updateEmbedPreview(modalInteraction, sessionId, message, embedMsg);
+            await updateEmbedPreview(modalInteraction, sessionId, embedMsg);
             await modalInteraction.deferUpdate();
+        }
+        
+        else if (modalId.startsWith('embed_save_')) {
+            const templateName = modalInteraction.fields.getTextInputValue('name');
+            
+            await supabase.from('embed_templates').insert({
+                guild_id: message.guild.id,
+                name: templateName,
+                title: session.title,
+                description: session.description,
+                color: session.color,
+                author_name: session.author_name,
+                author_icon: session.author_icon,
+                author_url: session.author_url,
+                thumbnail_url: session.thumbnail_url,
+                image_url: session.image_url,
+                footer_text: session.footer_text,
+                footer_icon: session.footer_icon,
+                timestamp: session.timestamp,
+                created_by: message.author.id,
+                created_at: new Date().toISOString()
+            });
+            
+            await modalInteraction.reply({ content: `✅ Template **${templateName}** has been saved!`, ephemeral: true });
         }
     });
 }
 
-async function updateEmbedPreview(interaction, sessionId, message, embedMsg) {
-    const session = embedSessions.get(sessionId);
-    if (!session) return;
-    
-    const embed = createEmbedFromData(session);
-    
-    if (session.fields.length > 0) {
-        embed.addFields(session.fields);
-    } else {
-        embed.addFields({ name: 'ℹ️ No Fields', value: 'Use the fields menu to add fields', inline: false });
-    }
-    
-    const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`embed_menu_${sessionId}`)
-        .setPlaceholder('Select an option to edit...')
-        .addOptions([
-            { label: '📝 Title', value: 'title', description: 'Set the embed title', emoji: '📝' },
-            { label: '📄 Description', value: 'description', description: 'Set the embed description', emoji: '📄' },
-            { label: '🎨 Color', value: 'color', description: 'Set the embed color (hex)', emoji: '🎨' },
-            { label: '👤 Author', value: 'author', description: 'Set the author name/icon/url', emoji: '👤' },
-            { label: '🖼️ Thumbnail', value: 'thumbnail', description: 'Set a thumbnail image URL', emoji: '🖼️' },
-            { label: '📷 Image', value: 'image', description: 'Set a main image URL', emoji: '📷' },
-            { label: '📌 Footer', value: 'footer', description: 'Set the footer text/icon', emoji: '📌' },
-            { label: '⏰ Timestamp', value: 'timestamp', description: 'Toggle timestamp', emoji: '⏰' },
-            { label: '📋 Fields', value: 'fields', description: 'Manage embed fields', emoji: '📋' },
-            { label: '📤 Send', value: 'send', description: 'Send the embed', emoji: '📤' },
-            { label: '🗑️ Cancel', value: 'cancel', description: 'Cancel editing', emoji: '🗑️' }
-        ]);
-    
-    const row = new ActionRowBuilder().addComponents(selectMenu);
-    
-    const previewEmbed = new EmbedBuilder()
-        .setColor(0x2B2D31)
-        .setTitle('🎨 Embed Builder')
-        .setDescription(`**Current settings:**\n• Title: ${session.title || 'Not set'}\n• Description: ${session.description ? session.description.substring(0, 50) + '...' : 'Not set'}\n• Color: ${session.color}\n• Timestamp: ${session.timestamp ? 'Enabled' : 'Disabled'}\n• Fields: ${session.fields.length}\n• Author: ${session.author_name || 'Not set'}\n• Footer: ${session.footer_text || 'Not set'}`)
-        .setFooter({ text: 'This is a preview of your embed ↓' })
-        .setTimestamp();
-    
-    await embedMsg.edit({ embeds: [previewEmbed, embed], components: [row] });
-}
-
-async function showFieldMenu(interaction, sessionId, message, embedMsg) {
+async function showFieldMenu(interaction, sessionId, embedMsg) {
     const session = embedSessions.get(sessionId);
     const fields = session?.fields || [];
     
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId(`embed_fields_${sessionId}`)
-        .setPlaceholder('Manage fields...')
+        .setPlaceholder('📋 Manage fields...')
         .addOptions([
-            { label: '➕ Add Field', value: 'add', description: 'Add a new field to the embed', emoji: '➕' },
+            { label: '➕ Add Field', value: 'add', description: 'Add a new field', emoji: '➕' },
             { label: '🗑️ Clear All Fields', value: 'clear', description: 'Remove all fields', emoji: '🗑️' }
         ]);
     
@@ -574,6 +619,25 @@ async function showFieldMenu(interaction, sessionId, message, embedMsg) {
     await interaction.editReply({ embeds: [embed], components: [row] });
 }
 
+async function saveTemplate(interaction, sessionId, message, supabase) {
+    const session = embedSessions.get(sessionId);
+    if (!session) return;
+    
+    const saveModal = new ModalBuilder()
+        .setCustomId(`embed_save_${sessionId}`)
+        .setTitle('Save Template');
+    
+    const nameInput = new TextInputBuilder()
+        .setCustomId('name')
+        .setLabel('Template Name')
+        .setPlaceholder('e.g., Welcome Embed')
+        .setRequired(true)
+        .setStyle(TextInputStyle.Short);
+    
+    saveModal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+    await interaction.followUp({ modals: [saveModal], ephemeral: true });
+}
+
 async function sendEmbedMessage(interaction, sessionId, message) {
     const session = embedSessions.get(sessionId);
     if (!session) return;
@@ -584,8 +648,63 @@ async function sendEmbedMessage(interaction, sessionId, message) {
     }
     
     await message.channel.send({ embeds: [embed] });
-    await interaction.editReply({ content: '✅ Embed sent!', embeds: [], components: [] });
+    await interaction.editReply({ content: '✅ Embed has been sent!', embeds: [], components: [] });
     embedSessions.delete(sessionId);
+}
+
+async function updateEmbedPreview(interaction, sessionId, embedMsg) {
+    const session = embedSessions.get(sessionId);
+    if (!session) return;
+    
+    // Update settings list
+    const settingsList = [
+        `**📝 Title:** ${session.title || '❌ Not set'}`,
+        `**📄 Description:** ${session.description ? session.description.substring(0, 50) + '...' : '❌ Not set'}`,
+        `**🎨 Color:** ${session.color}`,
+        `**👤 Author:** ${session.author_name || '❌ Not set'}`,
+        `**🖼️ Thumbnail:** ${session.thumbnail_url ? '✅ Set' : '❌ Not set'}`,
+        `**📷 Image:** ${session.image_url ? '✅ Set' : '❌ Not set'}`,
+        `**📌 Footer:** ${session.footer_text || '❌ Not set'}`,
+        `**⏰ Timestamp:** ${session.timestamp ? '✅ Enabled' : '❌ Disabled'}`,
+        `**📋 Fields:** ${session.fields.length} fields`
+    ].join('\n');
+    
+    const previewEmbed = new EmbedBuilder()
+        .setColor(0x2B2D31)
+        .setTitle('🎨 Embed Builder')
+        .setDescription(`### 📋 Settings\n${settingsList}\n\n---\n### 👇 Action\nSelect an option from the dropdown menu below.`)
+        .setFooter({ text: 'Select an option from the dropdown menu' })
+        .setTimestamp();
+    
+    // Live preview
+    const liveEmbed = createEmbedFromData(session);
+    if (session.fields.length > 0) {
+        liveEmbed.addFields(session.fields);
+    } else {
+        liveEmbed.addFields({ name: 'ℹ️ No Fields', value: 'Add fields using the dropdown menu', inline: false });
+    }
+    
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`embed_menu_${sessionId}`)
+        .setPlaceholder('📋 Select an option to edit...')
+        .addOptions([
+            { label: '📝 Title', value: 'title', description: 'Set the embed title', emoji: '📝' },
+            { label: '📄 Description', value: 'description', description: 'Set the embed description', emoji: '📄' },
+            { label: '🎨 Color', value: 'color', description: 'Set the embed color (Hex)', emoji: '🎨' },
+            { label: '👤 Author', value: 'author', description: 'Set author name/icon/url', emoji: '👤' },
+            { label: '🖼️ Thumbnail', value: 'thumbnail', description: 'Set a thumbnail image', emoji: '🖼️' },
+            { label: '📷 Image', value: 'image', description: 'Set a main image', emoji: '📷' },
+            { label: '📌 Footer', value: 'footer', description: 'Set footer text/icon', emoji: '📌' },
+            { label: '⏰ Timestamp', value: 'timestamp', description: 'Toggle timestamp on/off', emoji: '⏰' },
+            { label: '📋 Fields', value: 'fields', description: 'Manage embed fields', emoji: '📋' },
+            { label: '💾 Save as Template', value: 'save', description: 'Save this embed as a template', emoji: '💾' },
+            { label: '📤 Send', value: 'send', description: 'Send the embed to this channel', emoji: '📤' },
+            { label: '❌ Cancel', value: 'cancel', description: 'Cancel editing', emoji: '❌' }
+        ]);
+    
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    
+    await embedMsg.edit({ embeds: [previewEmbed, liveEmbed], components: [row] });
 }
 
 module.exports = {

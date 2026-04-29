@@ -29,14 +29,14 @@ function createEmbed(message, type, title, description, fields = []) {
     return embed;
 }
 
-// ⭐ Generate ship image like in the screenshot
+// ⭐ Generate ship image like in the screenshot (with BIG heart)
 async function generateShipImage(user1, user2) {
     const width = 500;
     const height = 250;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Background - dark theme
+    // Background - dark theme like Discord
     ctx.fillStyle = '#1a1b1e';
     ctx.fillRect(0, 0, width, height);
     
@@ -44,48 +44,52 @@ async function generateShipImage(user1, user2) {
     const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 256 }));
     const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 256 }));
     
-    // Avatar 1 (left)
+    // Avatar 1 (left) - bigger circle
     ctx.save();
     ctx.beginPath();
-    ctx.arc(180, 125, 60, 0, Math.PI * 2);
+    ctx.arc(175, 125, 65, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar1, 120, 65, 120, 120);
+    ctx.drawImage(avatar1, 110, 60, 130, 130);
     ctx.restore();
     
-    // Avatar 2 (right)
+    // Avatar 2 (right) - bigger circle
     ctx.save();
     ctx.beginPath();
-    ctx.arc(320, 125, 60, 0, Math.PI * 2);
+    ctx.arc(325, 125, 65, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar2, 260, 65, 120, 120);
+    ctx.drawImage(avatar2, 260, 60, 130, 130);
     ctx.restore();
     
-    // Draw heart in the middle
-    ctx.font = '50px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#FF69B4';
-    ctx.fillText('❤️', 225, 140);
+    // Draw BIG FAT heart in the middle (like on the screenshot)
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.font = '80px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#FF3B6F';
+    ctx.textAlign = 'center';
+    ctx.fillText('❤️', 250, 145);
+    ctx.restore();
     
     // Draw border
     ctx.strokeStyle = '#2c2f33';
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, width - 20, height - 20);
     
-    // Draw mixed name at the bottom
+    // Draw mixed name at the bottom (bigger and bold)
     const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
                          user2.username.slice(Math.floor(user2.username.length / 2));
     
-    ctx.font = 'bold 22px "Segoe UI", "Arial", sans-serif';
+    ctx.font = 'bold 24px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
-    ctx.fillText(combinedName, width / 2, 210);
+    ctx.fillText(combinedName, width / 2, 215);
     
     // Draw usernames above avatars
-    ctx.font = '12px "Segoe UI", "Arial", sans-serif';
+    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(user1.username, 180, 45);
-    ctx.fillText(user2.username, 320, 45);
+    ctx.fillText(user1.username, 175, 50);
+    ctx.fillText(user2.username, 325, 50);
     
     return canvas.toBuffer('image/png');
 }
@@ -104,7 +108,6 @@ module.exports = {
                     let user1 = message.mentions.users.first();
                     let user2 = message.mentions.users.last();
                     
-                    // If only one mention or none, use author as first
                     if (!user1 && args[0]) {
                         try {
                             user1 = await message.client.users.fetch(args[0]);
@@ -115,7 +118,6 @@ module.exports = {
                         user1 = message.author;
                     }
                     
-                    // If only one user or same user, get random second user
                     if (user1 === message.author && (!user2 || user2 === message.author)) {
                         const randomMember = message.guild.members.cache.filter(m => !m.user.bot && m.user.id !== user1.id).random();
                         if (randomMember) user2 = randomMember.user;
@@ -125,11 +127,9 @@ module.exports = {
                         user2 = message.guild.members.cache.filter(m => !m.user.bot && m.user.id !== user1.id).random()?.user || message.client.user;
                     }
                     
-                    // Generate ship image
                     const imageBuffer = await generateShipImage(user1, user2);
                     const attachment = { attachment: imageBuffer, name: 'ship.png' };
                     
-                    // Send ONLY the image - no embed, exactly like the screenshot
                     return message.reply({ files: [attachment] });
                     
                 } catch (error) {

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +18,6 @@ const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
 const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
 const { handleStarReaction, handleMessageDelete } = require('./models/starboard');
-const { handleTicketButton, handleTicketCloseButton, handleTicketClaimButton } = require('./models/ticket_events');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -257,6 +256,179 @@ client.on('messageCreate', async (message) => {
     }
 });
 
+// ========== TICKET BUTTON HANDLER ==========
+async function handleTicketButton(interaction, client, supabase) {
+    const customId = interaction.customId;
+    
+    // Extrahiere Typ und Kategorie aus customId (Format: ticket_type_categoryId)
+    const parts = customId.split('_');
+    const type = parts[1]; // support, admin, owner
+    const categoryId = parts[2];
+    
+    const category = interaction.guild.channels.cache.get(categoryId);
+    
+    if (!category) {
+        return interaction.reply({ content: '❌ Category not found! Please contact an admin.', ephemeral: true });
+    }
+    
+    // Get next ticket number
+    const { data: counterData } = await supabase
+        .from('ticket_counter')
+        .select('counter')
+        .eq('guild_id', interaction.guild.id)
+        .single();
+    
+    const ticketNumber = (counterData?.counter || 1);
+    
+    // Update counter
+    await supabase
+        .from('ticket_counter')
+        .upsert({ guild_id: interaction.guild.id, counter: ticketNumber + 1 });
+    
+    const ticketName = `ticket-${type}-${ticketNumber}`;
+    
+    // Create ticket channel
+    const ticketChannel = await interaction.guild.channels.create({
+        name: ticketName,
+        type: ChannelType.GuildText,
+        parent: category.id,
+        permissionOverwrites: [
+            {
+                id: interaction.guild.id,
+                deny: [PermissionFlagsBits.ViewChannel]
+            },
+            {
+                id: interaction.user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.AttachFiles,
+                    PermissionFlagsBits.EmbedLinks
+                ]
+            },
+            {
+                id: interaction.client.user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.ManageChannels
+                ]
+            }
+        ]
+    });
+    
+    // Save to database
+    await supabase.from('tickets').insert({
+        guild_id: interaction.guild.id,
+        channel_id: ticketChannel.id,
+        creator_id: interaction.user.id,
+        creator_tag: interaction.user.tag,
+        type: type,
+        ticket_id: `${type.toUpperCase()}-${ticketNumber}`,
+        status: 'open',
+        created_at: new Date().toISOString()
+    });
+    
+    // Send welcome message in ticket
+    const embed = new EmbedBuilder()
+        .setColor(0x57F287)
+        .setAuthor({ name: interaction.client.user.username, iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle(`🎫 Ticket: ${type.toUpperCase()}`)
+        .setDescription(`Hello ${interaction.user},\n\nSupport will be with you shortly. Please describe your issue in detail.`)
+        .addFields([
+            { name: '📋 Ticket ID', value: `${type.toUpperCase()}-${ticketNumber}`, inline: true },
+            { name: '👤 Created by', value: interaction.user.tag, inline: true },
+            { name: '📅 Created at', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+        ])
+        .setFooter({ text: 'Use !close to close this ticket' })
+        .setTimestamp();
+    
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('ticket_close')
+                .setLabel('Close Ticket')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('🔒'),
+            new ButtonBuilder()
+                .setCustomId('ticket_claim')
+                .setLabel('Claim')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('📋')
+        );
+    
+    await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+    
+    await interaction.reply({ content: `✅ Ticket created! Please go to ${ticketChannel}`, ephemeral: true });
+}
+
+// ========== TICKET CLOSE BUTTON HANDLER ==========
+async function handleTicketCloseButton(interaction, client, supabase) {
+    const channel = interaction.channel;
+    
+    if (!channel.name?.startsWith('ticket-')) {
+        return interaction.reply({ content: '❌ This is not a ticket channel!', ephemeral: true });
+    }
+    
+    await interaction.reply({ content: '🔒 Closing ticket...', ephemeral: true });
+    
+    // Get close command and execute
+    const closeCommand = client.commands.get('close');
+    if (closeCommand) {
+        await closeCommand.execute(interaction, [], { client, supabase });
+    } else {
+        await channel.delete();
+    }
+}
+
+// ========== TICKET CLAIM BUTTON HANDLER ==========
+async function handleTicketClaimButton(interaction, client, supabase) {
+    const channel = interaction.channel;
+    
+    if (!channel.name?.startsWith('ticket-')) {
+        return interaction.reply({ content: '❌ This is not a ticket channel!', ephemeral: true });
+    }
+    
+    // Check if user is staff
+    const member = interaction.member;
+    const isStaffMember = member.permissions.has(PermissionFlagsBits.Administrator) || 
+                          member.permissions.has(PermissionFlagsBits.ManageChannels);
+    
+    if (!isStaffMember) {
+        return interaction.reply({ content: '❌ Only staff members can claim tickets!', ephemeral: true });
+    }
+    
+    // Check if already claimed
+    const { data: ticket } = await supabase
+        .from('tickets')
+        .select('claimed_by')
+        .eq('channel_id', channel.id)
+        .single();
+    
+    if (ticket?.claimed_by) {
+        return interaction.reply({ content: `❌ This ticket has already been claimed by <@${ticket.claimed_by}>!`, ephemeral: true });
+    }
+    
+    await supabase
+        .from('tickets')
+        .update({ 
+            claimed_by: interaction.user.id,
+            claimed_by_tag: interaction.user.tag,
+            claimed_at: new Date().toISOString()
+        })
+        .eq('channel_id', channel.id);
+    
+    await interaction.reply({ content: `✅ ${interaction.user} has claimed this ticket!`, ephemeral: false });
+    
+    try {
+        if (!channel.name.includes('-claimed')) {
+            await channel.setName(`${channel.name}-claimed`);
+        }
+    } catch (e) {}
+}
+
 // ========== INTERACTION HANDLER (MIT TICKET BUTTONS) ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
@@ -265,22 +437,19 @@ client.on('interactionCreate', async (interaction) => {
             return handleVoiceMasterButton(interaction, client, supabase);
         }
         
-        // Ticket Creation Buttons (support, report, application)
+        // Ticket Creation Buttons (support, admin, owner)
         if (interaction.customId.startsWith('ticket_') && !interaction.customId.includes('close') && !interaction.customId.includes('claim')) {
-            const handled = await handleTicketButton(interaction, client, supabase);
-            if (handled) return;
+            return handleTicketButton(interaction, client, supabase);
         }
         
         // Ticket Close Button
         if (interaction.customId === 'ticket_close') {
-            await handleTicketCloseButton(interaction, client, supabase);
-            return;
+            return handleTicketCloseButton(interaction, client, supabase);
         }
         
         // Ticket Claim Button
         if (interaction.customId === 'ticket_claim') {
-            await handleTicketClaimButton(interaction, client, supabase);
-            return;
+            return handleTicketClaimButton(interaction, client, supabase);
         }
     }
 });

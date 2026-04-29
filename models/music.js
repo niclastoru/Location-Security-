@@ -1,6 +1,12 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
+const ffmpegStatic = require('ffmpeg-static');
+
+// ⭐ CRITICAL: Set FFmpeg path for @discordjs/voice
+process.env.FFMPEG_PATH = ffmpegStatic;
+
+console.log(`✅ FFmpeg path set to: ${ffmpegStatic}`);
 
 // Initialize play-dl
 (async () => {
@@ -83,7 +89,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             spotify_track_not_found: 'Spotify track not found!',
             no_match_found: 'No matching song found on YouTube/SoundCloud!',
             song_not_found: 'No song found! Try a different title.',
-            play_error: 'Could not play song! Make sure FFmpeg is installed.',
+            play_error: 'Could not play song! Make sure the video is available.',
             no_song_playing: 'No song is currently playing!',
             skipped: 'Song skipped! ⏭️',
             stopped: 'Music stopped! 👋',
@@ -182,19 +188,18 @@ async function searchSong(query) {
     }
 }
 
-// ⭐ Play song (FULLY FIXED with FFmpeg check)
+// ⭐ Play song
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Attempting to play: ${song.title} (${song.platform})`);
-        console.log(`🎵 URL: ${song.url}`);
+        console.log(`🎵 FFmpeg path: ${process.env.FFMPEG_PATH}`);
         
         if (!song.url) {
             throw new Error('No URL provided');
         }
         
-        // Get stream with better error handling
         let stream;
         try {
             stream = await play.stream(song.url, {
@@ -218,7 +223,6 @@ async function playSong(guild, channel, song, client) {
         }
         
         console.log(`🎵 Stream type: ${stream.type}`);
-        console.log(`🎵 Creating audio resource...`);
         
         const resource = createAudioResource(stream.stream, { 
             inputType: stream.type,
@@ -236,7 +240,6 @@ async function playSong(guild, channel, song, client) {
         
         console.log(`🎵 Player status: ${queue.player.state.status}`);
         
-        // Send now playing embed
         const embed = new EmbedBuilder()
             .setColor(song.platform === 'youtube' ? 0xFF0000 : song.platform === 'soundcloud' ? 0xFF5500 : 0x1DB954)
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
@@ -256,7 +259,6 @@ async function playSong(guild, channel, song, client) {
         
         await channel.send({ embeds: [embed] });
         
-        // Handle next song
         queue.player.once(AudioPlayerStatus.Idle, () => {
             console.log('🎵 Player became idle, moving to next song...');
             queue.playing = false;
@@ -331,7 +333,6 @@ module.exports = {
                     let songInfo = null;
                     let isUrl = false;
                     
-                    // YouTube URL
                     if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
                         isUrl = true;
                         try {
@@ -348,7 +349,6 @@ module.exports = {
                         }
                     }
                     
-                    // SoundCloud URL
                     if (!songInfo && (query.includes('soundcloud.com') || query.includes('on.soundcloud.com'))) {
                         isUrl = true;
                         try {
@@ -365,7 +365,6 @@ module.exports = {
                         }
                     }
                     
-                    // Search
                     if (!songInfo && !isUrl) {
                         songInfo = await searchSong(query);
                     }
@@ -428,8 +427,6 @@ module.exports = {
                                 queue.connection.subscribe(queue.player);
                                 
                                 console.log(`✅ Bot joined ${voiceChannel.name}`);
-                                console.log(`   Bot ID: ${client.user.id}`);
-                                console.log(`   Channel ID: ${voiceChannel.id}`);
                             } catch (err) {
                                 console.error('❌ Connection error:', err);
                                 return loadingMsg.edit({ 

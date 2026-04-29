@@ -29,67 +29,55 @@ function createEmbed(message, type, title, description, fields = []) {
     return embed;
 }
 
-// ⭐ Generate ship image like in the screenshot (with BIG heart)
+// ⭐ Generate ship image - EXACTLY like the other bot (1:1 copy)
 async function generateShipImage(user1, user2) {
-    const width = 500;
-    const height = 250;
+    const width = 450;
+    const height = 200;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Background - dark theme like Discord
-    ctx.fillStyle = '#1a1b1e';
+    // Background - Discord dark theme
+    ctx.fillStyle = '#1e1f22';
     ctx.fillRect(0, 0, width, height);
     
     // Get avatars
     const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 256 }));
     const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 256 }));
     
-    // Avatar 1 (left) - bigger circle
+    // Avatar 1 (left) - NO username above
     ctx.save();
     ctx.beginPath();
-    ctx.arc(175, 125, 65, 0, Math.PI * 2);
+    ctx.arc(165, 100, 55, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar1, 110, 60, 130, 130);
+    ctx.drawImage(avatar1, 110, 45, 110, 110);
     ctx.restore();
     
-    // Avatar 2 (right) - bigger circle
+    // Avatar 2 (right) - NO username above
     ctx.save();
     ctx.beginPath();
-    ctx.arc(325, 125, 65, 0, Math.PI * 2);
+    ctx.arc(285, 100, 55, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar2, 260, 60, 130, 130);
+    ctx.drawImage(avatar2, 230, 45, 110, 110);
     ctx.restore();
     
-    // Draw BIG FAT heart in the middle (like on the screenshot)
-    ctx.save();
-    ctx.shadowBlur = 0;
-    ctx.font = '80px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#FF3B6F';
+    // Small heart in the middle (small like the other bot)
+    ctx.font = '32px "Segoe UI", "Arial", sans-serif';
+    ctx.fillStyle = '#FF4D6D';
     ctx.textAlign = 'center';
-    ctx.fillText('❤️', 250, 145);
-    ctx.restore();
+    ctx.fillText('❤️', 225, 112);
     
-    // Draw border
-    ctx.strokeStyle = '#2c2f33';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(10, 10, width - 20, height - 20);
-    
-    // Draw mixed name at the bottom (bigger and bold)
+    // Mixed name at the bottom (smaller like the other bot)
     const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
                          user2.username.slice(Math.floor(user2.username.length / 2));
     
-    ctx.font = 'bold 24px "Segoe UI", "Arial", sans-serif';
+    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
-    ctx.fillText(combinedName, width / 2, 215);
+    ctx.fillText(combinedName, width / 2, 175);
     
-    // Draw usernames above avatars
-    ctx.font = '13px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#b9bbbe';
-    ctx.fillText(user1.username, 175, 50);
-    ctx.fillText(user2.username, 325, 50);
+    // NO border, NO usernames above avatars
     
     return canvas.toBuffer('image/png');
 }
@@ -98,7 +86,7 @@ module.exports = {
     category: 'Fun',
     subCommands: {
         
-        // ========== SHIP ==========
+        // ========== SHIP - 1:1 like the other bot ==========
         ship: {
             aliases: ['ship'],
             description: 'Ship two users with image',
@@ -130,6 +118,7 @@ module.exports = {
                     const imageBuffer = await generateShipImage(user1, user2);
                     const attachment = { attachment: imageBuffer, name: 'ship.png' };
                     
+                    // ONLY the image - no embed, no text
                     return message.reply({ files: [attachment] });
                     
                 } catch (error) {

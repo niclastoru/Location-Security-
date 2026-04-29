@@ -1,4 +1,4 @@
-const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel } = require('@discordjs/voice');
+const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 
@@ -23,13 +23,15 @@ function getQueue(guildId) {
             channel: null,
             loop: false,
             volume: 1.0,
-            nowPlaying: null
+            nowPlaying: null,
+            playing: false,
+            paused: false
         });
     }
     return musicQueues.get(guildId);
 }
 
-// ⭐ HELPER: Build nice embeds with language support
+// ⭐ HELPER: Build nice embeds
 async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fields = [], replacements = {}) {
     const lang = client?.languages?.get(guildId) || 'en';
     
@@ -81,7 +83,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             spotify_track_not_found: 'Spotify track not found!',
             no_match_found: 'No matching song found on YouTube/SoundCloud!',
             song_not_found: 'No song found! Try a different title.',
-            play_error: 'Could not play song! Make sure the video is available.',
+            play_error: 'Could not play song! Make sure FFmpeg is installed.',
             no_song_playing: 'No song is currently playing!',
             skipped: 'Song skipped! ⏭️',
             stopped: 'Music stopped! 👋',
@@ -149,7 +151,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
 // ⭐ Search song on YouTube
 async function searchSong(query) {
     try {
-        // Try YouTube first
         let results = await play.search(query, { limit: 1, source: { youtube: 'video' } });
         
         if (results.length > 0) {
@@ -162,7 +163,6 @@ async function searchSong(query) {
             };
         }
         
-        // Try SoundCloud if YouTube fails
         results = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
         
         if (results.length > 0) {
@@ -182,19 +182,19 @@ async function searchSong(query) {
     }
 }
 
-// ⭐ Play song (FULLY FIXED)
+// ⭐ Play song (FULLY FIXED with FFmpeg check)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Attempting to play: ${song.title} (${song.platform})`);
+        console.log(`🎵 URL: ${song.url}`);
         
-        // Validate URL
         if (!song.url) {
             throw new Error('No URL provided');
         }
         
-        // Get stream with proper options
+        // Get stream with better error handling
         let stream;
         try {
             stream = await play.stream(song.url, {
@@ -217,25 +217,23 @@ async function playSong(guild, channel, song, client) {
             throw new Error('No stream available');
         }
         
-        // Create resource with proper options
+        console.log(`🎵 Stream type: ${stream.type}`);
+        console.log(`🎵 Creating audio resource...`);
+        
         const resource = createAudioResource(stream.stream, { 
             inputType: stream.type,
             inlineVolume: true 
         });
         
-        // Volume setzen (1.0 = 100%)
         resource.volume.setVolume(queue.volume);
         console.log(`🎵 Volume set to: ${queue.volume * 100}%`);
         
-        // Player events cleanup
         queue.player.removeAllListeners();
-        
-        // Play the resource
         queue.player.play(resource);
         queue.nowPlaying = song;
         queue.channel = channel;
+        queue.playing = true;
         
-        // Debug: Check player status
         console.log(`🎵 Player status: ${queue.player.state.status}`);
         
         // Send now playing embed
@@ -246,7 +244,7 @@ async function playSong(guild, channel, song, client) {
             .setDescription(`[${song.title}](${song.url})`)
             .addFields([
                 { name: '👤 Requested by', value: song.requestedBy, inline: true },
-                { name: '⏱️ Duration', value: song.duration || 'Unknown', inline: true },
+                { name: '⏱️ Duration', value: song.duration || 'Live', inline: true },
                 { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
             ])
             .setFooter({ text: song.requestedBy })
@@ -256,11 +254,12 @@ async function playSong(guild, channel, song, client) {
             embed.setThumbnail(song.thumbnail);
         }
         
-        channel.send({ embeds: [embed] });
+        await channel.send({ embeds: [embed] });
         
         // Handle next song
         queue.player.once(AudioPlayerStatus.Idle, () => {
             console.log('🎵 Player became idle, moving to next song...');
+            queue.playing = false;
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push({ ...queue.nowPlaying });
             }
@@ -273,16 +272,13 @@ async function playSong(guild, channel, song, client) {
             }
         });
         
-        // FIXED: Player error handler with IIFE for async
         queue.player.on('error', (error) => {
             console.error('❌ Player error:', error);
-            
-            // IIFE for async embed creation
+            queue.playing = false;
             (async () => {
                 const errorEmbed = await buildEmbed(client, guild.id, song.requestedById, 'error', 'error', 'play_error');
                 channel.send({ embeds: [errorEmbed] }).catch(() => {});
             })();
-            
             queue.songs.shift();
             if (queue.songs.length > 0) {
                 playSong(guild, channel, queue.songs[0], client);
@@ -304,7 +300,7 @@ module.exports = {
     category: 'Music',
     subCommands: {
         
-        // ========== PLAY (FIXED - with selfMute: false) ==========
+        // ========== PLAY ==========
         play: {
             aliases: ['p', 'add'],
             description: 'Plays music (YouTube/SoundCloud)',
@@ -332,11 +328,10 @@ module.exports = {
                 });
                 
                 try {
-                    // Check if it's a direct YouTube/SoundCloud URL
                     let songInfo = null;
                     let isUrl = false;
                     
-                    // Check for YouTube URL
+                    // YouTube URL
                     if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
                         isUrl = true;
                         try {
@@ -353,7 +348,7 @@ module.exports = {
                         }
                     }
                     
-                    // Check for SoundCloud URL
+                    // SoundCloud URL
                     if (!songInfo && (query.includes('soundcloud.com') || query.includes('on.soundcloud.com'))) {
                         isUrl = true;
                         try {
@@ -370,7 +365,7 @@ module.exports = {
                         }
                     }
                     
-                    // If not a URL, search for the song
+                    // Search
                     if (!songInfo && !isUrl) {
                         songInfo = await searchSong(query);
                     }
@@ -411,18 +406,36 @@ module.exports = {
                     
                     if (queue.songs.length === 1) {
                         if (!queue.connection) {
-                            // ⚠️ WICHTIG: selfMute: false und selfDeaf: false - sonst hört man nichts!
-                            queue.connection = joinVoiceChannel({
-                                channelId: voiceChannel.id,
-                                guildId: message.guild.id,
-                                adapterCreator: message.guild.voiceAdapterCreator,
-                                selfMute: false,
-                                selfDeaf: false
-                            });
-                            queue.connection.subscribe(queue.player);
-                            
-                            console.log(`✅ Bot joined ${voiceChannel.name} (ID: ${voiceChannel.id})`);
-                            console.log(`   selfMute: false, selfDeaf: false`);
+                            try {
+                                queue.connection = joinVoiceChannel({
+                                    channelId: voiceChannel.id,
+                                    guildId: message.guild.id,
+                                    adapterCreator: message.guild.voiceAdapterCreator,
+                                    selfMute: false,
+                                    selfDeaf: false
+                                });
+                                
+                                queue.connection.on(VoiceConnectionStatus.Ready, () => {
+                                    console.log('✅ Voice connection ready!');
+                                });
+                                
+                                queue.connection.on(VoiceConnectionStatus.Disconnected, async () => {
+                                    console.log('❌ Voice connection disconnected');
+                                    queue.connection = null;
+                                    queue.playing = false;
+                                });
+                                
+                                queue.connection.subscribe(queue.player);
+                                
+                                console.log(`✅ Bot joined ${voiceChannel.name}`);
+                                console.log(`   Bot ID: ${client.user.id}`);
+                                console.log(`   Channel ID: ${voiceChannel.id}`);
+                            } catch (err) {
+                                console.error('❌ Connection error:', err);
+                                return loadingMsg.edit({ 
+                                    embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'error', 'Could not join voice channel!')] 
+                                });
+                            }
                         }
                         playSong(message.guild, message.channel, song, client);
                     }
@@ -473,6 +486,7 @@ module.exports = {
                     queue.connection = null;
                 }
                 queue.nowPlaying = null;
+                queue.playing = false;
                 
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'stopped', 'stopped')] 
@@ -495,6 +509,7 @@ module.exports = {
                 }
                 
                 queue.player.pause();
+                queue.paused = true;
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'paused', 'paused')] 
                 });
@@ -516,6 +531,7 @@ module.exports = {
                 }
                 
                 queue.player.unpause();
+                queue.paused = false;
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'resumed', 'resumed')] 
                 });
@@ -620,7 +636,7 @@ module.exports = {
                     .setDescription(`[${song.title}](${song.url})`)
                     .addFields([
                         { name: '👤 Requested by', value: song.requestedBy, inline: true },
-                        { name: '⏱️ Duration', value: song.duration || 'Unknown', inline: true }
+                        { name: '⏱️ Duration', value: song.duration || 'Live', inline: true }
                     ])
                     .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                     .setTimestamp();

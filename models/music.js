@@ -1,5 +1,6 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
-const ytdl = require('@distube/ytdl-core');
+const ytdl = require('ytdl-core');
+const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
 
@@ -118,7 +119,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Search YouTube using ytsearch
+// ⭐ Search YouTube using yt-search (FUNKTIONIERT!)
 async function searchYouTube(query) {
     try {
         // For direct URL
@@ -133,22 +134,23 @@ async function searchYouTube(query) {
             };
         }
         
-        // For search query - using ytsearch
+        // For search query
         console.log(`🔍 Searching: ${query}`);
-        const searchQuery = `ytsearch:${query}`;
-        const info = await ytdl.getInfo(searchQuery);
+        const searchResults = await ytSearch(query);
         
-        if (!info || !info.videoDetails) {
+        if (!searchResults || !searchResults.videos || searchResults.videos.length === 0) {
             console.log('❌ No results found');
             return null;
         }
         
-        console.log(`✅ Found: ${info.videoDetails.title}`);
+        const video = searchResults.videos[0];
+        console.log(`✅ Found: ${video.title}`);
+        
         return {
-            title: info.videoDetails.title,
-            url: info.videoDetails.video_url,
-            duration: info.videoDetails.lengthSeconds,
-            thumbnail: info.videoDetails.thumbnails[0]?.url || null
+            title: video.title,
+            url: video.url,
+            duration: video.duration.seconds || 0,
+            thumbnail: video.thumbnail || null
         };
     } catch (error) {
         console.error('YouTube search error:', error);

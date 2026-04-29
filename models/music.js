@@ -3,18 +3,24 @@ const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
 
-// ⭐ CRITICAL: Set FFmpeg path for @discordjs/voice
+// Set FFmpeg path
 process.env.FFMPEG_PATH = ffmpegStatic;
 
 console.log(`✅ FFmpeg path set to: ${ffmpegStatic}`);
 
-// Initialize play-dl
+// Initialize play-dl with YouTube cookie (wichtig für YouTube!)
 (async () => {
-    await play.setToken({
-        youtube: {
-            cookie: process.env.YOUTUBE_COOKIE || '',
-        }
-    });
+    try {
+        // Wichtig: YouTube benötigt einen Cookie oder extractor
+        await play.setToken({
+            youtube: {
+                cookie: process.env.YOUTUBE_COOKIE || '',
+            }
+        });
+        console.log('✅ play-dl initialized');
+    } catch (error) {
+        console.error('❌ play-dl init error:', error);
+    }
 })().catch(console.error);
 
 // Music Queue System
@@ -89,7 +95,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
             spotify_track_not_found: 'Spotify track not found!',
             no_match_found: 'No matching song found on YouTube/SoundCloud!',
             song_not_found: 'No song found! Try a different title.',
-            play_error: 'Could not play song! Make sure the video is available.',
+            play_error: 'Could not play song! YouTube may have changed. Try a different video.',
             no_song_playing: 'No song is currently playing!',
             skipped: 'Song skipped! ⏭️',
             stopped: 'Music stopped! 👋',
@@ -154,12 +160,16 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Search song on YouTube
+// ⭐ Search song on YouTube - FIXED
 async function searchSong(query) {
     try {
+        console.log(`🔍 Searching for: ${query}`);
+        
+        // Try YouTube video search first
         let results = await play.search(query, { limit: 1, source: { youtube: 'video' } });
         
-        if (results.length > 0) {
+        if (results && results.length > 0) {
+            console.log(`✅ Found: ${results[0].title}`);
             return {
                 title: results[0].title,
                 url: results[0].url,
@@ -169,9 +179,11 @@ async function searchSong(query) {
             };
         }
         
+        // Try SoundCloud as fallback
         results = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
         
-        if (results.length > 0) {
+        if (results && results.length > 0) {
+            console.log(`✅ Found on SoundCloud: ${results[0].title}`);
             return {
                 title: results[0].title,
                 url: results[0].url,
@@ -188,13 +200,13 @@ async function searchSong(query) {
     }
 }
 
-// ⭐ Play song
+// ⭐ Play song - FIXED with better error handling
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Attempting to play: ${song.title} (${song.platform})`);
-        console.log(`🎵 FFmpeg path: ${process.env.FFMPEG_PATH}`);
+        console.log(`🎵 URL: ${song.url}`);
         
         if (!song.url) {
             throw new Error('No URL provided');
@@ -202,17 +214,25 @@ async function playSong(guild, channel, song, client) {
         
         let stream;
         try {
+            // Try to get stream
             stream = await play.stream(song.url, {
                 discordPlayerCompatibility: true,
                 quality: 2
             });
         } catch (streamError) {
             console.error('Stream error:', streamError);
+            
+            // Alternative method for YouTube
             if (song.platform === 'youtube') {
-                const videoInfo = await play.video_basic_info(song.url);
-                stream = await play.stream_from_info(videoInfo, {
-                    discordPlayerCompatibility: true
-                });
+                try {
+                    const videoInfo = await play.video_basic_info(song.url);
+                    stream = await play.stream_from_info(videoInfo, {
+                        discordPlayerCompatibility: true
+                    });
+                } catch (altError) {
+                    console.error('Alternative stream error:', altError);
+                    throw new Error('Could not extract audio from YouTube video');
+                }
             } else {
                 throw streamError;
             }
@@ -333,38 +353,45 @@ module.exports = {
                     let songInfo = null;
                     let isUrl = false;
                     
+                    // YouTube URL
                     if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
                         isUrl = true;
                         try {
                             const videoInfo = await play.video_basic_info(query);
-                            songInfo = {
-                                title: videoInfo.video_details.title,
-                                url: videoInfo.video_details.url,
-                                duration: videoInfo.video_details.durationRaw || 'Unknown',
-                                thumbnail: videoInfo.video_details.thumbnails?.[0]?.url || null,
-                                platform: 'youtube'
-                            };
+                            if (videoInfo && videoInfo.video_details) {
+                                songInfo = {
+                                    title: videoInfo.video_details.title,
+                                    url: videoInfo.video_details.url,
+                                    duration: videoInfo.video_details.durationRaw || 'Unknown',
+                                    thumbnail: videoInfo.video_details.thumbnails?.[0]?.url || null,
+                                    platform: 'youtube'
+                                };
+                            }
                         } catch (error) {
                             console.error('YouTube URL error:', error);
                         }
                     }
                     
+                    // SoundCloud URL
                     if (!songInfo && (query.includes('soundcloud.com') || query.includes('on.soundcloud.com'))) {
                         isUrl = true;
                         try {
                             const trackInfo = await play.soundcloud(query);
-                            songInfo = {
-                                title: trackInfo.name,
-                                url: trackInfo.permalink_url,
-                                duration: trackInfo.durationRaw || 'Unknown',
-                                thumbnail: trackInfo.thumbnail || null,
-                                platform: 'soundcloud'
-                            };
+                            if (trackInfo) {
+                                songInfo = {
+                                    title: trackInfo.name,
+                                    url: trackInfo.permalink_url,
+                                    duration: trackInfo.durationRaw || 'Unknown',
+                                    thumbnail: trackInfo.thumbnail || null,
+                                    platform: 'soundcloud'
+                                };
+                            }
                         } catch (error) {
                             console.error('SoundCloud URL error:', error);
                         }
                     }
                     
+                    // Search
                     if (!songInfo && !isUrl) {
                         songInfo = await searchSong(query);
                     }
@@ -416,12 +443,6 @@ module.exports = {
                                 
                                 queue.connection.on(VoiceConnectionStatus.Ready, () => {
                                     console.log('✅ Voice connection ready!');
-                                });
-                                
-                                queue.connection.on(VoiceConnectionStatus.Disconnected, async () => {
-                                    console.log('❌ Voice connection disconnected');
-                                    queue.connection = null;
-                                    queue.playing = false;
                                 });
                                 
                                 queue.connection.subscribe(queue.player);

@@ -18,6 +18,7 @@ const { handleAfkReturn } = require('./models/misc');
 const { handleBoosterUpdate } = require('./models/booster');
 const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
 const { handleStarReaction, handleMessageDelete } = require('./models/starboard');
+const { handleCountingMessage } = require('./models/counting');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -216,13 +217,14 @@ client.once('ready', async () => {
     }
 });
 
-// ========== MESSAGE CREATE ==========
+// ========== MESSAGE CREATE (MIT COUNTING HANDLER) ==========
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     
     await trackMessage(message, supabase);
     await handleAfkReturn(message, supabase);
     await handleLevelingMessage(message, supabase);
+    await handleCountingMessage(message, supabase);  // ⭐ COUNTING HANDLER
     
     const prefix = await getPrefix(message.guild?.id);
     
@@ -330,7 +332,7 @@ async function handleTicketButton(interaction, client, supabase) {
     await interaction.reply({ content: `✅ Ticket created! Please go to ${ticketChannel}`, ephemeral: true });
 }
 
-// ========== TICKET CLOSE HANDLER (DIREKT, OHNE COMMAND) ==========
+// ========== TICKET CLOSE HANDLER ==========
 async function handleTicketClose(interaction, client, supabase) {
     const channel = interaction.channel;
     const transcriptsDir = path.join(__dirname, 'transcripts');
@@ -353,7 +355,6 @@ async function handleTicketClose(interaction, client, supabase) {
             .single();
         
         if (ticket) {
-            // Fetch all messages for transcript
             const messages = [];
             let lastId = null;
             while (true) {
@@ -364,7 +365,6 @@ async function handleTicketClose(interaction, client, supabase) {
             }
             messages.reverse();
             
-            // Create HTML transcript
             const html = `<!DOCTYPE html>
             <html>
             <head><meta charset="UTF-8"><title>Ticket Transcript - ${ticket.ticket_id}</title>
@@ -406,7 +406,6 @@ async function handleTicketClose(interaction, client, supabase) {
                 })
                 .eq('id', ticket.id);
             
-            // Send transcript to log channel
             const { data: settings } = await supabase
                 .from('ticket_settings')
                 .select('log_channel_id')

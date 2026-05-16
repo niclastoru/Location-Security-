@@ -19,6 +19,7 @@ const { handleBoosterUpdate } = require('./models/booster');
 const { trackMessage, trackVoiceStart, trackVoiceEnd } = require('./models/stats');
 const { handleStarReaction, handleMessageDelete } = require('./models/starboard');
 const { handleCountingMessage } = require('./models/counting');
+const { handleGameButtons } = require('./models/games');
 
 // ⭐ SUPABASE CLIENT
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -224,7 +225,7 @@ client.on('messageCreate', async (message) => {
     await trackMessage(message, supabase);
     await handleAfkReturn(message, supabase);
     await handleLevelingMessage(message, supabase);
-    await handleCountingMessage(message, supabase);  // ⭐ COUNTING HANDLER
+    await handleCountingMessage(message, supabase);
     
     const prefix = await getPrefix(message.guild?.id);
     
@@ -489,9 +490,16 @@ async function handleTicketClaim(interaction, client, supabase) {
     } catch (e) {}
 }
 
-// ========== INTERACTION HANDLER ==========
+// ========== INTERACTION HANDLER (MIT GAME BUTTONS) ==========
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
+        // Game Buttons (Memory, RPS, PP Duel)
+        if (interaction.customId.startsWith('memory_') || 
+            interaction.customId.startsWith('rps_') || 
+            interaction.customId.startsWith('pp_')) {
+            return handleGameButtons(interaction, client, supabase);
+        }
+        
         // VoiceMaster Buttons
         if (interaction.customId.startsWith('vm_')) {
             return handleVoiceMasterButton(interaction, client, supabase);

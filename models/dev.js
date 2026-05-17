@@ -37,13 +37,13 @@ module.exports = {
                     const user = await client.users.fetch(userId);
                     if (!user) throw new Error('User not found');
                     
+                    // ⭐ KEIN Footer mehr mit "Sent by", nur noch Zeit
                     const dmEmbed = new EmbedBuilder()
                         .setColor(0x5865F2)
                         .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                         .setTitle('📨 Direct Message')
                         .setDescription(dmMessage)
-                        .setFooter({ text: `Sent by ${message.author.tag}` })
-                        .setTimestamp();
+                        .setTimestamp();  // Nur Zeit, kein Footer!
                     
                     await user.send({ embeds: [dmEmbed] });
                     
@@ -54,7 +54,7 @@ module.exports = {
             }
         },
         
-        // ========== BROADCAST ==========
+        // ========== BROADCAST (OHNE FOOTER) ==========
         broadcast: {
             aliases: ['bc', 'massdm'],
             description: 'Send broadcast DM to all server members',
@@ -93,13 +93,13 @@ module.exports = {
                 
                 const statusMsg = await message.reply({ embeds: [createInfoEmbed(client, 'Sending Broadcast...', `Sending to ${members.size} members...`)] });
                 
+                // ⭐ KEIN Footer mehr, nur Zeit
                 const dmEmbed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                     .setTitle('📨 Broadcast')
                     .setDescription(broadcastMessage)
-                    .setFooter({ text: `From ${message.guild.name}` })
-                    .setTimestamp();
+                    .setTimestamp();  // Nur Zeit, kein Footer!
                 
                 for (const [id, member] of members) {
                     try {
@@ -211,7 +211,6 @@ module.exports = {
                     return message.reply({ embeds: [createErrorEmbed(client, 'Server Not Found', `No server found with ID: ${guildId}`)] });
                 }
                 
-                // Confirmation
                 const confirmEmbed = new EmbedBuilder()
                     .setColor(0xFEE75C)
                     .setDescription(`⚠️ Make bot leave **${guild.name}**?\n\nType \`confirm\` within 15 seconds.`)

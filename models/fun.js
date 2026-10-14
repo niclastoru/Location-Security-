@@ -1,5 +1,4 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { createCanvas, loadImage } = require('canvas');
 
 // ⭐ HELPER: Create embed (modern & clean)
 function createEmbed(message, type, title, description, fields = []) {
@@ -29,89 +28,14 @@ function createEmbed(message, type, title, description, fields = []) {
     return embed;
 }
 
-// ⭐ Generate ship image - mit Prozentleiste, richtigem Abstand, größerem Herz
-async function generateShipImage(user1, user2, percentage) {
-    const width = 500;
-    const height = 280;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    
-    // Background - Discord dark theme
-    ctx.fillStyle = '#1e1f22';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Get avatars
-    const avatar1 = await loadImage(user1.displayAvatarURL({ extension: 'png', size: 256 }));
-    const avatar2 = await loadImage(user2.displayAvatarURL({ extension: 'png', size: 256 }));
-    
-    // Avatar 1 (left) - richtiger Abstand
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(170, 120, 55, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar1, 115, 65, 110, 110);
-    ctx.restore();
-    
-    // Avatar 2 (right) - richtiger Abstand
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(330, 120, 55, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar2, 275, 65, 110, 110);
-    ctx.restore();
-    
-    // Herz in der Mitte (normal groß, nicht zu klein)
-    ctx.font = '48px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#FF4D6D';
-    ctx.textAlign = 'center';
-    ctx.fillText('❤️', 250, 130);
-    
-    // Mixed name über der Prozentleiste
-    const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
-                         user2.username.slice(Math.floor(user2.username.length / 2));
-    
-    ctx.font = 'bold 14px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.textAlign = 'center';
-    ctx.fillText(combinedName, width / 2, 200);
-    
-    // Prozent Leiste (grün wie auf dem Bild)
-    const barWidth = 300;
-    const barX = (width - barWidth) / 2;
-    const barY = 220;
-    const barHeight = 12;
-    
-    // Hintergrund der Leiste (dunkelgrau)
-    ctx.fillStyle = '#2c2f33';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-    
-    // Gefüllte Leiste (grün)
-    const filledWidth = (percentage / 100) * barWidth;
-    ctx.fillStyle = '#57F287';
-    ctx.fillRect(barX, barY, filledWidth, barHeight);
-    
-    // Prozent Text
-    ctx.font = 'bold 16px "Segoe UI", "Arial", sans-serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${percentage}%`, width / 2, 255);
-    
-    // Keine Usernamen über den Avataren
-    // Kein Border
-    
-    return canvas.toBuffer('image/png');
-}
-
 module.exports = {
     category: 'Fun',
     subCommands: {
         
-        // ========== SHIP ==========
+        // ========== SHIP (Text-Version ohne Canvas) ==========
         ship: {
             aliases: ['ship'],
-            description: 'Ship two users with image',
+            description: 'Ship two users',
             category: 'Fun',
             async execute(message, args) {
                 try {
@@ -137,18 +61,40 @@ module.exports = {
                         user2 = message.guild.members.cache.filter(m => !m.user.bot && m.user.id !== user1.id).random()?.user || message.client.user;
                     }
                     
-                    // Zufälliger Prozentsatz für die Anzeige
                     const percentage = Math.floor(Math.random() * 101);
                     
-                    const imageBuffer = await generateShipImage(user1, user2, percentage);
-                    const attachment = { attachment: imageBuffer, name: 'ship.png' };
+                    // Gemixter Name
+                    const combinedName = user1.username.slice(0, Math.ceil(user1.username.length / 2)) + 
+                                        user2.username.slice(Math.floor(user2.username.length / 2));
                     
-                    return message.reply({ files: [attachment] });
+                    // Prozent-Leiste aus Emojis
+                    const filled = Math.floor(percentage / 10);
+                    const empty = 10 - filled;
+                    const barEmoji = percentage < 30 ? '🔴' : percentage < 70 ? '🟡' : '🟢';
+                    const bar = barEmoji + ' `' + '█'.repeat(filled) + '░'.repeat(empty) + '` ' + percentage + '%';
+                    
+                    // Rating
+                    let rating = '';
+                    if (percentage < 20) rating = 'No chance... 💔';
+                    else if (percentage < 40) rating = 'Difficult... 😕';
+                    else if (percentage < 60) rating = 'Could work! 🤔';
+                    else if (percentage < 80) rating = 'Good combo! 💕';
+                    else rating = 'PERFECT MATCH! 💘';
+                    
+                    const embed = new EmbedBuilder()
+                        .setColor(0x2B2D31)
+                        .setAuthor({ name: message.client.user.username, iconURL: message.client.user.displayAvatarURL() })
+                        .setTitle(`${user1.username} ❤️ ${user2.username}`)
+                        .setDescription(`**${combinedName}**\n\n${bar}\n\n${rating}`)
+                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setTimestamp();
+                    
+                    return message.reply({ embeds: [embed] });
                     
                 } catch (error) {
                     console.error('Ship error:', error);
                     return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Error', 'Could not generate ship image!')] 
+                        embeds: [createEmbed(message, 'error', 'Error', 'Could not ship these users!')] 
                     });
                 }
             }
@@ -393,16 +339,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!hug @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!hug @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Hug', `**${message.author.username}** hugs **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Hug', `**${message.author.username}** hugs **${target.username}**.`)] });
             }
         },
         
@@ -413,22 +353,13 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!kiss @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!kiss @User')] });
                 }
-                
                 if (target.id === message.author.id) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot kiss yourself!')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot kiss yourself!')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Kiss', `**${message.author.username}** kisses **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Kiss', `**${message.author.username}** kisses **${target.username}**.`)] });
             }
         },
         
@@ -460,9 +391,7 @@ module.exports = {
             description: 'Cry',
             category: 'Fun',
             async execute(message) {
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cry', `**${message.author.username}** is crying.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Cry', `**${message.author.username}** is crying.`)] });
             }
         },
         
@@ -473,22 +402,13 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!blowjob @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!blowjob @User')] });
                 }
-                
                 if (target.id === message.author.id) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot do this to yourself!')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot do this to yourself!')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Blowjob', `**${message.author.username}** gives **${target.username}** a blowjob.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Blowjob', `**${message.author.username}** gives **${target.username}** a blowjob.`)] });
             }
         },
         
@@ -499,22 +419,13 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!slap @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!slap @User')] });
                 }
-                
                 if (target.id === message.author.id) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot slap yourself!')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'Invalid', 'You cannot slap yourself!')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Slap', `**${message.author.username}** slaps **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Slap', `**${message.author.username}** slaps **${target.username}**.`)] });
             }
         },
         
@@ -525,16 +436,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!wink @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!wink @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Wink', `**${message.author.username}** winks at **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Wink', `**${message.author.username}** winks at **${target.username}**.`)] });
             }
         },
         
@@ -545,16 +450,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!cuddle @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!cuddle @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cuddle', `**${message.author.username}** cuddles with **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Cuddle', `**${message.author.username}** cuddles with **${target.username}**.`)] });
             }
         },
         
@@ -565,16 +464,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!handhold @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!handhold @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Handhold', `**${message.author.username}** holds hands with **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Handhold', `**${message.author.username}** holds hands with **${target.username}**.`)] });
             }
         },
         
@@ -585,16 +478,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!highfive @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!highfive @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Highfive', `**${message.author.username}** high-fives **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Highfive', `**${message.author.username}** high-fives **${target.username}**.`)] });
             }
         },
         
@@ -605,16 +492,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!lick @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!lick @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Lick', `**${message.author.username}** licks **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Lick', `**${message.author.username}** licks **${target.username}**.`)] });
             }
         },
         
@@ -625,16 +506,10 @@ module.exports = {
             category: 'Fun',
             async execute(message, args) {
                 const target = message.mentions.users.first();
-                
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createEmbed(message, 'error', 'No User', '!cheat @User')] 
-                    });
+                    return message.reply({ embeds: [createEmbed(message, 'error', 'No User', '!cheat @User')] });
                 }
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Cheat', `**${message.author.username}** is cheating on **${target.username}**.`)] });
             }
         },
         
@@ -645,9 +520,7 @@ module.exports = {
             category: 'Fun',
             async execute(message) {
                 const count = Math.floor(Math.random() * 50);
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Bodycount', `**${message.author.username}** has a bodycount of **${count}**.`)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Bodycount', `**${message.author.username}** has a bodycount of **${count}**.`)] });
             }
         },
         
@@ -666,12 +539,8 @@ module.exports = {
                     'You should sleep more.',
                     'Pizza is the answer to everything.'
                 ];
-                
                 const fortune = fortunes[Math.floor(Math.random() * fortunes.length)];
-                
-                return message.reply({ 
-                    embeds: [createEmbed(message, 'info', 'Fortune Cookie', fortune)] 
-                });
+                return message.reply({ embeds: [createEmbed(message, 'info', 'Fortune Cookie', fortune)] });
             }
         }
     }

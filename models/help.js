@@ -27,11 +27,15 @@ module.exports = {
                     categories.set(category, []);
                 }
                 
-                categories.get(category).push({
-                    name: cmdName,
-                    aliases: cmdData.aliases || [],
-                    description: cmdData.description || 'No description'
-                });
+                // Verhindere doppelte Einträge (durch Aliase)
+                const existing = categories.get(category).find(c => c.name === cmdName);
+                if (!existing) {
+                    categories.get(category).push({
+                        name: cmdName,
+                        aliases: cmdData.aliases || [],
+                        description: cmdData.description || 'No description'
+                    });
+                }
             }
         }
         
@@ -156,70 +160,76 @@ module.exports = {
                     .setRequired(true);
                 
                 modal.addComponents(new ActionRowBuilder().addComponents(input));
+                
+                // Sende das Modal
                 await interaction.showModal(modal);
+
+                // ⭐ FIX: Warte auf die Antwort des Modals direkt hier
+                try {
+                    const modalInteraction = await interaction.awaitModalSubmit({
+                        time: 60000,
+                        filter: (i) => i.customId === 'help_search_modal' && i.user.id === message.author.id
+                    });
+
+                    const searchTerm = modalInteraction.fields.getTextInputValue('search_term').toLowerCase();
+                    
+                    const results = [];
+                    for (const [cmdName, cmdData] of client.commands) {
+                        if (cmdData && typeof cmdData === 'object' && cmdData.description) {
+                            if (cmdName.toLowerCase().includes(searchTerm) ||
+                                (cmdData.aliases && cmdData.aliases.some(a => a.toLowerCase().includes(searchTerm))) ||
+                                (cmdData.description && cmdData.description.toLowerCase().includes(searchTerm))) {
+                                
+                                // Duplikate vermeiden
+                                if (!results.find(r => r.name === cmdName)) {
+                                    results.push({
+                                        name: cmdName,
+                                        aliases: cmdData.aliases || [],
+                                        description: cmdData.description
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    
+                    const searchEmbed = new EmbedBuilder()
+                        .setColor(0x00FFAA)
+                        .setAuthor({ name: `${client.user.username} • Help Center`, iconURL: client.user.displayAvatarURL() })
+                        .setTitle(`🔍 Results for "${searchTerm}"`)
+                        .setTimestamp();
+                    
+                    if (results.length === 0) {
+                        searchEmbed.setDescription('❌ No commands found. Try a different search term.');
+                    } else {
+                        let desc = '';
+                        const showCount = Math.min(results.length, 15);
+                        for (let i = 0; i < showCount; i++) {
+                            const cmd = results[i];
+                            const aliases = cmd.aliases.length ? ` (${cmd.aliases.slice(0, 3).join(', ')})` : '';
+                            desc += `**${cmd.name}**${aliases}\n${cmd.description}\n\n`;
+                        }
+                        searchEmbed.setDescription(desc);
+                        searchEmbed.setFooter({ text: `${results.length} result${results.length !== 1 ? 's' : ''} found` });
+                    }
+                    
+                    const backBtn = new ButtonBuilder()
+                        .setCustomId('help_back')
+                        .setLabel('Back to Menu')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('🏠');
+                    
+                    await modalInteraction.update({
+                        embeds: [searchEmbed],
+                        components: [new ActionRowBuilder().addComponents(backBtn)]
+                    });
+
+                } catch (err) {
+                    // Timeout oder anderer Fehler – nichts tun
+                }
             }
         });
         
-        // MODAL HANDLER (außerhalb des Collectors)
-        const modalHandler = async (interaction) => {
-            if (!interaction.isModalSubmit()) return;
-            if (interaction.customId !== 'help_search_modal') return;
-            if (interaction.user.id !== message.author.id) return;
-            
-            const searchTerm = interaction.fields.getTextInputValue('search_term').toLowerCase();
-            
-            const results = [];
-            for (const [cmdName, cmdData] of client.commands) {
-                if (cmdData && typeof cmdData === 'object' && cmdData.description) {
-                    if (cmdName.toLowerCase().includes(searchTerm) ||
-                        (cmdData.aliases && cmdData.aliases.some(a => a.toLowerCase().includes(searchTerm))) ||
-                        (cmdData.description && cmdData.description.toLowerCase().includes(searchTerm))) {
-                        results.push({
-                            name: cmdName,
-                            aliases: cmdData.aliases || [],
-                            description: cmdData.description
-                        });
-                    }
-                }
-            }
-            
-            const searchEmbed = new EmbedBuilder()
-                .setColor(0x00FFAA)
-                .setAuthor({ name: `${client.user.username} • Help Center`, iconURL: client.user.displayAvatarURL() })
-                .setTitle(`🔍 Results for "${searchTerm}"`)
-                .setTimestamp();
-            
-            if (results.length === 0) {
-                searchEmbed.setDescription('❌ No commands found. Try a different search term.');
-            } else {
-                let desc = '';
-                const showCount = Math.min(results.length, 15);
-                for (let i = 0; i < showCount; i++) {
-                    const cmd = results[i];
-                    const aliases = cmd.aliases.length ? ` (${cmd.aliases.slice(0, 3).join(', ')})` : '';
-                    desc += `**${cmd.name}**${aliases}\n${cmd.description}\n\n`;
-                }
-                searchEmbed.setDescription(desc);
-                searchEmbed.setFooter({ text: `${results.length} result${results.length !== 1 ? 's' : ''} found` });
-            }
-            
-            const backBtn = new ButtonBuilder()
-                .setCustomId('help_back')
-                .setLabel('Back to Menu')
-                .setStyle(ButtonStyle.Secondary)
-                .setEmoji('🏠');
-            
-            await interaction.update({
-                embeds: [searchEmbed],
-                components: [new ActionRowBuilder().addComponents(backBtn)]
-            });
-        };
-        
-        // Event Listener für Modals (einmalig)
-        client.once('interactionCreate', modalHandler);
-        
         collector.on('end', () => {
-            client.off('interactionCreate', modalHandler);
             reply.edit({ components: [] }).catch(() => {});
         });
     }

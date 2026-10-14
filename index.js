@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws'); // ⭐ FIX: WebSocket für Node 20
 const fs = require('fs');
 const path = require('path');
 
@@ -21,8 +22,16 @@ const { handleStarReaction, handleMessageDelete } = require('./models/starboard'
 const { handleCountingMessage } = require('./models/counting');
 const { handleGameButtons } = require('./models/games');
 
-// ⭐ SUPABASE CLIENT
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+// ⭐ SUPABASE CLIENT (MIT WEBSOCKET FIX)
+const supabase = createClient(
+    process.env.SUPABASE_URL, 
+    process.env.SUPABASE_KEY,
+    {
+        realtime: {
+            transport: ws
+        }
+    }
+);
 
 const client = new Client({
     intents: [

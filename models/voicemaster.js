@@ -126,7 +126,6 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
             
         // ========== CLAIM ==========
         case 'vm_claim':
-            // Bugfix: Check if current owner is still in the channel
             if (currentOwner) {
                 const ownerMember = await guild.members.fetch(currentOwner).catch(() => null);
                 if (ownerMember && ownerMember.voice.channelId === channel.id) {
@@ -187,7 +186,6 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
         // ========== LIMIT + ==========
         case 'vm_limit_plus':
             if (!checkOwner()) return;
-            // Bugfix: If unlimited (0), go to 1. Otherwise +1 up to 99.
             const newLimit = (channel.userLimit === 0 || channel.userLimit === 99) 
                 ? (channel.userLimit === 99 ? 99 : 1) 
                 : channel.userLimit + 1;
@@ -197,7 +195,6 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
         // ========== LIMIT - ==========
         case 'vm_limit_minus':
             if (!checkOwner()) return;
-            // Bugfix: If 1, go to 0 (Unlimited). If 0, stay 0. If 99, go to 98.
             const decreasedLimit = channel.userLimit <= 1 ? 0 : channel.userLimit - 1;
             await channel.setUserLimit(decreasedLimit);
             return interaction.editReply({ embeds: [createVMEmbed('success', 'Limit Decreased', `⬇️ User limit is now **${decreasedLimit === 0 ? 'Unlimited' : decreasedLimit}**.`)] });
@@ -220,7 +217,6 @@ module.exports = {
             async execute(message, args, { client, supabase }) {
                 const loadingMsg = await message.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription('⏳ Creating VoiceMaster...').setTimestamp()] });
                 
-                // Delete old config if exists
                 const existing = await loadConfig(message.guild.id, supabase);
                 if (existing) {
                     const jtcChannel = message.guild.channels.cache.get(existing.jtcChannel);
@@ -247,16 +243,14 @@ module.exports = {
                     ]
                 });
                 
-                // ========== MODERN PANEL EMBED ==========
                 const panelEmbed = new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setAuthor({ name: 'VoiceMaster Control Panel', iconURL: client.user.displayAvatarURL() })
                     .setDescription('> **Manage your voice channel elegantly**\n> Use the buttons below to customize your channel.\n\n*All interactions are only visible to you.*')
-                    .setImage('https://i.imgur.com/AfFp7pu.png') // Optional: Ein schönes Banner (kannst du ändern)
+                    .setImage('https://i.imgur.com/AfFp7pu.png')
                     .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                     .setTimestamp();
                 
-                // ========== ROW 1: Security ==========
                 const row1 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_lock').setLabel('Lock').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
@@ -265,7 +259,6 @@ module.exports = {
                         new ButtonBuilder().setCustomId('vm_reveal').setLabel('Reveal').setStyle(ButtonStyle.Secondary).setEmoji('👁️')
                     );
                 
-                // ========== ROW 2: Management ==========
                 const row2 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('📋'),
@@ -274,7 +267,6 @@ module.exports = {
                         new ButtonBuilder().setCustomId('vm_activity').setLabel('Activity').setStyle(ButtonStyle.Success).setEmoji('🎮')
                     );
                 
-                // ========== ROW 3: Limits ==========
                 const row3 = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder().setCustomId('vm_limit_minus').setLabel('Limit -').setStyle(ButtonStyle.Secondary).setEmoji('⬇️'),
@@ -344,8 +336,8 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { Connect: false });
                 return message.reply({ embeds: [createVMEmbed('success', 'Locked', `🔒 ${channel} has been locked.`)] });
@@ -359,8 +351,8 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { Connect: null });
                 return message.reply({ embeds: [createVMEmbed('success', 'Unlocked', `🔓 ${channel} has been unlocked.`)] });
@@ -374,8 +366,8 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: false });
                 return message.reply({ embeds: [createVMEmbed('success', 'Hidden', `👻 ${channel} is now hidden.`)] });
@@ -389,8 +381,8 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 await channel.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: null });
                 return message.reply({ embeds: [createVMEmbed('success', 'Revealed', `👁️ ${channel} is now visible.`)] });
@@ -401,14 +393,14 @@ module.exports = {
         'voice-claim': {
             aliases: ['vclaim'],
             description: 'Claims a voice channel',
-            category: ' embVoicemaster',
+            category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
                 
                 const config = await loadConfig(message.guild.id, supabase);
-                if (!config) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'VoiceMaster is not set up!')] });
-                if (!channel.name.includes('🎤')) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'This is not a VoiceMaster channel!')] });
+                if (!config) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'VoiceMaster is not set up!')] }); }
+                if (!channel.name.includes('🎤')) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'This is not a VoiceMaster channel!')] }); }
                 
                 config.voiceChannels.set(channel.id, message.author.id);
                 vmCache.set(message.guild.id, config);
@@ -431,12 +423,12 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 const target = message.mentions.members.first();
-                if (!target) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please mention a user to transfer ownership to!')] });
-                if (!target.voice.channel || target.voice.channel.id !== channel.id) return message.reply({ embeds: [createVMEmbed('error', 'Error', `${target} is not in your channel!`)] });
+                if (!target) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please mention a user to transfer ownership to!')] }); }
+                if (!target.voice.channel || target.voice.channel.id !== channel.id) { return message.reply({ embeds: [createVMEmbed('error', 'Error', `${target} is not in your channel!`)] }); }
                 
                 const config = await loadConfig(message.guild.id, supabase);
                 if (config) {
@@ -462,11 +454,11 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 const limit = parseInt(args[0]);
-                if (isNaN(limit) || limit < 0 || limit > 99) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Limit must be between 0 and 99!')] });
+                if (isNaN(limit) || limit < 0 || limit > 99) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Limit must be between 0 and 99!')] }); }
                 
                 await channel.setUserLimit(limit);
                 return message.reply({ embeds: [createVMEmbed('success', 'Limit Set', `✅ User limit set to **${limit === 0 ? 'Unlimited' : limit}**`)] });
@@ -480,12 +472,12 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 const name = args.join(' ');
-                if (!name) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please provide a name!')] });
-                if (name.length > 100) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Name can be maximum 100 characters!')] });
+                if (!name) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please provide a name!')] }); }
+                if (name.length > 100) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Name can be maximum 100 characters!')] }); }
                 
                 await channel.setName(`🎤 ${name}`);
                 return message.reply({ embeds: [createVMEmbed('success', 'Renamed', `✅ Channel renamed to **${name}**`)] });
@@ -499,15 +491,15 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 const target = message.mentions.members.first();
-                if (!target) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please mention a user to ban!')] });
-                if (target.id === message.author.id) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You cannot ban yourself!')] });
+                if (!target) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please mention a user to ban!')] }); }
+                if (target.id === message.author.id) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You cannot ban yourself!')] }); }
                 
                 await channel.permissionOverwrites.create(target.id, { Connect: false });
-                if (target.voice.channel?.id === channel.id) await target.voice.disconnect().catch(() => {});
+                if (target.voice.channel?.id === channel.id) { await target.voice.disconnect().catch(() => {}); }
                 
                 return message.reply({ embeds: [createVMEmbed('success', 'Banned', `✅ ${target} has been banned from the channel.`)] });
             }
@@ -520,14 +512,14 @@ module.exports = {
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
                 const channel = message.member.voice.channel;
-                if (!channel) return message.reply({ embeds: [createVMEmbed('error',eds 'Error',: 'You are not in a voice channel!')] });
-                if (! [await isOwner(message.author.id, channel, message.gcreateuild.id, supabase)) return message.reply({VM embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] });
+                if (!channel) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] }); }
+                if (!await isOwner(message.author.id, channel, message.guild.id, supabase)) { return message.reply({ embeds: [createVMEmbed('error', 'Permission Denied', 'Only the channel owner can do that!')] }); }
                 
                 const target = message.mentions.users.first() || await message.client.users.fetch(args[0]).catch(() => null);
-                if (!target) return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please provide a user to unban!')] });
+                if (!target) { return message.reply({ embeds: [createVMEmbed('error', 'Error', 'Please provide a user to unban!')] }); }
                 
                 await channel.permissionOverwrites.delete(target.id).catch(() => {});
-                return message.reply({Embed('success', 'Unbanned', `✅ ${target} has been unbanned from the channel.`)] });
+                return message.reply({ embeds: [createVMEmbed('success', 'Unbanned', `✅ ${target} has been unbanned from the channel.`)] });
             }
         }
     }

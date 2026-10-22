@@ -65,7 +65,7 @@ function createVMEmbed(type, title, description) {
         .setTimestamp();
 }
 
-// ========== JOIN TO CREATE HANDLER (Der Fix für dein Problem) ==========
+// ========== JOIN TO CREATE HANDLER ==========
 async function handleJoinToCreate(newState, client, supabase) {
     const { guild, member, channelId } = newState;
     if (!channelId) return;
@@ -117,6 +117,13 @@ async function handleJoinToCreate(newState, client, supabase) {
         console.log(`✅ VoiceMaster Channel created for ${member.user.tag}`);
     } catch (error) {
         console.error('Fehler beim Erstellen des Voice-Channels:', error);
+        
+        // ⭐ Fehler-DM an den User, falls es nicht klappt
+        try {
+            await member.send({ 
+                embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('❌ VoiceMaster Fehler').setDescription(`Ich konnte deinen Channel nicht erstellen!\n\n**Fehler:** \`${error.message}\`\n\nBitte gib diese Nachricht an den Admin weiter.`)]
+            }).catch(() => {});
+        } catch (e) {}
     }
 }
 
@@ -339,7 +346,6 @@ module.exports = {
             }
         },
         
-        // ... (Die anderen Subcommands wie voice-lock, voice-unlock etc. bleiben unverändert. Du kannst sie aus deiner aktuellen Datei übernehmen, da sie keine Bugs hatten.)
         'voicemaster-reset': {
             aliases: ['vm-reset', 'resetvm'],
             permissions: 'Administrator',

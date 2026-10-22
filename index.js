@@ -11,7 +11,8 @@ const en = require('./languages/en.js');
 const languages = { de, en };
 
 // ⭐ ALLE IMPORTS
-const { vmCache, handleVoiceMasterButton, loadConfig } = require('./models/voicemaster');
+// WICHTIG: handleJoinToCreate wurde hier hinzugefügt!
+const { vmCache, handleVoiceMasterButton, loadConfig, handleJoinToCreate } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
 const { logEvent } = require('./models/logs');
 const { handleLevelingMessage } = require('./models/leveling');
@@ -552,8 +553,9 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
-// ========== VOICE STATE UPDATE ==========
+// ========== VOICE STATE UPDATE (MIT NEUEM JOIN TO CREATE HANDLER) ==========
 client.on('voiceStateUpdate', async (oldState, newState) => {
+    // Voice Stats Logging
     if (!oldState.channelId && newState.channelId) {
         trackVoiceStart(newState, supabase);
     }
@@ -561,68 +563,26 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         await trackVoiceEnd(oldState, supabase);
     }
     
-    const config = await loadConfig(newState.guild.id, supabase);
-    
-    if (config) {
-        if (newState.channelId === config.jtcChannel) {
-            const member = newState.member;
-            
-            try {
-                const newChannel = await newState.guild.channels.create({
-                    name: `🎤 ${member.user.username}'s Channel`,
-                    type: ChannelType.GuildVoice,
-                    parent: newState.channel.parent,
-                    permissionOverwrites: [
-                        { 
-                            id: member.id, 
-                            allow: [
-                                PermissionFlagsBits.Connect, 
-                                PermissionFlagsBits.Speak, 
-                                PermissionFlagsBits.Stream,
-                                PermissionFlagsBits.UseVAD,
-                                PermissionFlagsBits.PrioritySpeaker,
-                                PermissionFlagsBits.MoveMembers,
-                                PermissionFlagsBits.MuteMembers,
-                                PermissionFlagsBits.DeafenMembers
-                            ] 
-                        },
-                        {
-                            id: newState.guild.roles.everyone.id,
-                            allow: [PermissionFlagsBits.Connect]
-                        }
-                    ]
-                });
-                
-                await member.voice.setChannel(newChannel);
-                
-                await supabase.from('voicemaster_channels').insert({
-                    guild_id: newState.guild.id,
-                    channel_id: newChannel.id,
-                    owner_id: member.id
-                });
-                
-                config.voiceChannels.set(newChannel.id, member.id);
-                vmCache.set(newState.guild.id, config);
-                
-            } catch (error) {
-                console.error('Fehler beim Erstellen des Voice-Channels:', error);
-            }
-        }
+    // ⭐ JOIN TO CREATE HANDLER (Erstellt den Channel)
+    if (!oldState.channelId && newState.channelId) {
+        await handleJoinToCreate(newState, client, supabase);
+    }
+
+    // ⭐ CHANNEL LÖSCHEN, WENN LEER
+    if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
+        const channel = oldState.channel;
+        const cfg = vmCache.get(oldState.guild.id);
         
-        if (oldState.channel && oldState.channel.name?.includes('🎤') && oldState.channel.members.size === 0) {
-            const channel = oldState.channel;
-            const cfg = vmCache.get(oldState.guild.id);
+        if (cfg && cfg.voiceChannels.has(channel.id)) {
+            cfg.voiceChannels.delete(channel.id);
+            vmCache.set(oldState.guild.id, cfg);
             
-            if (cfg && cfg.voiceChannels.has(channel.id)) {
-                cfg.voiceChannels.delete(channel.id);
-                vmCache.set(oldState.guild.id, cfg);
-                
-                await supabase.from('voicemaster_channels').delete().eq('channel_id', channel.id);
-                await channel.delete().catch(() => {});
-            }
+            await supabase.from('voicemaster_channels').delete().eq('channel_id', channel.id);
+            await channel.delete().catch(() => {});
         }
     }
     
+    // Voice Logs
     if (!oldState.channelId && newState.channelId) await logEvent.voiceJoin(newState);
     if (oldState.channelId && !newState.channelId) await logEvent.voiceLeave(oldState);
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) await logEvent.voiceMove(oldState, newState);
@@ -709,7 +669,7 @@ client.on('guildMemberAdd', async (member) => {
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                     .setTitle(`👋 Willkommen ${member.user.username}!`)
                     .setDescription(welcomeMsg)
-                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setThumbnail(member.user.displayAvatarURL())
                     .setTimestamp();
                 
                 if (w.image_url) embed.setImage(w.image_url);

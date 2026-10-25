@@ -64,7 +64,7 @@ function createBuilderContainer(session, sessionId, client) {
 
     container.addSeparatorComponents(new SeparatorBuilder());
 
-    // ⭐ Live-Vorschau als Text (da Components V2 keine klassischen Embeds im Container erlaubt)
+    // ⭐ Live-Vorschau als Text
     const previewLines = [];
     
     if (session.title) previewLines.push(`**${session.title}**`);
@@ -143,10 +143,10 @@ async function embedCreate(message, args, client, supabase) {
         new ButtonBuilder().setCustomId(`embed_images_${sessionId}`).setLabel('Images').setStyle(ButtonStyle.Secondary).setEmoji('🖼️')
     );
     
-    // ⭐ Buttons in Row 2 (Aktionen)
+    // ⭐ Buttons in Row 2 (Aktionen) - Emoji repariert
     const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`embed_fields_${sessionId}`).setLabel('Fields').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
-        new ButtonBuilder().setCustomId(`embed_code_${sessionId}`).setLabel('Code').setStyle(ButtonStyle.Success).setEmoji('</>'),
+        new ButtonBuilder().setCustomId(`embed_code_${sessionId}`).setLabel('Code').setStyle(ButtonStyle.Success).setEmoji('📜'),
         new ButtonBuilder().setCustomId(`embed_preview_${sessionId}`).setLabel('Preview').setStyle(ButtonStyle.Primary).setEmoji('👁️'),
         new ButtonBuilder().setCustomId(`embed_send_${sessionId}`).setLabel('Send').setStyle(ButtonStyle.Success).setEmoji('📤'),
         new ButtonBuilder().setCustomId(`embed_cancel_${sessionId}`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
@@ -363,7 +363,7 @@ async function updateEmbedInfo(interaction, sessionId, msg, client) {
     const session = embedSessions.get(sessionId);
     const container = createBuilderContainer(session, sessionId, client);
     
-    // Buttons erneut hinzufügen
+    // Buttons erneut hinzufügen (Emoji repariert)
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`embed_basic_${sessionId}`).setLabel('Basic Info').setStyle(ButtonStyle.Primary).setEmoji('📝'),
         new ButtonBuilder().setCustomId(`embed_author_${sessionId}`).setLabel('Author').setStyle(ButtonStyle.Secondary).setEmoji('👤'),
@@ -372,7 +372,7 @@ async function updateEmbedInfo(interaction, sessionId, msg, client) {
     );
     const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`embed_fields_${sessionId}`).setLabel('Fields').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
-        new ButtonBuilder().setCustomId(`embed_code_${sessionId}`).setLabel('Code').setStyle(ButtonStyle.Success).setEmoji('</>'),
+        new ButtonBuilder().setCustomId(`embed_code_${sessionId}`).setLabel('Code').setStyle(ButtonStyle.Success).setEmoji('📜'),
         new ButtonBuilder().setCustomId(`embed_preview_${sessionId}`).setLabel('Preview').setStyle(ButtonStyle.Primary).setEmoji('👁️'),
         new ButtonBuilder().setCustomId(`embed_send_${sessionId}`).setLabel('Send').setStyle(ButtonStyle.Success).setEmoji('📤'),
         new ButtonBuilder().setCustomId(`embed_cancel_${sessionId}`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
@@ -434,7 +434,6 @@ async function showFieldsMenu(interaction, sessionId) {
 
     if (interaction.isButton() || interaction.isModalSubmit()) {
         if (interaction.isModalSubmit()) {
-            // Wenn es ein Modal-Submit war, müssen wir eine neue Antwort senden (ephemeral)
             await interaction.reply({ components: [container], flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral] });
         } else {
             await interaction.update({ components: [container], flags: MessageFlags.IsComponentsV2 });

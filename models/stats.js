@@ -68,7 +68,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     if (userId) {
         const user = await client.users.fetch(userId).catch(() => null);
         if (user) {
-            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
+            embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL() });
         }
     }
     embed.setTimestamp();
@@ -111,10 +111,9 @@ module.exports = {
                     const days = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 14;
                     const stats = await collectUserStats(message.guild.id, target.id, days, supabase, client);
                     
-                    // Text-basiertes Stats-Embed (ohne Bild)
                     const embed = new EmbedBuilder()
                         .setColor(0x2F3136)
-                        .setAuthor({ name: target.username, iconURL: target.displayAvatarURL({ dynamic: true }) })
+                        .setAuthor({ name: target.username, iconURL: target.displayAvatarURL() })
                         .setTitle(`📊 Stats for ${target.username}`)
                         .addFields([
                             { name: '📊 Messages (1d)', value: `${stats.messages['1d'] || 0}`, inline: true },
@@ -554,7 +553,8 @@ async function getTopUsers(guildId, type, limit, days, supabase, client, lang) {
     }
 }
 
-// ⭐ Tracking handlers
+// ========== TRACKING HANDLERS (REPARIERT) ==========
+
 async function trackMessage(message, supabase) {
     if (message.author.bot || !message.guild) return;
     
@@ -602,7 +602,8 @@ async function trackMessage(message, supabase) {
     }
 }
 
-function trackVoiceStart(state, supabase) {
+// ⭐ FIX: trackVoiceStart benutzt jetzt try/catch statt .catch()
+async function trackVoiceStart(state, supabase) {
     if (!state.channel || !state.member) return;
     
     const voiceConnections = getVoiceConnections();
@@ -612,11 +613,15 @@ function trackVoiceStart(state, supabase) {
         startTime: Date.now()
     });
     
-    supabase.from('channel_names').upsert({
-        guild_id: state.guild.id,
-        channel_id: state.channel.id,
-        channel_name: state.channel.name
-    }).catch(() => {});
+    try {
+        await supabase.from('channel_names').upsert({
+            guild_id: state.guild.id,
+            channel_id: state.channel.id,
+            channel_name: state.channel.name
+        });
+    } catch (error) {
+        console.error('Channel name tracking error:', error);
+    }
 }
 
 async function trackVoiceEnd(state, supabase) {

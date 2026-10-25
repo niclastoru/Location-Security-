@@ -673,7 +673,6 @@ client.on('guildMemberAdd', async (member) => {
         for (const w of welcomes) {
             const channel = member.guild.channels.cache.get(w.channel_id);
             if (channel) {
-                // Platzhalter ersetzen
                 const welcomeMsg = w.message
                     .replace(/{user}/g, member.user.username)
                     .replace(/{user.mention}/g, member.toString())
@@ -681,53 +680,24 @@ client.on('guildMemberAdd', async (member) => {
                     .replace(/{membercount}/g, member.guild.memberCount);
                 
                 try {
-                    // ⭐ HIER IST DAS NEUE DESIGN
-                    const container = new ContainerBuilder()
-                        .setAccentColor(parseInt(w.embed_color?.replace('#', '') || 'FFA500', 16));
-
-                    container.addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `Willkommen auf **${member.guild.name}** ${member.toString()}\n` +
-                            `Wir sind jetzt **${member.guild.memberCount} Mitglieder!**\n\n` +
-                            `**Chatte** mit uns\n` +
-                            `Bleib mit der Szene **entspannt**`
-                        )
-                    );
-
+                    // ⭐ NEUES DESIGN
+                    const container = new ContainerBuilder().setAccentColor(parseInt(w.embed_color?.replace('#', '') || 'FFA500', 16));
+                    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`**Willkommen auf ${member.guild.name}**\n${member.toString()}\n\n${welcomeMsg}`));
                     container.addSeparatorComponents(new SeparatorBuilder());
-
-                    // Bild hinzufügen
+                    
                     if (w.image_url) {
-                        container.addMediaGalleryComponents(
-                            new MediaGalleryBuilder().addItems(
-                                new MediaGalleryItemBuilder().setURL(w.image_url)
-                            )
-                        );
-                    } else {
-                        // Fallback-Bild (Discord Logo)
-                        container.addMediaGalleryComponents(
-                            new MediaGalleryBuilder().addItems(
-                                new MediaGalleryItemBuilder().setURL('https://i.imgur.com/8e8r6yJ.png')
-                            )
-                        );
+                        container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(w.image_url)));
                     }
-
-                    // Senden mit Components V2 Flag
-                    await channel.send({
-                        components: [container],
-                        flags: MessageFlags.IsComponentsV2
-                    });
-
+                    
+                    await channel.send({ components: [container], flags: MessageFlags.IsComponentsV2 });
                 } catch (err) {
-                    console.error('❌ Fehler beim Senden der Welcome Message:', err);
-                    // Fallback, falls es zu einem Fehler kommt
+                    console.error('❌ Welcome Error:', err);
                     await channel.send(`Willkommen ${member}!`);
                 }
             }
         }
     }
     
-    // Auto-Role Logik
     const { data: autorole } = await supabase
         .from('autorole')
         .select('role_id')

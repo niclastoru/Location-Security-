@@ -15,7 +15,7 @@ const {
 // Embed sessions cache
 const embedSessions = new Map();
 
-// Helper: Create embed from data
+// Helper: Create embed from data (für die Vorschau und das Senden)
 function createEmbedFromData(data) {
     const embed = new EmbedBuilder();
     
@@ -48,11 +48,12 @@ function getEmbedCode(data) {
     return JSON.stringify(embed.toJSON(), null, 2);
 }
 
-// ⭐ Helper: Create the modern UI Container
+// ⭐ Helper: Create the modern UI Container (Components V2)
 function createBuilderContainer(session, sessionId, client) {
     const container = new ContainerBuilder()
         .setAccentColor(0x2B2D31);
 
+    // Kopfzeile
     container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(`## 🎨 Embed Builder: ${session.name}`)
     );
@@ -63,21 +64,29 @@ function createBuilderContainer(session, sessionId, client) {
 
     container.addSeparatorComponents(new SeparatorBuilder());
 
-    // Live-Vorschau
-    const previewEmbed = createEmbedFromData(session);
-    container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`**📝 Live Preview:**`)
-    );
+    // ⭐ Live-Vorschau als Text (da Components V2 keine klassischen Embeds im Container erlaubt)
+    const previewLines = [];
     
-    // Wir fügen das Embed als "Vorschau" hinzu
-    const previewContainer = new ContainerBuilder().addEmbedComponents(previewEmbed);
-    container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`*Use /preview or the button below to see the full embed.*`)
-    );
+    if (session.title) previewLines.push(`**${session.title}**`);
+    if (session.description) previewLines.push(session.description);
+    if (session.footer_text) previewLines.push(`*${session.footer_text}*`);
+    if (session.fields.length > 0) {
+        previewLines.push(`📋 ${session.fields.length} Field(s)`);
+    }
+    
+    if (previewLines.length > 0) {
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`**📝 Live Preview:**\n${previewLines.join('\n')}`)
+        );
+    } else {
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`**📝 Live Preview:**\n*No content yet. Use the buttons below to start.*`)
+        );
+    }
 
     container.addSeparatorComponents(new SeparatorBuilder());
 
-    // Info-Text
+    // Stats-Info
     container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
             `**📋 Stats:** Title: \`${session.title || 'None'}\` | Color: \`${session.color}\` | Fields: \`${session.fields.length}\`\n` +
@@ -152,7 +161,7 @@ async function embedCreate(message, args, client, supabase) {
         flags: MessageFlags.IsComponentsV2 // Wichtig für Components V2!
     });
     
-    // ⭐ Collector auf die Nachricht beschränken (verhindert Chaos)
+    // ⭐ Collector auf die Nachricht beschränken
     const filter = (i) => i.user.id === message.author.id;
     const collector = msg.createMessageComponentCollector({ filter, time: 600000 });
     
@@ -160,7 +169,7 @@ async function embedCreate(message, args, client, supabase) {
         const s = embedSessions.get(sessionId);
         if (!s) return interaction.reply({ content: '❌ Session expired.', ephemeral: true });
 
-        // ⭐ Modal-Handling (Warten auf Modal-Submit)
+        // ⭐ Modal-Handling
         if (interaction.customId === `embed_basic_${sessionId}`) {
             await showBasicInfoModal(interaction, sessionId);
         }
@@ -208,6 +217,10 @@ async function embedCreate(message, args, client, supabase) {
             embedSessions.set(sessionId, s);
             await updateEmbedInfo(interaction, sessionId, msg, client);
             await showFieldsMenu(interaction, sessionId);
+        }
+        else if (interaction.customId === `embed_back_${sessionId}`) {
+            // Zurück zum Hauptmenü
+            await updateEmbedInfo(interaction, sessionId, msg, client);
         }
     });
     
@@ -377,6 +390,16 @@ async function showFieldsMenu(interaction, sessionId) {
     
     const container = new ContainerBuilder().setAccentColor(0x5865F2);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 📋 Field Manager\n**Current Fields:** ${fields.length}/25`));
+    
+    // Zeige die Felder als Text an
+    let fieldsText = '';
+    if (fields.length === 0) {
+        fieldsText = '*No fields added yet*';
+    } else {
+        fieldsText = fields.map((f, i) => `**${i+1}. ${f.name}**${f.inline ? ' (inline)' : ''}\n${f.value.substring(0, 100)}${f.value.length > 100 ? '...' : ''}`).join('\n\n');
+    }
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fieldsText));
+    container.addSeparatorComponents(new SeparatorBuilder());
 
     const rows = [];
     const addRow = new ActionRowBuilder().addComponents(
@@ -398,7 +421,7 @@ async function showFieldsMenu(interaction, sessionId) {
         currentRow.addComponents(
             new ButtonBuilder()
                 .setCustomId(`embed_field_remove_${sessionId}_${index}`)
-                .setLabel(`${index + 1}. ${field.name.substring(0, 25)}`)
+                .setLabel(`${index + 1}. ${field.name.substring(0, 20)}`)
                 .setStyle(ButtonStyle.Danger)
                 .setEmoji('❌')
         );
@@ -409,10 +432,13 @@ async function showFieldsMenu(interaction, sessionId) {
 
     for (const row of rows) container.addActionRowComponents(row);
 
-    if (interaction.isButton()) {
-        await interaction.update({ components: [container], flags: MessageFlags.IsComponentsV2 });
-    } else {
-        await interaction.followUp({ components: [container], flags: MessageFlags.IsComponentsV2, ephemeral: true });
+    if (interaction.isButton() || interaction.isModalSubmit()) {
+        if (interaction.isModalSubmit()) {
+            // Wenn es ein Modal-Submit war, müssen wir eine neue Antwort senden (ephemeral)
+            await interaction.reply({ components: [container], flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral] });
+        } else {
+            await interaction.update({ components: [container], flags: MessageFlags.IsComponentsV2 });
+        }
     }
 }
 

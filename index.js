@@ -1,5 +1,21 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    Collection, 
+    ChannelType, 
+    PermissionFlagsBits, 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
+    MessageFlags
+} = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws'); // ⭐ FIX: WebSocket für Node 20
 const fs = require('fs');
@@ -11,7 +27,6 @@ const en = require('./languages/en.js');
 const languages = { de, en };
 
 // ⭐ ALLE IMPORTS
-// WICHTIG: handleJoinToCreate wurde hier hinzugefügt!
 const { vmCache, handleVoiceMasterButton, loadConfig, handleJoinToCreate } = require('./models/voicemaster');
 const { handleGiveawayReaction } = require('./models/giveaway');
 const { logEvent } = require('./models/logs');
@@ -643,7 +658,7 @@ client.on('messageDeleteBulk', async (messages, channel) => {
     await logEvent.messageDeleteBulk(messages, channel);
 });
 
-// ========== MEMBER JOIN ==========
+// ========== MEMBER JOIN (MIT NEUEM DESIGN) ==========
 client.on('guildMemberAdd', async (member) => {
     await logEvent.memberJoin(member);
     
@@ -658,26 +673,61 @@ client.on('guildMemberAdd', async (member) => {
         for (const w of welcomes) {
             const channel = member.guild.channels.cache.get(w.channel_id);
             if (channel) {
+                // Platzhalter ersetzen
                 const welcomeMsg = w.message
                     .replace(/{user}/g, member.user.username)
                     .replace(/{user.mention}/g, member.toString())
                     .replace(/{server}/g, member.guild.name)
                     .replace(/{membercount}/g, member.guild.memberCount);
                 
-                const embed = new EmbedBuilder()
-                    .setColor(parseInt(w.embed_color?.replace('#', '') || '00FF00', 16))
-                    .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
-                    .setTitle(`👋 Willkommen ${member.user.username}!`)
-                    .setDescription(welcomeMsg)
-                    .setThumbnail(member.user.displayAvatarURL())
-                    .setTimestamp();
-                
-                if (w.image_url) embed.setImage(w.image_url);
-                await channel.send({ embeds: [embed] });
+                try {
+                    // ⭐ HIER IST DAS NEUE DESIGN
+                    const container = new ContainerBuilder()
+                        .setAccentColor(parseInt(w.embed_color?.replace('#', '') || 'FFA500', 16));
+
+                    container.addTextDisplayComponents(
+                        new TextDisplayBuilder().setContent(
+                            `Willkommen auf **${member.guild.name}** ${member.toString()}\n` +
+                            `Wir sind jetzt **${member.guild.memberCount} Mitglieder!**\n\n` +
+                            `**Chatte** mit uns\n` +
+                            `Bleib mit der Szene **entspannt**`
+                        )
+                    );
+
+                    container.addSeparatorComponents(new SeparatorBuilder());
+
+                    // Bild hinzufügen
+                    if (w.image_url) {
+                        container.addMediaGalleryComponents(
+                            new MediaGalleryBuilder().addItems(
+                                new MediaGalleryItemBuilder().setURL(w.image_url)
+                            )
+                        );
+                    } else {
+                        // Fallback-Bild (Discord Logo)
+                        container.addMediaGalleryComponents(
+                            new MediaGalleryBuilder().addItems(
+                                new MediaGalleryItemBuilder().setURL('https://i.imgur.com/8e8r6yJ.png')
+                            )
+                        );
+                    }
+
+                    // Senden mit Components V2 Flag
+                    await channel.send({
+                        components: [container],
+                        flags: MessageFlags.IsComponentsV2
+                    });
+
+                } catch (err) {
+                    console.error('❌ Fehler beim Senden der Welcome Message:', err);
+                    // Fallback, falls es zu einem Fehler kommt
+                    await channel.send(`Willkommen ${member}!`);
+                }
             }
         }
     }
     
+    // Auto-Role Logik
     const { data: autorole } = await supabase
         .from('autorole')
         .select('role_id')

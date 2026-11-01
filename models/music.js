@@ -1,4 +1,4 @@
-const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
+const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType, NoSubscriberBehavior } = require('@discordjs/voice');
 const play = require('play-dl'); // ⭐ Neu: play-dl statt ytdl-core
 const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
@@ -16,7 +16,7 @@ function getQueue(guildId) {
     if (!musicQueues.has(guildId)) {
         musicQueues.set(guildId, {
             songs: [],
-            player: createAudioPlayer(),
+            player: null, // Wird bei jedem Play neu erstellt
             connection: null,
             channel: null,
             loop: false,
@@ -158,30 +158,37 @@ async function searchYouTube(query) {
     }
 }
 
-// ⭐ Play song (ANGEPASST für play-dl)
+// ⭐ Play song (KORRIGIERT für play-dl & @discordjs/voice)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Playing: ${song.title}`);
         
-        // ⭐ NEU: Stream mit play-dl erzeugen
+        // 1. Stream von play-dl holen
         const stream = await play.stream(song.url, {
-            quality: 2, // Höchste Audioqualität
-            discordPlayerCompatibility: true // Wichtig für @discordjs/voice
+            quality: 2
         });
         
+        // 2. AudioResource erstellen (WICHTIG: inputType angeben!)
         const resource = createAudioResource(stream.stream, { 
-            inputType: stream.type,
+            inputType: StreamType.WebmOpus, 
             inlineVolume: true 
         });
         
         resource.volume.setVolume(queue.volume);
         
-        queue.player.removeAllListeners();
+        // 3. Player konfigurieren (verhindert Abbruch, wenn Bot alleine im Channel ist)
+        queue.player = createAudioPlayer({
+            behaviors: {
+                noSubscriber: NoSubscriberBehavior.Play
+            }
+        });
+        
         queue.player.play(resource);
         queue.nowPlaying = song;
         
+        // 4. Embed senden
         const embed = new EmbedBuilder()
             .setColor(0xFF0000)
             .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
@@ -194,9 +201,9 @@ async function playSong(guild, channel, song, client) {
             .setTimestamp();
         
         if (song.thumbnail) embed.setThumbnail(song.thumbnail);
-        
         channel.send({ embeds: [embed] });
         
+        // 5. Event-Listener (Idle = Song zu Ende)
         queue.player.once(AudioPlayerStatus.Idle, () => {
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push({ ...queue.nowPlaying });
@@ -209,6 +216,7 @@ async function playSong(guild, channel, song, client) {
             }
         });
         
+        // 6. Fehler-Handling
         queue.player.on('error', (error) => {
             console.error('Player error:', error);
             queue.songs.shift();
@@ -310,7 +318,6 @@ module.exports = {
                                 selfMute: false,
                                 selfDeaf: false
                             });
-                            queue.connection.subscribe(queue.player);
                             console.log(`✅ Bot joined ${voiceChannel.name}`);
                         }
                         playSong(message.guild, message.channel, song, client);
@@ -353,7 +360,7 @@ module.exports = {
                 const queue = getQueue(message.guild.id);
                 queue.songs = [];
                 queue.loop = false;
-                queue.player.stop();
+                if (queue.player) queue.player.stop();
                 if (queue.connection) {
                     queue.connection.destroy();
                     queue.connection = null;
@@ -417,7 +424,7 @@ module.exports = {
                     });
                 }
                 queue.volume = volume / 100;
-                if (queue.player.state.resource) {
+                if (queue.player && queue.player.state.resource) {
                     queue.player.state.resource.volume.setVolume(queue.volume);
                 }
                 return message.reply({ 

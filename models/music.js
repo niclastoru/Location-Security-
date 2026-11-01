@@ -1,10 +1,19 @@
-const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType, NoSubscriberBehavior } = require('@discordjs/voice');
-const play = require('play-dl'); // ⭐ Neu: play-dl statt ytdl-core
+const { 
+    AudioPlayerStatus, 
+    createAudioPlayer, 
+    createAudioResource, 
+    joinVoiceChannel, 
+    StreamType, 
+    NoSubscriberBehavior,
+    setFFmpegPath // ⭐ Wichtig: Expliziter FFmpeg-Pfad
+} = require('@discordjs/voice');
+const play = require('play-dl');
 const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
 
-// Set FFmpeg path
+// ⭐ FFmpeg Pfad für Discord Voice setzen
+setFFmpegPath(ffmpegStatic);
 process.env.FFMPEG_PATH = ffmpegStatic;
 
 console.log(`✅ FFmpeg path: ${ffmpegStatic}`);
@@ -119,7 +128,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     return embed;
 }
 
-// ⭐ Search YouTube using yt-search (FUNKTIONIERT!)
+// ⭐ Search YouTube using yt-search
 async function searchYouTube(query) {
     try {
         // For direct URL
@@ -158,7 +167,7 @@ async function searchYouTube(query) {
     }
 }
 
-// ⭐ Play song (KORRIGIERT für play-dl & @discordjs/voice)
+// ⭐ Play song (KORRIGIERT für Audio-Ausgabe)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
@@ -170,15 +179,15 @@ async function playSong(guild, channel, song, client) {
             quality: 2
         });
         
-        // 2. AudioResource erstellen (WICHTIG: inputType angeben!)
+        // 2. AudioResource erstellen (Arbitrary zwingt FFmpeg zur Konvertierung)
         const resource = createAudioResource(stream.stream, { 
-            inputType: StreamType.WebmOpus, 
+            inputType: StreamType.Arbitrary, // ⭐ Geändert von WebmOpus
             inlineVolume: true 
         });
         
         resource.volume.setVolume(queue.volume);
         
-        // 3. Player konfigurieren (verhindert Abbruch, wenn Bot alleine im Channel ist)
+        // 3. Player konfigurieren
         queue.player = createAudioPlayer({
             behaviors: {
                 noSubscriber: NoSubscriberBehavior.Play
@@ -344,7 +353,7 @@ module.exports = {
                         embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'error', 'no_song', 'no_song_playing')] 
                     });
                 }
-                queue.player.stop();
+                if (queue.player) queue.player.stop();
                 return message.reply({ 
                     embeds: [await buildEmbed(client, message.guild.id, message.author.id, 'success', 'skipped', 'skipped')] 
                 });

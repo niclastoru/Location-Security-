@@ -4,16 +4,14 @@ const {
     createAudioResource, 
     joinVoiceChannel, 
     StreamType, 
-    NoSubscriberBehavior,
-    setFFmpegPath // ⭐ Wichtig: Expliziter FFmpeg-Pfad
+    NoSubscriberBehavior
 } = require('@discordjs/voice');
 const play = require('play-dl');
 const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
 
-// ⭐ FFmpeg Pfad für Discord Voice setzen
-setFFmpegPath(ffmpegStatic);
+// ⭐ FFmpeg Pfad setzen (ohne setFFmpegPath, da in dieser Version nicht verfügbar)
 process.env.FFMPEG_PATH = ffmpegStatic;
 
 console.log(`✅ FFmpeg path: ${ffmpegStatic}`);
@@ -25,7 +23,7 @@ function getQueue(guildId) {
     if (!musicQueues.has(guildId)) {
         musicQueues.set(guildId, {
             songs: [],
-            player: null, // Wird bei jedem Play neu erstellt
+            player: null,
             connection: null,
             channel: null,
             loop: false,
@@ -167,7 +165,7 @@ async function searchYouTube(query) {
     }
 }
 
-// ⭐ Play song (KORRIGIERT für Audio-Ausgabe)
+// ⭐ Play song
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
@@ -181,7 +179,7 @@ async function playSong(guild, channel, song, client) {
         
         // 2. AudioResource erstellen (Arbitrary zwingt FFmpeg zur Konvertierung)
         const resource = createAudioResource(stream.stream, { 
-            inputType: StreamType.Arbitrary, // ⭐ Geändert von WebmOpus
+            inputType: StreamType.Arbitrary,
             inlineVolume: true 
         });
         

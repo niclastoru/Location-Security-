@@ -1,5 +1,5 @@
 const { AudioPlayerStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
-const ytdl = require('ytdl-core');
+const play = require('play-dl'); // ⭐ Neu: play-dl statt ytdl-core
 const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
@@ -108,7 +108,7 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
     
     if (userId) {
         const user = await client?.users?.fetch(userId).catch(() => null);
-        if (user) embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) });
+        if (user) embed.setFooter({ text: user.tag, iconURL: user.displayAvatarURL() });
     }
     embed.setTimestamp();
     
@@ -125,12 +125,12 @@ async function searchYouTube(query) {
         // For direct URL
         if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
             console.log(`🎵 Direct URL: ${query}`);
-            const info = await ytdl.getInfo(query);
+            const info = await play.video_info(query);
             return {
-                title: info.videoDetails.title,
-                url: info.videoDetails.video_url,
-                duration: info.videoDetails.lengthSeconds,
-                thumbnail: info.videoDetails.thumbnails[0]?.url || null
+                title: info.video_details.title,
+                url: info.video_details.url,
+                duration: info.video_details.durationInSec,
+                thumbnail: info.video_details.thumbnails[0]?.url || null
             };
         }
         
@@ -158,21 +158,21 @@ async function searchYouTube(query) {
     }
 }
 
-// ⭐ Play song
+// ⭐ Play song (ANGEPASST für play-dl)
 async function playSong(guild, channel, song, client) {
     const queue = getQueue(guild.id);
     
     try {
         console.log(`🎵 Playing: ${song.title}`);
         
-        const stream = ytdl(song.url, {
-            filter: 'audioonly',
-            quality: 'highestaudio',
-            highWaterMark: 1 << 25
+        // ⭐ NEU: Stream mit play-dl erzeugen
+        const stream = await play.stream(song.url, {
+            quality: 2, // Höchste Audioqualität
+            discordPlayerCompatibility: true // Wichtig für @discordjs/voice
         });
         
-        const resource = createAudioResource(stream, { 
-            inputType: 'opus',
+        const resource = createAudioResource(stream.stream, { 
+            inputType: stream.type,
             inlineVolume: true 
         });
         
@@ -294,7 +294,7 @@ module.exports = {
                             { name: '⏱️ Duration', value: formatDuration(song.duration), inline: true },
                             { name: '📊 Position', value: `#${queue.songs.length}`, inline: true }
                         ])
-                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                        .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL() })
                         .setTimestamp();
                     
                     if (song.thumbnail) embed.setThumbnail(song.thumbnail);
@@ -461,7 +461,7 @@ module.exports = {
                         { name: '🔁 Loop', value: queue.loop ? '✅ On' : '❌ Off', inline: true },
                         { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
                     ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL() })
                     .setTimestamp();
                 
                 return message.reply({ embeds: [embed] });
@@ -490,7 +490,7 @@ module.exports = {
                         { name: '👤 Requested by', value: song.requestedBy, inline: true },
                         { name: '⏱️ Duration', value: formatDuration(song.duration), inline: true }
                     ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL() })
                     .setTimestamp();
                 if (song.thumbnail) embed.setThumbnail(song.thumbnail);
                 return message.reply({ embeds: [embed] });
@@ -585,7 +585,7 @@ module.exports = {
                         { name: '🎮 Playback', value: '`!pause` `!resume` `!stop` `!skip` `!volume`', inline: true },
                         { name: '📋 Queue', value: '`!queue` `!nowplaying` `!shuffle` `!remove` `!clear` `!loop`', inline: true }
                     ])
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL() })
                     .setTimestamp();
                 return message.reply({ embeds: [embed] });
             }

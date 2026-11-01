@@ -5,7 +5,10 @@ const {
     EmbedBuilder, 
     ChannelType, 
     PermissionFlagsBits,
-    MessageFlags
+    MessageFlags,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder
 } = require('discord.js');
 
 // Cache for fast access (loaded from Supabase)
@@ -74,7 +77,6 @@ async function handleJoinToCreate(newState, client, supabase) {
     if (!config || channelId !== config.jtcChannel) return;
 
     try {
-        // Channel erstellen
         const newChannel = await guild.channels.create({
             name: `🎤 ${member.user.username}'s Channel`,
             type: ChannelType.GuildVoice,
@@ -100,28 +102,23 @@ async function handleJoinToCreate(newState, client, supabase) {
             ]
         });
 
-        // User verschieben
         await member.voice.setChannel(newChannel);
 
-        // In Supabase speichern
         await supabase.from('voicemaster_channels').insert({
             guild_id: guild.id,
             channel_id: newChannel.id,
             owner_id: member.id
         });
 
-        // Im Cache speichern
         config.voiceChannels.set(newChannel.id, member.id);
         vmCache.set(guild.id, config);
 
         console.log(`✅ VoiceMaster Channel created for ${member.user.tag}`);
     } catch (error) {
         console.error('Fehler beim Erstellen des Voice-Channels:', error);
-        
-        // ⭐ Fehler-DM an den User, falls es nicht klappt
         try {
             await member.send({ 
-                embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('❌ VoiceMaster Fehler').setDescription(`Ich konnte deinen Channel nicht erstellen!\n\n**Fehler:** \`${error.message}\`\n\nBitte gib diese Nachricht an den Admin weiter.`)]
+                embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('❌ VoiceMaster Fehler').setDescription(`Ich konnte deinen Channel nicht erstellen!\n\n**Fehler:** \`${error.message}\``)]
             }).catch(() => {});
         } catch (e) {}
     }
@@ -134,18 +131,11 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
     
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
-    if (!channel) {
-        return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
-    }
-    
-    if (!channel.name.includes('🎤')) {
-        return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'This is not a VoiceMaster channel!')] });
-    }
+    if (!channel) return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'You are not in a voice channel!')] });
+    if (!channel.name.includes('🎤')) return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'This is not a VoiceMaster channel!')] });
     
     const config = await loadConfig(guild.id, supabase);
-    if (!config) {
-        return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'VoiceMaster is not set up properly!')] });
-    }
+    if (!config) return interaction.editReply({ embeds: [createVMEmbed('error', 'Error', 'VoiceMaster is not set up properly!')] });
     
     const currentOwner = config.voiceChannels.get(channel.id);
     const isOwner = currentOwner === member.id;
@@ -159,26 +149,25 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
     };
 
     switch (customId) {
-        
         case 'vm_lock':
             if (!checkOwner()) return;
             await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: false });
-            return interaction.editReply({ embeds: [createVMEmbed('success', 'Locked', '🔒 Your channel is now locked. New members cannot join.')] });
+            return interaction.editReply({ embeds: [createVMEmbed('success', 'Locked', '🔒 Your channel is now locked.')] });
             
         case 'vm_unlock':
             if (!checkOwner()) return;
             await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: null });
-            return interaction.editReply({ embeds: [createVMEmbed('success', 'Unlocked', '🔓 Your channel is now unlocked. New members can join.')] });
+            return interaction.editReply({ embeds: [createVMEmbed('success', 'Unlocked', '🔓 Your channel is now unlocked.')] });
             
         case 'vm_hide':
             if (!checkOwner()) return;
             await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
-            return interaction.editReply({ embeds: [createVMEmbed('success', 'Hidden', '👻 Your channel is now hidden from the channel list.')] });
+            return interaction.editReply({ embeds: [createVMEmbed('success', 'Hidden', '👻 Your channel is now hidden.')] });
             
         case 'vm_reveal':
             if (!checkOwner()) return;
             await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: null });
-            return interaction.editReply({ embeds: [createVMEmbed('success', 'Revealed', '👁️ Your channel is now visible to everyone.')] });
+            return interaction.editReply({ embeds: [createVMEmbed('success', 'Revealed', '👁️ Your channel is now visible.')] });
             
         case 'vm_claim':
             if (currentOwner) {
@@ -187,34 +176,23 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
                     return interaction.editReply({ embeds: [createVMEmbed('error', 'Claim Failed', 'The current owner is still in the channel!')] });
                 }
             }
-            
             config.voiceChannels.set(channel.id, member.id);
             vmCache.set(guild.id, config);
-            
-            await supabase.from('voicemaster_channels').upsert({
-                guild_id: guild.id,
-                channel_id: channel.id,
-                owner_id: member.id
-            });
-            
+            await supabase.from('voicemaster_channels').upsert({ guild_id: guild.id, channel_id: channel.id, owner_id: member.id });
             await channel.setName(`🎤 ${member.user.username}'s Channel`);
             return interaction.editReply({ embeds: [createVMEmbed('success', 'Claimed', `📋 You are now the proud owner of **${channel.name}**!`)] });
             
         case 'vm_disconnect':
             if (!checkOwner()) return;
-            return interaction.editReply({ embeds: [createVMEmbed('info', 'Disconnect', '👢 Please use the `!voice-kick @User` command to disconnect someone.')] });
+            return interaction.editReply({ embeds: [createVMEmbed('info', 'Disconnect', '👢 Please use the `!voice-kick @User` command.')] });
             
         case 'vm_activity':
             if (!checkOwner()) return;
             try {
-                const invite = await channel.createInvite({
-                    targetApplication: '880218394199220334',
-                    targetType: 2,
-                    maxAge: 300
-                });
+                const invite = await channel.createInvite({ targetApplication: '880218394199220334', targetType: 2, maxAge: 300 });
                 return interaction.editReply({ embeds: [createVMEmbed('success', 'Activity Started', `🎮 [Click here to open YouTube Together](https://discord.gg/${invite.code})`)] });
             } catch {
-                return interaction.editReply({ embeds: [createVMEmbed('error', 'Activity Failed', 'Could not start the activity. Make sure the channel is not full!')] });
+                return interaction.editReply({ embeds: [createVMEmbed('error', 'Activity Failed', 'Could not start the activity.')] });
             }
             
         case 'vm_info':
@@ -235,9 +213,7 @@ async function handleVoiceMasterButton(interaction, client, supabase) {
             
         case 'vm_limit_plus':
             if (!checkOwner()) return;
-            const newLimit = (channel.userLimit === 0 || channel.userLimit === 99) 
-                ? (channel.userLimit === 99 ? 99 : 1) 
-                : channel.userLimit + 1;
+            const newLimit = (channel.userLimit === 0 || channel.userLimit === 99) ? (channel.userLimit === 99 ? 99 : 1) : channel.userLimit + 1;
             await channel.setUserLimit(newLimit);
             return interaction.editReply({ embeds: [createVMEmbed('success', 'Limit Increased', `⬆️ User limit is now **${newLimit}**.`)] });
             
@@ -261,8 +237,9 @@ module.exports = {
             description: 'Creates the VoiceMaster system',
             category: 'Voicemaster',
             async execute(message, args, { client, supabase }) {
-                const loadingMsg = await message.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription('⏳ Creating VoiceMaster...').setTimestamp()] });
+                const loadingMsg = await message.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription('⏳ Creating VoiceMaster...')] });
                 
+                // Delete old config if exists
                 const existing = await loadConfig(message.guild.id, supabase);
                 if (existing) {
                     const jtcChannel = message.guild.channels.cache.get(existing.jtcChannel);
@@ -282,46 +259,73 @@ module.exports = {
                 });
                 
                 const interfaceChannel = await message.guild.channels.create({
-                    name: '🎤｜voice-interface',
+                    name: '🎤｜interface',
                     type: ChannelType.GuildText,
                     permissionOverwrites: [
                         { id: message.guild.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
                     ]
                 });
                 
-                const panelEmbed = new EmbedBuilder()
-                    .setColor(0x2B2D31)
-                    .setAuthor({ name: 'VoiceMaster Control Panel', iconURL: client.user.displayAvatarURL() })
-                    .setDescription('> **Manage your voice channel elegantly**\n> Use the buttons below to customize your channel.\n\n*All interactions are only visible to you.*')
-                    .setImage('https://i.imgur.com/AfFp7pu.png')
-                    .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
-                    .setTimestamp();
+                // ⭐ DAS NEUE DESIGN (wie im Screenshot)
+                const container = new ContainerBuilder()
+                    .setAccentColor(0x5865F2); // Blauer Rand
+
+                // Kopfzeile: Avatar + VoiceMaster Interface
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`### <:void:1329079892723363972> VoiceMaster Interface`)
+                );
                 
-                // ========== ALLES WIEDER GRAU (Secondary) ==========
-                const row1 = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder().setCustomId('vm_lock').setLabel('Lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
-                        new ButtonBuilder().setCustomId('vm_unlock').setLabel('Unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓'),
-                        new ButtonBuilder().setCustomId('vm_hide').setLabel('Hide').setStyle(ButtonStyle.Secondary).setEmoji('👻'),
-                        new ButtonBuilder().setCustomId('vm_reveal').setLabel('Reveal').setStyle(ButtonStyle.Secondary).setEmoji('👁️')
-                    );
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`Use the buttons below to manage your voice channel.`)
+                );
+
+                container.addSeparatorComponents(new SeparatorBuilder());
+
+                // Liste der Buttons (als Text)
+                const buttonList = 
+                    `**Buttons**\n` +
+                    `🔒 - **Lock** your voice channel\n` +
+                    `🔓 - **Unlock** your voice channel\n` +
+                    `👻 - **Hide** your voice channel\n` +
+                    `👁️ - **Reveal** your voice channel\n` +
+                    `✏️ - **Rename** your voice channel\n` +
+                    `⬆️ - **Increase** your voice channel's user limit\n` +
+                    `⬇️ - **Decrease** your voice channel's user limit\n` +
+                    `👑 - **Claim** your voice channel\n` +
+                    `➡️ - **Transfer** ownership of your voice channel\n` +
+                    `🗑️ - **Delete** your voice channel`;
+
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(buttonList)
+                );
+
+                // Die Buttons (2 Reihen, alle grau mit Emojis)
+                const row1 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('vm_lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
+                    new ButtonBuilder().setCustomId('vm_unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓'),
+                    new ButtonBuilder().setCustomId('vm_hide').setStyle(ButtonStyle.Secondary).setEmoji('👻'),
+                    new ButtonBuilder().setCustomId('vm_reveal').setStyle(ButtonStyle.Secondary).setEmoji('👁️'),
+                    new ButtonBuilder().setCustomId('vm_limit_plus').setStyle(ButtonStyle.Secondary).setEmoji('⬆️')
+                );
+
+                const row2 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('vm_limit_minus').setStyle(ButtonStyle.Secondary).setEmoji('⬇️'),
+                    new ButtonBuilder().setCustomId('vm_claim').setStyle(ButtonStyle.Secondary).setEmoji('👑'),
+                    new ButtonBuilder().setCustomId('vm_activity').setStyle(ButtonStyle.Secondary).setEmoji('➡️'),
+                    new ButtonBuilder().setCustomId('vm_disconnect').setStyle(ButtonStyle.Secondary).setEmoji('👢'),
+                    new ButtonBuilder().setCustomId('vm_info').setStyle(ButtonStyle.Secondary).setEmoji('🗑️')
+                );
+
+                container.addActionRowComponents(row1);
+                container.addActionRowComponents(row2);
+
+                // Senden der Nachricht mit Components V2
+                await interfaceChannel.send({ 
+                    components: [container], 
+                    flags: MessageFlags.IsComponentsV2 
+                });
                 
-                const row2 = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder().setCustomId('vm_claim').setLabel('Claim').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
-                        new ButtonBuilder().setCustomId('vm_info').setLabel('Info').setStyle(ButtonStyle.Secondary).setEmoji('ℹ️'),
-                        new ButtonBuilder().setCustomId('vm_disconnect').setLabel('Kick').setStyle(ButtonStyle.Secondary).setEmoji('👢'),
-                        new ButtonBuilder().setCustomId('vm_activity').setLabel('Activity').setStyle(ButtonStyle.Secondary).setEmoji('🎮')
-                    );
-                
-                const row3 = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder().setCustomId('vm_limit_minus').setLabel('Limit -').setStyle(ButtonStyle.Secondary).setEmoji('⬇️'),
-                        new ButtonBuilder().setCustomId('vm_limit_plus').setLabel('Limit +').setStyle(ButtonStyle.Secondary).setEmoji('⬆️')
-                    );
-                
-                await interfaceChannel.send({ embeds: [panelEmbed], components: [row1, row2, row3] });
-                
+                // In Supabase speichern
                 await supabase.from('voicemaster_config').insert({
                     guild_id: message.guild.id,
                     jtc_channel: jtcChannel.id,
@@ -338,8 +342,7 @@ module.exports = {
                     .setColor(0x57F287)
                     .setAuthor({ name: client.user.username, iconURL: client.user.displayAvatarURL() })
                     .setTitle('✅ VoiceMaster Setup Complete')
-                    .setDescription(`✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}\n\nUsers can now join the Join-to-Create channel!`)
-                    .setFooter({ text: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                    .setDescription(`✅ **Join-to-Create:** ${jtcChannel}\n✅ **Interface:** ${interfaceChannel}`)
                     .setTimestamp();
                 
                 await loadingMsg.edit({ embeds: [successEmbed] });
@@ -535,7 +538,7 @@ module.exports = {
     }
 };
 
-// ⭐ HIER ist der Export für deine index.js
+// ⭐ Export für index.js
 module.exports.handleVoiceMasterButton = handleVoiceMasterButton;
 module.exports.handleJoinToCreate = handleJoinToCreate;
 module.exports.vmCache = vmCache;

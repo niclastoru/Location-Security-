@@ -3,7 +3,6 @@ const {
     createAudioPlayer, 
     createAudioResource, 
     joinVoiceChannel, 
-    StreamType, 
     NoSubscriberBehavior
 } = require('@discordjs/voice');
 const play = require('play-dl');
@@ -11,7 +10,7 @@ const ytSearch = require('yt-search');
 const { EmbedBuilder } = require('discord.js');
 const ffmpegStatic = require('ffmpeg-static');
 
-// ⭐ FFmpeg Pfad setzen (ohne setFFmpegPath, da in dieser Version nicht verfügbar)
+// ⭐ FFmpeg Pfad setzen
 process.env.FFMPEG_PATH = ffmpegStatic;
 
 console.log(`✅ FFmpeg path: ${ffmpegStatic}`);
@@ -129,7 +128,6 @@ async function buildEmbed(client, guildId, userId, type, titleKey, descKey, fiel
 // ⭐ Search YouTube using yt-search
 async function searchYouTube(query) {
     try {
-        // For direct URL
         if (query.includes('youtube.com/watch') || query.includes('youtu.be/')) {
             console.log(`🎵 Direct URL: ${query}`);
             const info = await play.video_info(query);
@@ -141,7 +139,6 @@ async function searchYouTube(query) {
             };
         }
         
-        // For search query
         console.log(`🔍 Searching: ${query}`);
         const searchResults = await ytSearch(query);
         
@@ -177,9 +174,11 @@ async function playSong(guild, channel, song, client) {
             quality: 2
         });
         
-        // 2. AudioResource erstellen (Arbitrary zwingt FFmpeg zur Konvertierung)
+        console.log(`📡 Stream Type: ${stream.type}`); // Debug
+        
+        // 2. AudioResource mit dem korrekten Stream-Typ erstellen
         const resource = createAudioResource(stream.stream, { 
-            inputType: StreamType.Arbitrary,
+            inputType: stream.type,
             inlineVolume: true 
         });
         
@@ -210,7 +209,7 @@ async function playSong(guild, channel, song, client) {
         if (song.thumbnail) embed.setThumbnail(song.thumbnail);
         channel.send({ embeds: [embed] });
         
-        // 5. Event-Listener (Idle = Song zu Ende)
+        // 5. Event-Listener
         queue.player.once(AudioPlayerStatus.Idle, () => {
             if (queue.loop && queue.nowPlaying) {
                 queue.songs.push({ ...queue.nowPlaying });
@@ -223,7 +222,6 @@ async function playSong(guild, channel, song, client) {
             }
         });
         
-        // 6. Fehler-Handling
         queue.player.on('error', (error) => {
             console.error('Player error:', error);
             queue.songs.shift();
